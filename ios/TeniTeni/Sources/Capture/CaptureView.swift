@@ -116,7 +116,7 @@ struct CaptureView: View {
                 }
             }
             .pickerStyle(.segmented)
-            .disabled(!controller.supports120)
+            .disabled(!controller.supports120 || controller.status == .recording)
 
             Text(controller.supports120
                  ? controller.quality.detail
@@ -138,6 +138,7 @@ struct CaptureView: View {
                 }
             }
             .pickerStyle(.segmented)
+            .disabled(controller.status == .recording)
             Text(controller.exposure.detail)
                 .font(.caption2)
                 .foregroundStyle(.white.opacity(0.65))

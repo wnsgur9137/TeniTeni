@@ -47,6 +47,8 @@ final class CameraController: NSObject {
     private var device: AVCaptureDevice?
     private let movieOutput = AVCaptureMovieFileOutput()
     private var pendingMetadata: ClipMetadata?
+    private var rotationCoordinator: AVCaptureDevice.RotationCoordinator?
+    private var rotationObservation: NSKeyValueObservation?
 
     // MARK: 구성
 
@@ -78,6 +80,7 @@ final class CameraController: NSObject {
 
         session.startRunning()
         applyFormat()
+        startTrackingRotation(for: camera)
         status = .ready
     }
 
@@ -123,6 +126,33 @@ final class CameraController: NSObject {
         }
     }
 
+    // MARK: 회전
+
+    /// 녹화 영상의 방향 메타데이터를 기기 방향에 맞춘다.
+    /// 이게 없으면 0-C 오프라인 분석에서 좌표계가 틀어진다.
+    private func startTrackingRotation(for device: AVCaptureDevice) {
+        let coordinator = AVCaptureDevice.RotationCoordinator(device: device, previewLayer: nil)
+        rotationCoordinator = coordinator
+        applyRotation(coordinator.videoRotationAngleForHorizonLevelCapture)
+
+        rotationObservation = coordinator.observe(
+            \.videoRotationAngleForHorizonLevelCapture, options: [.new]
+        ) { [weak self] _, change in
+            guard let angle = change.newValue else { return }
+            Task { @MainActor [weak self] in
+                self?.applyRotation(angle)
+            }
+        }
+    }
+
+    /// 녹화 중에는 방향을 바꾸지 않는다. 파일 중간에 회전이 바뀌면 안 된다.
+    private func applyRotation(_ angle: CGFloat) {
+        guard !movieOutput.isRecording,
+              let connection = movieOutput.connection(with: .video),
+              connection.isVideoRotationAngleSupported(angle) else { return }
+        connection.videoRotationAngle = angle
+    }
+
     // MARK: 포맷 · 노출 적용
 
     /// activeFormat → activeVideoMinFrameDuration 순서가 중요하다.
@@ -130,6 +160,11 @@ final class CameraController: NSObject {
     /// 근거: docs/02-설계/CAPTURE-PROTOCOL.md 5.2절
     func applyFormat() {
         guard let device else { return }
+        // 녹화 중 세션 구성을 바꾸면 파일이 손상된다.
+        guard !movieOutput.isRecording else {
+            message = "녹화 중에는 설정을 바꿀 수 없습니다"
+            return
+        }
         let targetFPS = quality.fps
 
         guard let format = FormatSelector.format(in: device, targetFPS: targetFPS) else {
@@ -171,6 +206,9 @@ final class CameraController: NSObject {
         if CMTimeCompare(target, format.minExposureDuration) < 0 {
             target = format.minExposureDuration
             message = "요청 노출이 너무 짧아 \(fraction(target))로 조정됨"
+        } else if CMTimeCompare(target, format.maxExposureDuration) > 0 {
+            target = format.maxExposureDuration
+            message = "요청 노출이 너무 길어 \(fraction(target))로 조정됨"
         }
         device.setExposureModeCustom(duration: target, iso: AVCaptureDevice.currentISO)
     }
@@ -195,6 +233,8 @@ final class CameraController: NSObject {
 
     /// 백그라운드 진입. 녹화 중이면 먼저 정상 종료해 파일 손상을 막는다.
     func suspend() {
+        rotationObservation?.invalidate()
+        rotationObservation = nil
         if movieOutput.isRecording {
             movieOutput.stopRecording()
             message = "백그라운드 진입으로 녹화를 종료했습니다"
@@ -210,6 +250,7 @@ final class CameraController: NSObject {
         if !session.isRunning {
             session.startRunning()
             applyFormat()
+            if let device { startTrackingRotation(for: device) }
         }
     }
 
