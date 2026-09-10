@@ -33,12 +33,12 @@ status: active
 | 레이어 | 잠정안 | 상태 | 대안 |
 |---|---|---|---|
 | 언어 | Swift 6.x (strict concurrency) | 🟡 | — |
-| 최소 타깃 | **iOS 17.0** | 🟡 | iOS 16.0 (3D 포즈 포기) |
+| 최소 타깃 | **iOS 26.0** | ✅ | [D-01](../05-결정/stack/D-01-deployment-target.md)에서 확정 |
 | UI | SwiftUI + `@Observable` | 🟡 | UIKit + SnapKit |
 | 아키텍처 | Clean Architecture + MVVM | 🟡 | TCA, MVI |
 | 비동기 | Swift Concurrency (async/await, AsyncStream) | 🟡 | RxSwift, Combine |
 | 카메라 | AVFoundation | ✅ | — |
-| 비전 | Vision + Core ML | 🟡 | MediaPipe |
+| 비전 | Vision (신규 Swift API) + Core ML | 🟡 | MediaPipe |
 | 오버레이 렌더 | SwiftUI Canvas → Metal | 🟡 | CAShapeLayer |
 | 녹화 | AVAssetWriter | ✅ | — |
 | 로컬 DB | SwiftData | ⬜ | GRDB, Realm, Core Data |
@@ -55,18 +55,23 @@ status: active
 
 ## 5.3 주요 선택의 근거
 
-### 최소 타깃 iOS 17.0
+### 최소 타깃 iOS 26.0
 
-**찬성 근거**
-- `VNDetectHumanBodyPose3DRequest` (3D 포즈) 사용 가능
-- `@Observable` 매크로로 상태 관리가 단순해짐
-- SwiftData 사용 가능
-- `AVCaptureConnection.videoRotationAngle`, `RotationCoordinator` — 회전 처리가 훨씬 깔끔
+✅ **확정** — [D-01](../05-결정/stack/D-01-deployment-target.md) (2026-09-10)
 
-**반대 근거**
-- 커버리지 손실. 다만 신규 앱이고 최신 기기 성능을 요구하는 앱이라 실질 손실은 작음
+핵심 근거는 **Vision 프레임워크가 iOS 18부터 Swift 네이티브로 재설계**됐다는 점입니다. 레거시 `VN*` 클래스는 Apple 문서에서 *"Original Objective-C and Swift API"* 로 분류됐고, 클래스 + completion handler 구조라 Swift 6 strict concurrency와 계속 충돌합니다.
 
-⬜ **결정 필요** — 3D 포즈를 v1 범위에 넣을지에 달려 있음.
+iOS 18이 아니라 26을 택한 이유는 **레거시 분기를 아예 만들지 않기 위해서**입니다. 1인 개발에서 `if #available` 이중 경로는 그 자체로 비용입니다.
+
+확정에 따라 함께 정해진 것:
+
+| 항목 | 내용 |
+|---|---|
+| Vision API | `DetectHumanBodyPoseRequest`, `DetectTrajectoriesRequest` (struct, `Sendable`, async/await) |
+| 손 관절 | `detectsHands = true` — body + hands를 한 요청으로 |
+| 상태 관리 | `@Observable` |
+| 카메라 회전 | `AVCaptureDevice.RotationCoordinator` |
+| 영속화 | SwiftData 사용 가능 (D-08에서 판단) |
 
 ### SwiftUI + Swift Concurrency
 
@@ -249,7 +254,7 @@ ios/
 │   │   │   │   ├── PoseSmoother.swift
 │   │   │   │   └── JointAngle.swift
 │   │   │   ├── Ball/
-│   │   │   │   ├── BallTracker.swift          # VNDetectTrajectories 래핑
+│   │   │   │   ├── BallTracker.swift          # DetectTrajectoriesRequest 래핑
 │   │   │   │   └── TrajectoryFitter.swift
 │   │   │   ├── Court/
 │   │   │   │   ├── CourtDetector.swift

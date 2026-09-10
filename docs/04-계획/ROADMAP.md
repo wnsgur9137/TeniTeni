@@ -25,9 +25,9 @@ status: active
 **목표: 이 앱이 기술적으로 가능한지 판정한다.**
 
 - [ ] AVCaptureSession 구성, 60/120fps 포맷 선택
-- [ ] `VNDetectHumanBodyPoseRequest` 연결, 스켈레톤 오버레이 (좌표 변환 포함)
+- [ ] `DetectHumanBodyPoseRequest` 연결(`detectsHands` 포함), 스켈레톤 오버레이 (좌표 변환 포함)
 - [ ] One Euro Filter 적용
-- [ ] `VNDetectTrajectoriesRequest` 연결, 궤적 트레일 표시
+- [ ] `DetectTrajectoriesRequest` 연결, 궤적 트레일 표시
 - [ ] **실제 코트에서 촬영해 궤적 검출률 측정**
 - [ ] 프레임 시간 프로파일링
 
@@ -88,7 +88,7 @@ status: active
 
 ### 상세: R-2 카메라 흔들림
 
-`VNDetectTrajectoriesRequest`는 **고정 카메라가 전제**입니다. 손으로 들고 찍으면 궤적 검출이 완전히 무너집니다. 이건 튜닝으로 해결되지 않습니다.
+`DetectTrajectoriesRequest`는 **고정 카메라가 전제**입니다. 손으로 들고 찍으면 궤적 검출이 완전히 무너집니다. 이건 튜닝으로 해결되지 않습니다.
 
 따라서 기술 제약을 제품 요구사항으로 승격시킵니다:
 - 온보딩에서 삼각대 사용을 명시적으로 안내

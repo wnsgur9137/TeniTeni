@@ -13,7 +13,7 @@ status: active
 
 설계 문서의 모든 🟡 잠정 / ⬜ 미결 항목을 하나씩 확정하기 위한 허브입니다.
 
-**진행: 0 / 22 확정**
+**진행: 1 / 22 확정**
 
 ## 진행 방법
 
@@ -25,9 +25,9 @@ status: active
 
 ## A. iOS 기반 — 다른 모든 것에 영향
 
-| ID | 항목 | 잠정안 | 확정 시점 | 상태 |
+| ID | 항목 | 잠정안 / **확정안** | 확정 시점 | 상태 |
 |---|---|---|---|---|
-| [D-01](./stack/D-01-deployment-target.md) | 최소 iOS 타깃 버전 | iOS 17.0 | Phase 0 이전 | ⬜ |
+| [D-01](./stack/D-01-deployment-target.md) | 최소 iOS 타깃 버전 | **iOS 26.0** | 2026-09-10 | ✅ |
 | [D-02](./stack/D-02-ui-framework.md) | UI 프레임워크 | 전면 SwiftUI | Phase 0 이전 | ⬜ |
 | [D-03](./stack/D-03-architecture-pattern.md) | 아키텍처 패턴 | Clean + MVVM | Phase 1 이전 | ⬜ |
 | [D-04](./stack/D-04-concurrency.md) | 비동기 / 상태 관리 | Swift Concurrency | Phase 0 이전 | ⬜ |
@@ -35,7 +35,7 @@ status: active
 
 ## B. 비전 파이프라인
 
-| ID | 항목 | 잠정안 | 확정 시점 | 상태 |
+| ID | 항목 | 잠정안 / **확정안** | 확정 시점 | 상태 |
 |---|---|---|---|---|
 | [D-06](./stack/D-06-pose-engine.md) | 포즈 추정 엔진 | Apple Vision | Phase 0 | ⬜ |
 | [D-07](./stack/D-07-overlay-rendering.md) | 오버레이 렌더링 | Canvas → Metal | Phase 0 | ⬜ |
@@ -45,7 +45,7 @@ status: active
 
 ## C. iOS 부가 스택
 
-| ID | 항목 | 잠정안 | 확정 시점 | 상태 |
+| ID | 항목 | 잠정안 / **확정안** | 확정 시점 | 상태 |
 |---|---|---|---|---|
 | [D-11](./stack/D-11-networking.md) | 네트워크 계층 | openapi-generator | Phase 2 | ⬜ |
 | [D-12](./stack/D-12-dependency-injection.md) | 의존성 주입 | 수동 Composition Root | Phase 1 | ⬜ |
@@ -53,7 +53,7 @@ status: active
 
 ## D. 백엔드 — Phase 2 직전까지 미뤄도 무방
 
-| ID | 항목 | 잠정안 | 확정 시점 | 상태 |
+| ID | 항목 | 잠정안 / **확정안** | 확정 시점 | 상태 |
 |---|---|---|---|---|
 | [D-14](./stack/D-14-backend-framework.md) | 백엔드 언어 / 프레임워크 | Python + FastAPI | Phase 2 이전 | ⬜ |
 | [D-15](./stack/D-15-baas-vs-selfhosted.md) | **자체 구축 vs BaaS** | 미정 | Phase 2 직전 | ⬜ |
@@ -66,7 +66,7 @@ status: active
 
 ## E. 저장소 / 프로세스
 
-| ID | 항목 | 잠정안 | 확정 시점 | 상태 |
+| ID | 항목 | 잠정안 / **확정안** | 확정 시점 | 상태 |
 |---|---|---|---|---|
 | [D-22](./stack/D-22-repository-workflow.md) | 저장소 구조 및 워크플로 | 모노레포 + trunk-based | 첫 커밋 전 | ⬜ |
 

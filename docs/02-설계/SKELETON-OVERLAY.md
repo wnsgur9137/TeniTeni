@@ -101,6 +101,7 @@ func extrapolated(_ current: CGPoint, previous: CGPoint,
 
 ```swift
 // VisionKit/Pose/PoseSkeleton.swift
+// iOS 26 타깃이므로 신규 Swift Vision API를 사용한다 (레거시 VN* 아님)
 import Vision
 
 enum BodyPart: CaseIterable {
@@ -108,8 +109,8 @@ enum BodyPart: CaseIterable {
 }
 
 struct Bone {
-    let from: VNHumanBodyPoseObservation.JointName
-    let to: VNHumanBodyPoseObservation.JointName
+    let from: HumanBodyPoseObservation.JointName
+    let to: HumanBodyPoseObservation.JointName
     let part: BodyPart
 }
 
@@ -148,7 +149,7 @@ struct RenderablePose {
         let confidence: Float
         let issue: JointIssue?      // 교정 대상 여부
     }
-    var joints: [VNHumanBodyPoseObservation.JointName: Joint]
+    var joints: [HumanBodyPoseObservation.JointName: Joint]
     var phase: SwingPhase?          // 임팩트 순간 강조용
 }
 ```
@@ -281,7 +282,7 @@ confidence가 임계값 아래로 떨어진 관절은 필터를 갱신하지 않
 ```
 Projects/
 ├── VisionKit/Sources/Pose/
-│   ├── PoseEstimator.swift          # VNDetectHumanBodyPoseRequest 래핑
+│   ├── PoseEstimator.swift          # DetectHumanBodyPoseRequest 래핑
 │   ├── PoseSkeleton.swift           # Bone 정의
 │   ├── OneEuroFilter.swift          # 떨림 제거
 │   ├── PoseSmoother.swift           # 관절별 필터 관리 + 속도 외삽

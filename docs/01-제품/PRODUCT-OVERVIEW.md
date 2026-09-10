@@ -77,7 +77,7 @@ TeniTeni는 **레슨과 레슨 사이의 피드백 공백**을 메우는 것을 
 
 ### 검토 대상 (v2+)
 - Apple Watch IMU 연동 — 손목 가속도로 스윙 감지 정확도 보강. 차별화 요소로 유력
-- 3D 포즈 (`VNDetectHumanBodyPose3DRequest`) 기반 정밀 각도
+- 3D 포즈 (`DetectHumanBodyPose3DRequest`) 기반 정밀 각도
 - 프로 레퍼런스 라이브러리 및 DTW 비교
 - 코치용 공유/코멘트 기능
 

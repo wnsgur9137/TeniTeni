@@ -30,27 +30,34 @@ status: active
 
 ### 온디바이스 (실시간)
 
-🟡 **잠정** — Apple Vision `VNDetectHumanBodyPoseRequest`
+🟡 **잠정** — Apple Vision `DetectHumanBodyPoseRequest` (신규 Swift API)
+
+[D-01](../05-결정/stack/D-01-deployment-target.md)에서 타깃을 iOS 26으로 확정했으므로 **신규 Swift API를 쓴다.** 레거시 `VN*` 클래스는 사용하지 않는다.
 
 - 2D 관절 **19개**: nose, leftEye, rightEye, leftEar, rightEar, neck, leftShoulder, rightShoulder, leftElbow, rightElbow, leftWrist, rightWrist, root(골반 중심), leftHip, rightHip, leftKnee, rightKnee, leftAnkle, rightAnkle
 - 그룹: face, torso, leftArm, rightArm, leftLeg, rightLeg
-- iOS 14+, Neural Engine 가속, **외부 의존성 0**
+- **`detectsHands = true`** 로 손 관절까지 한 요청에서 획득 (holistic body pose). 결과는 `observation.leftHand` / `.rightHand`로 접근
+- `struct` + `Sendable` + `async` `perform(on:)` → 프레임 파이프라인에서 actor 격리 우회가 필요 없다
+- `HumanBodyPoseObservation`이 `Codable`을 준수하고, `keypoints`를 Core ML 호환 multi-array로 제공한다
+- Neural Engine 가속, **외부 의존성 0**
 - 출력은 정규화 좌표(0~1, 좌하단 원점) + 관절별 confidence
+
+**테니스 관점에서 `detectsHands`가 중요한 이유**: 라켓을 잡은 손의 손목·손 관절이 그립 형태와 임팩트 순간 분석에 직접 쓰인다. 레거시 API였다면 `VNDetectHumanHandPoseRequest`를 따로 돌려 프레임마다 수동으로 결합해야 했다.
 
 **후보 비교**
 
 | 후보 | 관절 수 | 장점 | 단점 |
 |---|---|---|---|
-| **Vision (Apple)** | 19 | 의존성 0, ANE 최적화, 무료, 유지보수 불필요 | 손가락/발끝 없음, 커스터마이즈 불가 |
+| **Vision (Apple)** | 19 + 손 | 의존성 0, ANE 최적화, `detectsHands`로 손 포함, `Sendable` | **발끝 없음**, 커스터마이즈 불가 |
 | MediaPipe Pose (BlazePose) | 33 | 관절 수 많음, 발끝 포함, 크로스플랫폼 | 바이너리 크기 증가, ANE 미활용 |
 | MoveNet Thunder (Core ML) | 17 | 빠름 | 정확도가 Vision 대비 우위 없음 |
 | YOLO-Pose | 17 | 다중 인물 강함 | 단일 인물 시나리오에 과함 |
 
-> ⬜ **미결** — 발끝 관절(체중 이동 분석에 유용)이 필요하다고 판단되면 MediaPipe 재검토. Phase 1에서 실측 후 결정.
+> ⬜ **미결** — 손 관절은 `detectsHands`로 해결됐으므로, 남은 쟁점은 **발끝뿐**이다. 체중 이동 분석에 발끝이 필수인지 Phase 1에서 실측 후 [D-06](../05-결정/stack/D-06-pose-engine.md)에서 결정한다.
 
 ### 3D 포즈
 
-🟡 **잠정** — `VNDetectHumanBodyPose3DRequest` (iOS 17+)
+🟡 **잠정** — `DetectHumanBodyPose3DRequest`
 
 - 3D 관절 17개, 카메라 상대 좌표
 - **실시간 예산에 들어가지 않음.** 리플레이 화면에서 선택된 스윙에만 적용
@@ -125,7 +132,7 @@ status: active
 
 ### 온디바이스 접근
 
-🟡 **잠정** — Apple Vision `VNDetectTrajectoriesRequest` (iOS 14+)
+🟡 **잠정** — Apple Vision `DetectTrajectoriesRequest` (신규 Swift API)
 
 **이 API는 정확히 이 문제를 위해 만들어졌습니다.** 일반 object detection이 아니라, 연속 프레임에서 **포물선 궤적을 그리는 움직임**을 직접 찾습니다. Apple의 WWDC20 *Action & Vision* 샘플 앱이 그대로 레퍼런스입니다 (빈백 던지기 궤적 + 자세 분석 — TeniTeni와 문제 구조가 동일).
 
@@ -134,6 +141,7 @@ status: active
 |---|---|---|
 | `trajectoryLength` | 궤적 확정에 필요한 최소 검출 점 수 (최소 5) | 낮추면 민감, 높이면 정확 |
 | `frameAnalysisSpacing` | 분석 프레임 간격 | 0으로 두면 전 프레임 분석 |
+| `targetFrameTime` | 목표 프레임 처리 시간 | 성능 예산에 맞춰 조절 |
 | `objectMinimumNormalizedRadius` | 검출 대상 최소 크기 | 공 크기에 맞춰 좁게 |
 | `objectMaximumNormalizedRadius` | 최대 크기 | 사람/라켓을 배제하도록 |
 
