@@ -15,7 +15,7 @@
 - `--from=N`: N단계부터 재개
 - `--stop-at=N`: N단계까지만
 - `--merge=critical|auto|confirm`: 병합 처리 (기본 `critical`)
-- `--type=`, `--area=`: 라벨 강제 지정
+- `--type=`, `--area=`: 라벨 강제 지정 (type은 기존 이모지 라벨명)
 - `-h`, `--help`: 도움말 출력 후 종료
 
 ### Help Mode
@@ -39,7 +39,7 @@ Example: /pipeline
   --from=N       N단계부터 재개
   --stop-at=N    N단계까지만
   --merge=       critical(기본) | auto | confirm
-  --type=        feature|bugfix|refactor|docs|chore
+  --type=        ✨Feature|🔨BugFix|♻️Refactor|📃Docs|⚙️Setting
   --area=        ios-ui|ios-core|backend|ml|docs
   -h, --help     이 도움말
 
@@ -91,11 +91,12 @@ gh api repos/wnsgur9137/TeniTeni/milestones --jq '.[] | "\(.title): \(.closed_is
 
 - 후보 **2~3개를 한 줄 근거와 함께** 제시하고 고르게 한다 (AskUserQuestion)
 - 인자로 이슈 번호가 왔으면 이 단계를 생략한다
-- `type:`/`area:` 라벨 확인 → 없으면 추론해 제안하고, 승인 시 부여한다
+- type 라벨(이모지)과 `area:` 라벨 확인 → 없으면 추론해 제안하고, 승인 시 부여한다
+- **type은 기존 이모지 라벨을 쓴다.** `type:*` 형태의 라벨을 새로 만들지 마라 (규약 12.2)
 - 선택된 이슈에 `in-progress` 라벨을 붙인다
 - **실행 매트릭스**(규약 12.3)로 4·6·7·8 실행 여부를 결정하고 한 줄로 알린다
 
-작업 브랜치를 만든다. 이름은 `<type>/<이슈번호>-<slug>` (예: `feat/12-swing-detector`).
+작업 브랜치를 만든다. 이름은 `<feat|fix|refactor|chore|docs>/<이슈번호>-<slug>` (예: `feat/12-swing-detector`).
 
 ## 4단계: 레퍼런스 확인 (조건부)
 
@@ -138,7 +139,7 @@ gh api repos/wnsgur9137/TeniTeni/milestones --jq '.[] | "\(.title): \(.closed_is
 
 ## 8단계: 개발·검증 (조건부)
 
-**코드가 바뀌면 항상 반복 개발 모드를 사용한다** (`type:docs`/`area:docs` 제외).
+**코드가 바뀌면 항상 반복 개발 모드를 사용한다** (`📃Docs`/`area:docs` 제외).
 
 ```
 Skill(skill="oh-my-claudecode:ralph", args="<이슈 제목> — 종료 조건: <게이트 스크립트> 통과, 경고 0")
@@ -179,7 +180,7 @@ ITER=$(python3 -c "import json;print(json.load(open('.omc/state/ralph-state.json
 
 ```
 === /pipeline 완료 ===
-- 이슈     : #NN <제목>  [type:x / area:y]
+- 이슈     : #NN <제목>  [✨Feature / area:ios-ui]
 - 실행 단계 : 1,2,3,(4),5,(6),(7),8,9,10
 - 레퍼런스  : 갱신 | 재사용(researched: YYYY-MM-DD) | 생략
 - 기획서    : docs/07-기획/SPEC-NNNN-*.md | 생략

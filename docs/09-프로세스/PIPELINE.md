@@ -43,12 +43,25 @@ status: active
 
 ### 라벨 체계 — 2축
 
-한 축으로는 단계를 가릴 수 없습니다. 디자인 필요 여부는 `area`가, 기획서·레퍼런스 필요 여부는 `type`이 결정합니다.
+한 축으로는 단계를 가릴 수 없습니다. 디자인 필요 여부는 **area**가, 기획서·레퍼런스 필요 여부는 **type**이 결정합니다.
 
-```
-type:feature   type:bugfix   type:refactor   type:docs   type:chore
-area:ios-ui    area:ios-core   area:backend   area:ml   area:docs
-```
+#### type 축 — 기존 이모지 라벨을 그대로 사용
+
+`Pooing-iOS` 등 다른 개인 프로젝트와 공유하는 컨벤션입니다. **파이프라인이 여기에 맞춥니다.**
+
+| 라벨 | 매트릭스상 type |
+|---|---|
+| `✨Feature` | `feature` |
+| `🐞Bug` · `🔨BugFix` · `🔥HotFix` | `bugfix` |
+| `♻️Refactor` | `refactor` |
+| `📃Docs` | `docs` |
+| `⚙️Setting` | `chore` |
+
+나머지 이모지 라벨(`🤖AI` `🛰️API` `📦Dependency` `🌍Deploy` `🔔FBEvent` `➰Duplicate` `❓Question` `✅Test` `🔖Version` `🚫DoNotMerge`)은 **보조 분류**이며 매트릭스 판정에 쓰지 않습니다.
+
+#### area 축 — 이 프로젝트에서 신설
+
+기존 체계에 없던 축입니다. 디자인 단계 판정에 필요합니다.
 
 | 라벨 | 의미 |
 |---|---|
@@ -58,29 +71,33 @@ area:ios-ui    area:ios-core   area:backend   area:ml   area:docs
 | `area:ml` | 모델·학습·평가 |
 | `area:docs` | 문서만 |
 
-보조 라벨: `in-progress`(3단계에서 부여), `blocked`(후보에서 제외하되 사유 표시)
+#### 보조
+
+`in-progress`(3단계에서 부여), `blocked`(후보에서 제외하되 사유 표시)
+
+> 파이프라인 도입 시 `type:*` 라벨을 새로 만들었다가 기존 이모지 라벨과 중복되어 제거했습니다. **기존 컨벤션이 먼저이고 파이프라인이 거기 맞추는 것**이 맞습니다.
 
 ## 12.3 단계 실행 매트릭스
 
 `1·2·3·5·9·10`은 항상 실행합니다. 가변은 `4·6·7·8`입니다.
 
-| type | area | 4 레퍼런스 | 6 기획서 | 7 디자인 | 8 개발 |
+| type 라벨 | area | 4 레퍼런스 | 6 기획서 | 7 디자인 | 8 개발 |
 |---|---|---|---|---|---|
-| `feature` | `ios-ui` | ✅ | ✅ | ✅ | ✅ |
-| `feature` | `ios-core` | ⚪ | ✅ | ❌ | ✅ |
-| `feature` | `backend` | ⚪ | ✅ | ❌ | ✅ |
-| `feature` | `ml` | ✅ | ✅ | ❌ | ✅ |
-| `bugfix` | 전부 | ❌ | ⚪ | ❌ | ✅ |
-| `refactor` | 전부 | ❌ | ⚪ | ❌ | ✅ |
-| `docs` | 전부 | ❌ | ❌ | ❌ | ❌ |
-| `chore` | 전부 | ❌ | ❌ | ❌ | ✅ |
+| `✨Feature` | `ios-ui` | ✅ | ✅ | ✅ | ✅ |
+| `✨Feature` | `ios-core` | ⚪ | ✅ | ❌ | ✅ |
+| `✨Feature` | `backend` | ⚪ | ✅ | ❌ | ✅ |
+| `✨Feature` | `ml` | ✅ | ✅ | ❌ | ✅ |
+| `🐞Bug` `🔨BugFix` `🔥HotFix` | 전부 | ❌ | ⚪ | ❌ | ✅ |
+| `♻️Refactor` | 전부 | ❌ | ⚪ | ❌ | ✅ |
+| `📃Docs` | 전부 | ❌ | ❌ | ❌ | ❌ |
+| `⚙️Setting` | 전부 | ❌ | ❌ | ❌ | ✅ |
 
 ### 조건부(⚪) 판정 기준
 
 | 단계 | 실행 조건 |
 |---|---|
 | 4 레퍼런스 (`ios-core`/`backend`) | 사용자에게 보이는 동작이 있을 때. 순수 내부 구조면 생략 |
-| 6 기획서 (`bugfix`/`refactor`) | 원인이 불명확하거나 2일 이상 걸릴 때. 명백한 버그는 이슈 본문으로 충분 |
+| 6 기획서 (버그·리팩터) | 원인이 불명확하거나 2일 이상 걸릴 때. 명백한 버그는 이슈 본문으로 충분 |
 
 ### 라벨 누락 시
 
@@ -148,7 +165,7 @@ area:ios-ui    area:ios-core   area:backend   area:ml   area:docs
 
 ## 12.7 8단계 — 개발
 
-**코드가 바뀌는 작업이면 항상 반복 개발 모드(OMC Ralph)를 사용합니다.** `type:docs` / `area:docs`만 제외입니다.
+**코드가 바뀌는 작업이면 항상 반복 개발 모드(OMC Ralph)를 사용합니다.** `📃Docs` / `area:docs`만 제외입니다.
 
 | 항목 | 값 |
 |---|---|
