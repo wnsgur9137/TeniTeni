@@ -15,7 +15,7 @@
 - `--from=N`: N단계부터 재개
 - `--stop-at=N`: N단계까지만
 - `--merge=critical|auto|confirm`: 병합 처리 (기본 `critical`)
-- `--type=`, `--area=`: 라벨 강제 지정 (type은 기존 이모지 라벨명)
+- `--type=`, `--area=`: 라벨 강제 지정 (이모지 라벨명)
 - `-h`, `--help`: 도움말 출력 후 종료
 
 ### Help Mode
@@ -40,7 +40,7 @@ Example: /pipeline
   --stop-at=N    N단계까지만
   --merge=       critical(기본) | auto | confirm
   --type=        ✨Feature|🔨BugFix|♻️Refactor|📃Docs|⚙️Setting
-  --area=        ios-ui|ios-core|backend|ml|docs
+  --area=        📱UI|🧩Core|☁️Backend|🧠ML|📃Docs
   -h, --help     이 도움말
 
 -- 정지 조건 --
@@ -78,22 +78,22 @@ gh issue list --repo wnsgur9137/TeniTeni --state open --json number,title,labels
 gh api repos/wnsgur9137/TeniTeni/milestones --jq '.[] | "\(.title): \(.closed_issues)/\(.open_issues + .closed_issues)"'
 ```
 
-- 열린 이슈, 마일스톤별 진행률, `in-progress` 라벨이 붙은 작업을 요약한다
+- 열린 이슈, 마일스톤별 진행률, `⏳InProgress` 라벨이 붙은 작업을 요약한다
 - 진행 중이던 작업이 있으면 **그것을 이어받을지 먼저 묻는다**
 
 ## 2단계: 예정 작업 파악
 
 - 현재 마일스톤의 열린 이슈를 우선순위대로 정렬한다
-- `blocked` 라벨이 붙은 것은 후보에서 빼되 **사유와 함께 보여준다**
+- `🚧Blocked` 라벨이 붙은 것은 후보에서 빼되 **사유와 함께 보여준다**
 - 이슈가 없으면 `docs/04-계획/WORK-PLAN.md`의 다음 단계를 보고 이슈 생성을 제안한다
 
 ## 3단계: 진행 작업 확정
 
 - 후보 **2~3개를 한 줄 근거와 함께** 제시하고 고르게 한다 (AskUserQuestion)
 - 인자로 이슈 번호가 왔으면 이 단계를 생략한다
-- type 라벨(이모지)과 `area:` 라벨 확인 → 없으면 추론해 제안하고, 승인 시 부여한다
-- **type은 기존 이모지 라벨을 쓴다.** `type:*` 형태의 라벨을 새로 만들지 마라 (규약 12.2)
-- 선택된 이슈에 `in-progress` 라벨을 붙인다
+- type·area 라벨 확인 → 없으면 추론해 제안하고, 승인 시 부여한다
+- **라벨은 규약 12.2의 목록에서만 고른다. 새로 만들지 마라.** 분류가 부족하면 규약을 먼저 고친다
+- 선택된 이슈에 `⏳InProgress` 라벨을 붙인다
 - **실행 매트릭스**(규약 12.3)로 4·6·7·8 실행 여부를 결정하고 한 줄로 알린다
 
 작업 브랜치를 만든다. 이름은 `<feat|fix|refactor|chore|docs>/<이슈번호>-<slug>` (예: `feat/12-swing-detector`).
@@ -117,7 +117,7 @@ gh api repos/wnsgur9137/TeniTeni/milestones --jq '.[] | "\(.title): \(.closed_is
 - `docs/INDEX.md`에서 관련 문서 식별
 - 해당 영역의 설계 문서 (`02-설계/`, `03-기술스택/`)
 - 관련 결정 (`05-결정/DECISION-LOG.md`의 확정 요약, 해당 D-xx·ADR)
-- `area:ios-ui`면 `06-디자인/IA-FLOW.md`, `DESIGN-SYSTEM.md`
+- `📱UI`면 `06-디자인/IA-FLOW.md`, `DESIGN-SYSTEM.md`
 
 **설계와 어긋나는 작업이면 여기서 멈추고 알린다.** 설계를 먼저 고칠지, 예외로 진행할지는 사용자 판단이다.
 
@@ -130,7 +130,7 @@ gh api repos/wnsgur9137/TeniTeni/milestones --jq '.[] | "\(.title): \(.closed_is
 
 ## 7단계: 디자인 작성·검증 (조건부)
 
-`area:ios-ui` + `type:feature`에서만.
+`📱UI` + `✨Feature`에서만.
 
 - `design` 스킬 사용. 차트가 있으면 `dataviz`도 로드
 - **기존 캔버스가 있으면 갱신한다.** 새 캔버스를 남발하지 않는다
@@ -139,7 +139,7 @@ gh api repos/wnsgur9137/TeniTeni/milestones --jq '.[] | "\(.title): \(.closed_is
 
 ## 8단계: 개발·검증 (조건부)
 
-**코드가 바뀌면 항상 반복 개발 모드를 사용한다** (`📃Docs`/`area:docs` 제외).
+**코드가 바뀌면 항상 반복 개발 모드를 사용한다** (type이 `📃Docs`인 작업만 제외).
 
 ```
 Skill(skill="oh-my-claudecode:ralph", args="<이슈 제목> — 종료 조건: <게이트 스크립트> 통과, 경고 0")
@@ -154,7 +154,7 @@ ITER=$(python3 -c "import json;print(json.load(open('.omc/state/ralph-state.json
 `ITER >= 20`이면 즉시 `/oh-my-claudecode:cancel`을 호출하고 중단 보고한다.
 훅의 자체 카운터(최대 100)는 지정 상한을 반영하지 않으므로 이 감시가 없으면 20회가 지켜지지 않는다.
 
-**게이트**는 `area:` 라벨로 고른다 (규약 12.7의 표). 없는 영역은 경고 후 통과하되 PR 본문에 명시한다.
+**게이트**는 area 라벨로 고른다 (규약 12.7의 표). 없는 영역은 경고 후 통과하되 PR 본문에 명시한다.
 
 게이트 통과 후 `/oh-my-claudecode:cancel`로 모드를 정리한다.
 
@@ -172,7 +172,7 @@ ITER=$(python3 -c "import json;print(json.load(open('.omc/state/ralph-state.json
 - 게이트 결과
 - 미수행 검증 항목 (실기기 등)
 
-병합 후 이슈에서 `in-progress` 라벨을 제거한다 (`Closes #N`으로 자동 종료되지 않는 경우).
+병합 후 이슈에서 `⏳InProgress` 라벨을 제거한다 (`Closes #N`으로 자동 종료되지 않는 경우).
 
 ---
 
@@ -180,7 +180,7 @@ ITER=$(python3 -c "import json;print(json.load(open('.omc/state/ralph-state.json
 
 ```
 === /pipeline 완료 ===
-- 이슈     : #NN <제목>  [✨Feature / area:ios-ui]
+- 이슈     : #NN <제목>  [✨Feature / 📱UI]
 - 실행 단계 : 1,2,3,(4),5,(6),(7),8,9,10
 - 레퍼런스  : 갱신 | 재사용(researched: YYYY-MM-DD) | 생략
 - 기획서    : docs/07-기획/SPEC-NNNN-*.md | 생략
