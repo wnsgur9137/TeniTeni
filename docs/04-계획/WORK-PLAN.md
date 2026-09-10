@@ -11,6 +11,9 @@ status: active
 
 # 09. 작업 순서
 
+> **작업 상태는 [GitHub Issues](https://github.com/wnsgur9137/TeniTeni/issues)에 있습니다.**
+> 각 단계는 동명의 마일스톤에 대응합니다. 이 문서는 순서와 선행 관계만 담습니다.
+
 [로드맵](ROADMAP.md)이 "무엇을 언제"라면, 이 문서는 **"어떤 순서로, 무엇이 선행인지"** 를 정의합니다.
 
 ## 9.1 원칙
