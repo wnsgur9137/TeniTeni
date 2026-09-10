@@ -13,7 +13,7 @@ status: active
 
 설계 문서의 모든 🟡 잠정 / ⬜ 미결 항목을 하나씩 확정하기 위한 허브입니다.
 
-**진행: 13 / 22 확정**
+**진행: 14 / 22 확정**
 
 ## 확정 요약
 
@@ -31,6 +31,7 @@ status: active
 | [D-11](./stack/D-11-networking.md) | 네트워크 | **Moya** | TargetType으로 API 표면 일람. 스텁으로 서버 없이 테스트 |
 | [D-12](./stack/D-12-dependency-injection.md) | DI | **swift-dependencies** | TCA 내장이라 추가 의존성 0. 주입 경로 단일화 |
 | [D-13](./stack/D-13-observability.md) | 관측 | **Firebase Crashlytics** | 무료 무제한 + 기존 경험. 성능 지표는 자체 수집 |
+| [D-14](./stack/D-14-backend-framework.md) | 백엔드 | **Python + FastAPI** | ML과 언어 통일. 서비스 이중화 회피 |
 | [D-05](./stack/D-05-module-tooling.md) | 모듈 빌드 | **Tuist 4** | TCA로 모듈 세트가 늘어 템플릿화 가치 상승 |
 
 ### 확정에 따른 고정 사항
@@ -82,7 +83,7 @@ status: active
 
 | ID | 항목 | 잠정안 / **확정안** | 확정 시점 | 상태 |
 |---|---|---|---|---|
-| [D-14](./stack/D-14-backend-framework.md) | 백엔드 언어 / 프레임워크 | Python + FastAPI | Phase 2 이전 | ⬜ |
+| [D-14](./stack/D-14-backend-framework.md) | 백엔드 언어 / 프레임워크 | **Python + FastAPI** | 2026-09-10 | ✅ |
 | [D-15](./stack/D-15-baas-vs-selfhosted.md) | **자체 구축 vs BaaS** | 미정 | Phase 2 직전 | ⬜ |
 | [D-16](./stack/D-16-database.md) | 데이터베이스 | PostgreSQL 16 | Phase 2 | ⬜ |
 | [D-17](./stack/D-17-task-queue.md) | 작업 큐 | Celery + Redis | Phase 2 | ⬜ |

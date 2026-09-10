@@ -30,7 +30,7 @@ status: active
 
 ## 6.2 언어 선택
 
-🟡 **잠정** — **Python 단일 언어**
+✅ **확정** — **Python 단일 언어** — [D-14](../05-결정/stack/D-14-backend-framework.md)
 
 ### 근거
 
@@ -40,20 +40,20 @@ ML 파이프라인은 Python 외의 선택지가 사실상 없습니다. 따라�
 
 | 후보 | 장점 | 단점 | 판단 |
 |---|---|---|---|
-| **Python (FastAPI)** | ML과 언어 통일, OpenAPI 자동 생성, 개발 속도 | 런타임 성능, 타입 안정성이 정적 언어보다 약함 | 🟡 유력 |
+| **Python (FastAPI)** | ML과 언어 통일, OpenAPI 자동 생성, 개발 속도 | 런타임 성능, 타입 안정성이 정적 언어보다 약함 | ✅ **확정** |
 | Kotlin/Spring Boot | 타입 안정성, 성숙한 생태계 | ML과 언어 분리 → 파이프라인 이중 관리 | ❌ |
 | Node/NestJS | 개발 속도, TS 타입 | ML 라이브러리 부재 → 결국 Python 서비스 추가 필요 | ❌ |
 | Go | 성능, 배포 단순 | 동일한 ML 분리 문제 | ❌ |
-| **Vapor (Swift)** | iOS와 언어 통일, 도메인 모델 공유 가능 | ML 생태계 없음, 서버 생태계 얕음 | ⬜ 검토 |
+| **Vapor (Swift)** | iOS와 언어 통일, 도메인 모델 공유 가능 | ML 워커를 Python으로 따로 두어야 함 | ❌ |
 
-> ⬜ **결정 필요** — Vapor는 iOS 개발자에게 매력적이지만 ML 분리 문제가 Spring과 동일합니다. 도메인 모델 공유의 이점이 그 비용을 넘는지 판단 필요.
+> ✅ **확정** — Vapor의 도메인 모델 공유 이점보다 ML 워커 이중 운영 비용이 큽니다. 메트릭 계산식이 Swift·Python 양쪽에 생기는 문제는 **골든 테스트로 결과 일치를 검증**해 대응합니다.
 
 ## 6.3 스택 요약
 
 | 영역 | 잠정안 | 상태 | 대안 |
 |---|---|---|---|
-| 런타임 | Python 3.12 | 🟡 | 3.13 |
-| 웹 프레임워크 | FastAPI | 🟡 | Litestar, Django REST |
+| 런타임 | Python 3.12 | ✅ | [D-14](../05-결정/stack/D-14-backend-framework.md) |
+| 웹 프레임워크 | FastAPI | ✅ | [D-14](../05-결정/stack/D-14-backend-framework.md) |
 | 검증/직렬화 | Pydantic v2 | 🟡 | — |
 | ORM | SQLAlchemy 2.0 | 🟡 | SQLModel, Tortoise |
 | 마이그레이션 | Alembic | 🟡 | — |
