@@ -34,7 +34,7 @@ status: active
 |---|---|---|---|
 | 언어 | Swift 6.x (strict concurrency) | 🟡 | — |
 | 최소 타깃 | **iOS 26.0** | ✅ | [D-01](../05-결정/stack/D-01-deployment-target.md)에서 확정 |
-| UI | SwiftUI + `@Observable` | 🟡 | UIKit + SnapKit |
+| UI | SwiftUI + `@Observable` | ✅ | [D-02](../05-결정/stack/D-02-ui-framework.md)에서 확정 |
 | 아키텍처 | Clean Architecture + MVVM | 🟡 | TCA, MVI |
 | 비동기 | Swift Concurrency (async/await, AsyncStream) | 🟡 | RxSwift, Combine |
 | 카메라 | AVFoundation | ✅ | — |
@@ -73,21 +73,22 @@ iOS 18이 아니라 26을 택한 이유는 **레거시 분기를 아예 만들�
 | 카메라 회전 | `AVCaptureDevice.RotationCoordinator` |
 | 영속화 | SwiftData 사용 가능 (D-08에서 판단) |
 
-### SwiftUI + Swift Concurrency
+### 전면 SwiftUI
 
-기존 프로젝트들은 UIKit + RxSwift + SnapKit 조합이었습니다. 신규 프로젝트에서 이를 유지할 이유를 검토했습니다.
+✅ **확정** — [D-02](../05-결정/stack/D-02-ui-framework.md) (2026-09-10)
 
-**SwiftUI를 택하는 이유**
-- 오버레이 렌더링에 `Canvas`가 적합
-- 차트/진척도 화면에 Swift Charts를 바로 쓸 수 있음
-- 화면 수가 적고(6~7개) 복잡한 커스텀 트랜지션이 없음
+기존 프로젝트는 UIKit + RxSwift + SnapKit 조합이었으나, 신규에서는 전면 SwiftUI로 갑니다.
 
-**RxSwift를 넣지 않는 이유**
-- 비디오 프레임 파이프라인은 `AsyncStream`이 구조적으로 더 적합
-- Rx로 감싸면 **백프레셔 제어가 오히려 어려워짐**. 프레임을 버려야 하는 상황(분석이 밀릴 때)에서 Rx의 기본 동작은 버퍼링이라 메모리가 터짐
-- 의존성 하나를 줄이면 Swift 6 strict concurrency 마이그레이션이 쉬워짐
+결정적이었던 것은 **명령형 영역(카메라)이 어느 쪽을 택해도 `UIViewRepresentable` 경계 안에 갇힌다**는 점입니다. UIKit을 택해서 얻는 이점이 실질적으로 없는 반면, 오버레이(`Canvas`)와 진척도(Swift Charts)는 SwiftUI에서만 공짜로 얻습니다.
 
-⬜ **결정 필요** — 카메라 화면만 UIKit으로 갈지, 전면 SwiftUI로 갈지.
+| 영역 | 구현 |
+|---|---|
+| 카메라 프리뷰 | `UIViewRepresentable` → `AVCaptureVideoPreviewLayer` (D-07에서 `MTKView`로 전환 가능) |
+| 스켈레톤·궤적 오버레이 | SwiftUI `Canvas` |
+| 그 외 전 화면 | SwiftUI |
+| 상태 | `@Observable` |
+
+**RxSwift는 도입하지 않습니다.** UI 프레임워크와 무관한 별개 사안으로 D-04에서 확정하지만, 방향은 정해져 있습니다 — 비디오 프레임 파이프라인은 분석이 밀릴 때 프레임을 버려야 하는데(백프레셔) Rx의 기본 동작은 버퍼링이라 메모리가 터집니다.
 
 ### 네트워크: swift-openapi-generator
 
