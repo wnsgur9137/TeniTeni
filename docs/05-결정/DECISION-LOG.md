@@ -13,7 +13,7 @@ status: active
 
 설계 문서의 모든 🟡 잠정 / ⬜ 미결 항목을 하나씩 확정하기 위한 허브입니다.
 
-**진행: 20 / 22 확정** (D-20은 '보류'로 확정)
+**진행: 21 / 22 확정** (D-20은 '보류'로 확정)
 
 ## 확정 요약
 
@@ -38,6 +38,7 @@ status: active
 | [D-18](./stack/D-18-object-storage.md) | 스토리지 | **Cloudflare R2** | egress 무료. 영상 반복 다운로드 패턴에 결정적 |
 | [D-19](./stack/D-19-authentication.md) | 인증 | **Apple + 자체 JWT** | iOS 단독 앱. 인증까지 벤더 종속시키지 않음 |
 | [D-20](./stack/D-20-server-ml.md) | 서버 ML | **⏸ 보류** | 개선폭 미검증. CPU로 시작해 Phase 2에서 정량 비교 |
+| [D-21](./stack/D-21-deployment.md) | 인프라 | **단일 VM + Compose** | D-20 보류로 GPU 불필요. 비용·복잡도 최소 |
 | [D-05](./stack/D-05-module-tooling.md) | 모듈 빌드 | **Tuist 4** | TCA로 모듈 세트가 늘어 템플릿화 가치 상승 |
 
 ### 확정에 따른 고정 사항
@@ -96,7 +97,7 @@ status: active
 | [D-18](./stack/D-18-object-storage.md) | 오브젝트 스토리지 | **Cloudflare R2** | 2026-09-10 | ✅ |
 | [D-19](./stack/D-19-authentication.md) | 인증 | **Sign in with Apple + 자체 JWT** | 2026-09-10 | ✅ |
 | [D-20](./stack/D-20-server-ml.md) | 서버 ML 스택 | **보류 (Phase 2 검증 후)** | 2026-09-10 | ⏸ |
-| [D-21](./stack/D-21-deployment.md) | 배포 / 인프라 | 단일 VM + Compose | Phase 2 | ⬜ |
+| [D-21](./stack/D-21-deployment.md) | 배포 / 인프라 | **단일 VM + Docker Compose** | 2026-09-10 | ✅ |
 
 ## E. 저장소 / 프로세스
 

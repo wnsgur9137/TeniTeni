@@ -66,7 +66,7 @@ ML 파이프라인은 Python 외의 선택지가 사실상 없습니다. 따라�
 | 타입 체크 | mypy | 🟡 | pyright |
 | 테스트 | pytest | 🟡 | — |
 | 컨테이너 | Docker + Compose | 🟡 | — |
-| 배포 | 단일 VM → 필요 시 확장 | ⬜ | Fly.io, Railway, AWS ECS |
+| 배포 | 단일 VM + Docker Compose | ✅ | [D-21](../05-결정/stack/D-21-deployment.md) |
 | 관측 | Sentry + OpenTelemetry | ⬜ | Grafana Cloud |
 
 ## 6.4 ML 스택
