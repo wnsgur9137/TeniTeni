@@ -15,6 +15,24 @@ status: active
 
 **진행: 4 / 22 확정**
 
+## 확정 요약
+
+| ID | 항목 | 확정안 | 한 줄 근거 |
+|---|---|---|---|
+| [D-01](./stack/D-01-deployment-target.md) | 최소 iOS 타깃 | **iOS 26.0** | 신규 Swift Vision API 확보 + `if #available` 분기 제거 |
+| [D-02](./stack/D-02-ui-framework.md) | UI 프레임워크 | **전면 SwiftUI** | 명령형 영역은 어차피 래핑됨. `Canvas`·Swift Charts는 SwiftUI에서만 공짜 |
+| [D-03](./stack/D-03-architecture-pattern.md) | 아키텍처 | **Clean + TCA** | 촬영 화면 상태 얽힘을 Reducer 합성으로 분해 |
+| [D-05](./stack/D-05-module-tooling.md) | 모듈 빌드 | **Tuist 4** | TCA로 모듈 세트가 늘어 템플릿화 가치 상승 |
+
+### 확정에 따른 고정 사항
+
+- Vision은 신규 Swift API (`DetectHumanBodyPoseRequest`, `detectsHands`) — 레거시 `VN*` 미사용
+- 상태는 `@Observable`, 영속화는 SwiftData 가능
+- **프레임 스트림은 TCA 바깥** — 60fps를 Reducer 액션으로 흘리지 않는다
+- RxSwift 미도입 확정
+- Phase 0은 단일 타깃, Phase 1에서 Tuist 모듈화
+
+
 ## 진행 방법
 
 1. 아래 순서대로 한 항목씩 다룹니다. **순서는 의존 관계를 따릅니다** — 앞 항목이 뒤 항목의 선택지를 좁힙니다
