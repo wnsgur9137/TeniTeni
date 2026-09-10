@@ -32,7 +32,7 @@ status: active
 
 | 레이어 | 잠정안 | 상태 | 대안 |
 |---|---|---|---|
-| 언어 | Swift 6.x (strict concurrency) | ✅ | [D-01](../05-결정/stack/D-01-deployment-target.md)에 수반 |
+| 언어 | Swift 6.x (strict concurrency) | ✅ | 격리 설계는 [동시성 문서](../02-설계/CONCURRENCY.md) |
 | 최소 타깃 | **iOS 26.0** | ✅ | [D-01](../05-결정/stack/D-01-deployment-target.md)에서 확정 |
 | UI | SwiftUI + `@Observable` | ✅ | [D-02](../05-결정/stack/D-02-ui-framework.md)에서 확정 |
 | 아키텍처 | Clean Architecture + **TCA** | ✅ | [D-03](../05-결정/stack/D-03-architecture-pattern.md)에서 확정 |
@@ -273,8 +273,9 @@ ios/
 │   │   ├── Project.swift
 │   │   ├── Sources/
 │   │   │   ├── Pipeline/
-│   │   │   │   ├── FrameProcessor.swift
-│   │   │   │   ├── FrameStream.swift          # AsyncStream 파이프라인
+│   │   │   │   ├── FrameIntake.swift          # 델리게이트 → 3갈래 분기
+│   │   │   │   ├── ReadyFrame.swift           # CMReadySampleBuffer 래핑 (Sendable)
+│   │   │   │   ├── FrameStream.swift          # AsyncStream 정책 (D-04)
 │   │   │   │   └── Downscaler.swift
 │   │   │   ├── Pose/
 │   │   │   │   ├── PoseEstimator.swift
