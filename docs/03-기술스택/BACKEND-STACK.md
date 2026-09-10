@@ -60,7 +60,7 @@ ML 파이프라인은 Python 외의 선택지가 사실상 없습니다. 따라�
 | DB | PostgreSQL 16 | ✅ | [D-16](../05-결정/stack/D-16-database.md). TimescaleDB 미사용 |
 | 큐 | **arq** + Redis | ✅ | [D-17](../05-결정/stack/D-17-task-queue.md) |
 | 오브젝트 스토리지 | Cloudflare R2 | ✅ | [D-18](../05-결정/stack/D-18-object-storage.md) |
-| 인증 | Sign in with Apple + 자체 JWT | ⬜ | Firebase Auth, Supabase Auth |
+| 인증 | Sign in with Apple + 자체 JWT | ✅ | [D-19](../05-결정/stack/D-19-authentication.md) |
 | 패키지 관리 | uv | ⬜ | poetry, pdm |
 | 린트/포맷 | ruff | 🟡 | black + flake8 |
 | 타입 체크 | mypy | 🟡 | pyright |
