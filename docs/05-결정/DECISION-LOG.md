@@ -13,7 +13,7 @@ status: active
 
 설계 문서의 모든 🟡 잠정 / ⬜ 미결 항목을 하나씩 확정하기 위한 허브입니다.
 
-**진행: 15 / 22 확정**
+**진행: 16 / 22 확정**
 
 ## 확정 요약
 
@@ -33,6 +33,7 @@ status: active
 | [D-13](./stack/D-13-observability.md) | 관측 | **Firebase Crashlytics** | 무료 무제한 + 기존 경험. 성능 지표는 자체 수집 |
 | [D-14](./stack/D-14-backend-framework.md) | 백엔드 | **Python + FastAPI** | ML과 언어 통일. 서비스 이중화 회피 |
 | [D-15](./stack/D-15-baas-vs-selfhosted.md) | 구축 방식 | **자체 구축** | Phase 3 서버 로직 증가 대비. 벤더 종속 없음 |
+| [D-16](./stack/D-16-database.md) | 서버 DB | **PostgreSQL 16** | 메타데이터만 저장. TimescaleDB 불필요 |
 | [D-05](./stack/D-05-module-tooling.md) | 모듈 빌드 | **Tuist 4** | TCA로 모듈 세트가 늘어 템플릿화 가치 상승 |
 
 ### 확정에 따른 고정 사항
@@ -86,7 +87,7 @@ status: active
 |---|---|---|---|---|
 | [D-14](./stack/D-14-backend-framework.md) | 백엔드 언어 / 프레임워크 | **Python + FastAPI** | 2026-09-10 | ✅ |
 | [D-15](./stack/D-15-baas-vs-selfhosted.md) | 자체 구축 vs BaaS | **FastAPI 자체 구축** | 2026-09-10 | ✅ |
-| [D-16](./stack/D-16-database.md) | 데이터베이스 | PostgreSQL 16 | Phase 2 | ⬜ |
+| [D-16](./stack/D-16-database.md) | 데이터베이스 | **PostgreSQL 16** | 2026-09-10 | ✅ |
 | [D-17](./stack/D-17-task-queue.md) | 작업 큐 | Celery + Redis | Phase 2 | ⬜ |
 | [D-18](./stack/D-18-object-storage.md) | 오브젝트 스토리지 | Cloudflare R2 | Phase 2 | ⬜ |
 | [D-19](./stack/D-19-authentication.md) | 인증 | 미정 | Phase 2 | ⬜ |

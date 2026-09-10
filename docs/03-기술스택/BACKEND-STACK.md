@@ -57,7 +57,7 @@ ML 파이프라인은 Python 외의 선택지가 사실상 없습니다. 따라�
 | 검증/직렬화 | Pydantic v2 | 🟡 | — |
 | ORM | SQLAlchemy 2.0 | 🟡 | SQLModel, Tortoise |
 | 마이그레이션 | Alembic | 🟡 | — |
-| DB | PostgreSQL 16 | 🟡 | + TimescaleDB 확장 |
+| DB | PostgreSQL 16 | ✅ | [D-16](../05-결정/stack/D-16-database.md). TimescaleDB 미사용 |
 | 큐 | Celery + Redis | ⬜ | Dramatiq, arq, RQ |
 | 오브젝트 스토리지 | Cloudflare R2 | ⬜ | AWS S3, Supabase Storage |
 | 인증 | Sign in with Apple + 자체 JWT | ⬜ | Firebase Auth, Supabase Auth |

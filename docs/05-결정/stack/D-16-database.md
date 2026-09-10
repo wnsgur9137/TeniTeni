@@ -5,20 +5,20 @@ tags:
   - 문서유형/결정
   - 영역/백엔드
 id: D-16
-status: open
+status: decided
 group: "D. 백엔드"
 depends_on: ["D-15"]
 affects: []
 decide_by: "Phase 2"
 created: 2026-09-10
 updated: 2026-09-10
-decided_on: 
-decision: 
+decided_on: 2026-09-10
+decision: PostgreSQL 16
 ---
 
 # D-16. 데이터베이스
 
-> **상태** ⬜ 미결 · **그룹** D. 백엔드 · **확정 시점** Phase 2
+> **상태** ✅ **확정 — PostgreSQL 16** (2026-09-10) · **그룹** D. 백엔드
 
 ## 질문
 
@@ -52,9 +52,27 @@ decision:
 
 ## 결정
 
-> 아직 결정되지 않았습니다.
+**PostgreSQL 16.** TimescaleDB 확장은 사용하지 않는다.
 
 ## 근거
+
+- [D-09](./D-09-serialization.md)에서 포즈 시계열을 Protobuf 파일로 빼기로 해 **DB는 메타데이터만 다룬다.** TimescaleDB의 명분이 사라졌다
+- SQLAlchemy 2.0 + Alembic 조합이 성숙하고 파이썬 생태계가 Postgres 중심이다
+- 관리형 서비스 선택지가 넓다(Neon, Supabase, RDS) → [D-21](./D-21-deployment.md)에서 이전이 쉽다
+
+## 저장 대상
+
+| 테이블 | 내용 |
+|---|---|
+| users | Apple ID, 닉네임, 주손, 실력 수준 |
+| sessions | 연습 세션 메타, 스윙 수, 평균 점수 |
+| clips | 영상 메타, 스토리지 키, 업로드·분석 상태 |
+| swings | 구간, 유형, 페이즈, 점수 |
+| swing_metrics | 관절 각도 등 정량 지표 |
+| feedbacks | 심각도, 대상 관절, 메시지 |
+| reference_swings | 프로 레퍼런스 (Phase 3) |
+
+포즈 시계열과 영상은 오브젝트 스토리지([D-18](./D-18-object-storage.md))에 두고 DB에는 키만 저장한다.
 
 ---
 
