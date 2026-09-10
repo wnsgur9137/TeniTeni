@@ -1,6 +1,7 @@
 import SwiftUI
 
 struct CaptureView: View {
+    @Environment(\.scenePhase) private var scenePhase
     @State private var controller = CameraController()
     @State private var showInspector = false
     @State private var customDistance = ""
@@ -22,6 +23,13 @@ struct CaptureView: View {
             }
         }
         .task { await controller.start() }
+        .onChange(of: scenePhase) { _, phase in
+            switch phase {
+            case .active: controller.resume()
+            case .inactive, .background: controller.suspend()
+            @unknown default: break
+            }
+        }
         .sheet(isPresented: $showInspector) { FormatInspectorView() }
     }
 

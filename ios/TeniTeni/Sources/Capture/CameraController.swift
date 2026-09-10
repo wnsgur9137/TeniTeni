@@ -113,6 +113,9 @@ final class CameraController: NSObject {
         }
         session.addOutput(movieOutput)
 
+        // 120fps는 분당 용량이 크다. 방치되면 저장공간이 고갈되므로 상한을 둔다.
+        movieOutput.maxRecordedDuration = CMTime(seconds: 600, preferredTimescale: 600)
+
         // 고정 카메라 전제이므로 안정화를 끈다.
         if let connection = movieOutput.connection(with: .video),
            connection.isVideoStabilizationSupported {
@@ -188,6 +191,28 @@ final class CameraController: NSObject {
     /// 실제 적용값을 다시 읽는다. 노출은 자동 모드에서 계속 변한다.
     func refreshActualValues() { readActualValues() }
 
+    // MARK: 생명주기
+
+    /// 백그라운드 진입. 녹화 중이면 먼저 정상 종료해 파일 손상을 막는다.
+    func suspend() {
+        if movieOutput.isRecording {
+            movieOutput.stopRecording()
+            message = "백그라운드 진입으로 녹화를 종료했습니다"
+        }
+        if session.isRunning { session.stopRunning() }
+    }
+
+    /// 포그라운드 복귀. 세션을 재시작하고 포맷·노출을 다시 적용한다.
+    /// 세션이 멈추면 커스텀 노출이 리셋되므로 applyFormat 재호출이 필수다.
+    func resume() {
+        guard device != nil, status != .permissionDenied else { return }
+        if case .failed = status { return }
+        if !session.isRunning {
+            session.startRunning()
+            applyFormat()
+        }
+    }
+
     // MARK: 녹화
 
     func toggleRecording() {
@@ -222,7 +247,12 @@ final class CameraController: NSObject {
             isVideoBinned: isBinned,
             deviceModel: model,
             systemVersion: UIDevice.current.systemVersion,
-            cameraType: device.deviceType.rawValue
+            cameraType: device.deviceType.rawValue,
+            estimatedBallPixelDiameter: ClipMetadata.ballPixelDiameter(
+                width: dims.width,
+                fieldOfView: actualFieldOfView,
+                distanceMeters: distanceMeters
+            )
         )
 
         movieOutput.startRecording(to: url, recordingDelegate: self)

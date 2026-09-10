@@ -29,10 +29,14 @@ struct ClipMetadata: Codable, Sendable {
     let cameraType: String
 
     /// 이 조건에서 테니스공(6.7cm)의 예상 픽셀 지름.
-    /// CAPTURE-PROTOCOL 5.1절 계산표를 실측으로 검증하는 값.
-    var estimatedBallPixelDiameter: Double {
-        guard videoFieldOfView > 0, distanceMeters > 0 else { return 0 }
-        let halfFOV = Double(videoFieldOfView) * .pi / 180 / 2
+    /// CAPTURE-PROTOCOL 5.1절 계산표를 실측으로 검증하는 값이므로 저장한다.
+    let estimatedBallPixelDiameter: Double
+
+    static func ballPixelDiameter(
+        width: Int32, fieldOfView: Float, distanceMeters: Double
+    ) -> Double {
+        guard fieldOfView > 0, distanceMeters > 0 else { return 0 }
+        let halfFOV = Double(fieldOfView) * .pi / 180 / 2
         let frameWidthMeters = 2 * distanceMeters * tan(halfFOV)
         guard frameWidthMeters > 0 else { return 0 }
         return Double(width) * 0.067 / frameWidthMeters
@@ -42,13 +46,7 @@ struct ClipMetadata: Codable, Sendable {
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
         encoder.dateEncodingStrategy = .iso8601
-        var payload = try JSONSerialization.jsonObject(with: try encoder.encode(self)) as? [String: Any] ?? [:]
-        payload["estimatedBallPixelDiameter"] = estimatedBallPixelDiameter
-        let data = try JSONSerialization.data(
-            withJSONObject: payload,
-            options: [.prettyPrinted, .sortedKeys]
-        )
         let sidecar = movieURL.deletingPathExtension().appendingPathExtension("json")
-        try data.write(to: sidecar, options: .atomic)
+        try encoder.encode(self).write(to: sidecar, options: .atomic)
     }
 }

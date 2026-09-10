@@ -37,11 +37,12 @@
         <key>UIColorName</key>
         <string></string>
     </dict>
+    <!-- 가로 고정. 공이 프레임 폭을 가로질러야 궤적이 포물선으로 잡힌다.
+         세로로 촬영하면 0-B 영상을 쓸 수 없다. (CAPTURE-PROTOCOL 5.1) -->
     <key>UISupportedInterfaceOrientations</key>
     <array>
         <string>UIInterfaceOrientationLandscapeLeft</string>
         <string>UIInterfaceOrientationLandscapeRight</string>
-        <string>UIInterfaceOrientationPortrait</string>
     </array>
     <key>UIRequiredDeviceCapabilities</key>
     <array>
