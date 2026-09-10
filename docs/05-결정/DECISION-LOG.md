@@ -13,7 +13,7 @@ status: active
 
 설계 문서의 모든 🟡 잠정 / ⬜ 미결 항목을 하나씩 확정하기 위한 허브입니다.
 
-**진행: 19 / 22 확정**
+**진행: 20 / 22 확정** (D-20은 '보류'로 확정)
 
 ## 확정 요약
 
@@ -37,6 +37,7 @@ status: active
 | [D-17](./stack/D-17-task-queue.md) | 작업 큐 | **arq** | async 네이티브. 작업이 2개뿐이라 Celery는 과함 |
 | [D-18](./stack/D-18-object-storage.md) | 스토리지 | **Cloudflare R2** | egress 무료. 영상 반복 다운로드 패턴에 결정적 |
 | [D-19](./stack/D-19-authentication.md) | 인증 | **Apple + 자체 JWT** | iOS 단독 앱. 인증까지 벤더 종속시키지 않음 |
+| [D-20](./stack/D-20-server-ml.md) | 서버 ML | **⏸ 보류** | 개선폭 미검증. CPU로 시작해 Phase 2에서 정량 비교 |
 | [D-05](./stack/D-05-module-tooling.md) | 모듈 빌드 | **Tuist 4** | TCA로 모듈 세트가 늘어 템플릿화 가치 상승 |
 
 ### 확정에 따른 고정 사항
@@ -94,7 +95,7 @@ status: active
 | [D-17](./stack/D-17-task-queue.md) | 작업 큐 | **arq + Redis** | 2026-09-10 | ✅ |
 | [D-18](./stack/D-18-object-storage.md) | 오브젝트 스토리지 | **Cloudflare R2** | 2026-09-10 | ✅ |
 | [D-19](./stack/D-19-authentication.md) | 인증 | **Sign in with Apple + 자체 JWT** | 2026-09-10 | ✅ |
-| [D-20](./stack/D-20-server-ml.md) | 서버 ML 스택 | 미정 | Phase 2 | ⬜ |
+| [D-20](./stack/D-20-server-ml.md) | 서버 ML 스택 | **보류 (Phase 2 검증 후)** | 2026-09-10 | ⏸ |
 | [D-21](./stack/D-21-deployment.md) | 배포 / 인프라 | 단일 VM + Compose | Phase 2 | ⬜ |
 
 ## E. 저장소 / 프로세스
@@ -132,6 +133,8 @@ D-14 ~ D-21 (백엔드) ← Phase 2 착수 직전에 확정해도 늦지 않음
 | [ADR-0003](./adr/ADR-0003-rule-based-evaluation.md) | 자세 평가는 룰 엔진 우선 | Accepted |
 
 ADR 상태: **Proposed**(제안) / **Accepted**(채택) / **Superseded by ADR-XXXX** / **Deprecated**
+
+결정 상태: ✅ 확정 / ⏸ 의도적 보류(재검토 시점 명시) / ⬜ 미결
 
 ---
 
