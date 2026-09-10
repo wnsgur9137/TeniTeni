@@ -164,7 +164,36 @@ model-v0.2.0    → 모델 아티팩트 릴리즈
 
 스코프는 모듈명을 사용합니다: `vision`, `capture`, `analysis`, `domain`, `data`, `api`, `worker`, `ml`, `ci`.
 
-## 7.6 CI 파이프라인
+## 7.6 PR 규약
+
+| 항목 | 규칙 |
+|---|---|
+| **Assignee** | 항상 `wnsgur9137` |
+| 생성 | 항상 Draft로 만들고, 리뷰 반영 후 Ready 전환 |
+| 병합 | merge commit (커밋별 근거를 보존) |
+| 정리 | 병합 후 원격·로컬 브랜치 삭제 |
+
+### ⚠️ 인증 — 계정이 두 개다
+
+git과 GitHub API가 **서로 다른 자격증명**을 씁니다.
+
+| 경로 | 자격증명 | 계정 |
+|---|---|---|
+| `git push` / `pull` | SSH 키 `~/.ssh/id_rsa_wnsgur9137` (Host 별칭 `wnsgur9137`) | 개인 |
+| `gh` / GitHub MCP | 환경변수 `WNSGUR9137_GITHUB_TOKEN` | 개인 |
+| (주의) `GITHUB_TOKEN` | 셸에 설정된 **회사 계정** 토큰 | ❌ 이 저장소 권한 없음 |
+
+`GITHUB_TOKEN`이 `gh`의 keyring보다 우선하므로, CLI로 PR을 다룰 때는 개인 토큰을 명시해야 합니다.
+
+```bash
+export GH_TOKEN="$WNSGUR9137_GITHUB_TOKEN"
+unset GITHUB_TOKEN
+gh pr create --draft --assignee wnsgur9137 ...
+```
+
+`.mcp.json`에 github MCP를 `${WNSGUR9137_GITHUB_TOKEN}`으로 등록해 두었으므로, 세션을 새로 시작하면 MCP 경로로도 동작합니다.
+
+## 7.7 CI 파이프라인
 
 ### ios.yml
 ```yaml
@@ -205,7 +234,7 @@ steps:
 
 [D-11](../05-결정/stack/D-11-networking.md)에서 Moya를 택해 REST 클라이언트는 수동 작성이므로, 계약 검증은 **Protobuf 스키마([D-09](../05-결정/stack/D-09-serialization.md))** 에 집중합니다. OpenAPI에서 DTO만 생성하는 절충안을 도입하면 그 검증도 여기에 추가합니다.
 
-## 7.7 Obsidian 볼트
+## 7.8 Obsidian 볼트
 
 ✅ **확정** — **저장소 루트가 볼트**입니다. 기존 프로젝트(SimpleCare, Lumio, Timespread_IOS)와 동일한 방식입니다.
 
@@ -241,7 +270,7 @@ steps:
 - 프론트매터 `aliases`에 한글 표기를 넣어 Obsidian 검색·링크는 한글로 동작
 - 링크는 상대경로 마크다운 링크 — Obsidian도 백링크·그래프에 그대로 반영합니다
 
-## 7.8 개발 환경 부트스트랩
+## 7.9 개발 환경 부트스트랩
 
 ```makefile
 # Makefile
