@@ -39,10 +39,7 @@ status: active
 TeniTeni/
 ├── .github/
 │   ├── workflows/
-│   │   ├── ios.yml                 # paths: ['ios/**']
-│   │   ├── server.yml              # paths: ['server/**']
-│   │   ├── contracts.yml           # OpenAPI 변경 시 클라이언트 재생성 검증
-│   │   ├── ml.yml                  # paths: ['ml/**', 'server/ml/**']
+│   │   ├── gate.yml                # 단일 게이트 (detect → docs/ios → gate)
 │   │   └── release-ios.yml         # 태그 → Fastlane → TestFlight
 │   ├── ISSUE_TEMPLATE/
 │   │   ├── bug_report.md
@@ -196,46 +193,44 @@ gh pr create --draft --assignee wnsgur9137 ...
 
 ## 7.7 CI 파이프라인
 
-### ios.yml
-```yaml
-on:
-  pull_request:
-    paths: ['ios/**', 'contracts/**']
-runs-on: macos-15
-steps:
-  - mise install (Tuist)
-  - tuist install && tuist generate
-  - swiftlint --strict
-  - xcodebuild test (Domain, VisionKit 골든 테스트 포함)
+**단일 워크플로 `gate.yml`**을 씁니다. `paths` 필터로 워크플로를 나누지 않습니다.
+
+### 왜 하나인가
+
+`paths` 필터로 iOS와 문서 워크플로를 나누면, **해당 없는 PR에서 그 체크가 `pending`으로 남아 브랜치 보호의 required status check를 영원히 만족시키지 못합니다.** 문서만 바꾼 PR은 iOS 워크플로가 실행되지 않으므로 병합 버튼이 활성화되지 않습니다.
+
+실제로 PR #10은 체크 2개, #11·#12는 1개였습니다. 이 상태에서 `build`를 필수로 걸었다면 #11·#12는 병합할 수 없었습니다.
+
+### 구조
+
+```
+detect  ─ 변경 경로 판정 (ios / docs 플래그)
+  ├─ docs  ─ if docs  → scripts/verify-docs.sh   (ubuntu)
+  ├─ ios   ─ if ios   → scripts/verify-ios.sh    (macos-15)
+  └─ gate  ─ if always() → 위 결과 집계          ★ required check
 ```
 
-**골든 테스트를 CI에 반드시 넣습니다.** 비전 파이프라인은 튜닝이 잦아서, 회귀 검증이 없으면 개선인지 퇴보인지 판단할 수 없습니다.
+`gate` 잡은 **항상 실행**되며 건너뛴(`skipped`) 잡은 성공으로 간주하고 실패만 잡아냅니다. 브랜치 보호에는 이 잡 하나만 필수로 지정합니다.
 
-### server.yml
-```yaml
-on:
-  pull_request:
-    paths: ['server/**']
-steps:
-  - uv sync
-  - ruff check && ruff format --check
-  - mypy src/
-  - pytest --cov
-```
+### 러너 분리
 
-### contracts.yml
-```yaml
-on:
-  pull_request:
-    paths: ['contracts/**', 'server/src/teniteni/schemas/**']
-steps:
-  - FastAPI에서 OpenAPI 재생성 → contracts/openapi.yaml과 diff 검증
-  - protoc 실행 → Swift/Python 생성 코드가 스키마와 일치하는지 검증
-```
+경로 판정으로 필요한 잡만 돌므로, 문서 PR에서 macOS 러너를 쓰지 않습니다. macOS는 Linux보다 분당 과금이 높습니다.
 
-[D-11](../05-결정/stack/D-11-networking.md)에서 Moya를 택해 REST 클라이언트는 수동 작성이므로, 계약 검증은 **Protobuf 스키마([D-09](../05-결정/stack/D-09-serialization.md))** 에 집중합니다. OpenAPI에서 DTO만 생성하는 절충안을 도입하면 그 검증도 여기에 추가합니다.
+## 7.8 브랜치 보호
 
-## 7.8 Obsidian 볼트
+✅ [D-22](../05-결정/stack/D-22-repository-workflow.md)의 2단계 적용
+
+| 규칙 | 설정 |
+|---|---|
+| PR 필수 | ✅ 직접 푸시 차단 |
+| 상태 검사 | ✅ `gate` 잡 통과 필수 |
+| force push | ✅ 차단 |
+| 브랜치 삭제 | ✅ 차단 |
+| 관리자 적용 | ❌ 미적용 — 1인 개발이라 긴급 상황의 탈출구를 남긴다 |
+
+관리자 우회를 열어두되, **파이프라인은 항상 PR을 거치므로 실사용에서는 규칙대로 동작합니다.**
+
+## 7.9 Obsidian 볼트
 
 ✅ **확정** — **저장소 루트가 볼트**입니다. 기존 프로젝트(SimpleCare, Lumio, Timespread_IOS)와 동일한 방식입니다.
 
@@ -271,7 +266,7 @@ steps:
 - 프론트매터 `aliases`에 한글 표기를 넣어 Obsidian 검색·링크는 한글로 동작
 - 링크는 상대경로 마크다운 링크 — Obsidian도 백링크·그래프에 그대로 반영합니다
 
-## 7.9 개발 환경 부트스트랩
+## 7.10 개발 환경 부트스트랩
 
 ```makefile
 # Makefile

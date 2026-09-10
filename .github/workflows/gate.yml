@@ -1,0 +1,120 @@
+name: Gate
+
+# paths 필터를 두지 않는다. 모든 PR에서 정확히 하나의 필수 체크가 실행되어야
+# 브랜치 보호의 required status check가 성립한다.
+# paths로 워크플로를 나누면 해당 없는 PR에서 체크가 pending으로 남아 병합이 막힌다.
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+concurrency:
+  group: gate-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # 변경 경로를 판정해 어떤 검증이 필요한지 결정한다
+  detect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    outputs:
+      ios: ${{ steps.filter.outputs.ios }}
+      docs: ${{ steps.filter.outputs.docs }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - id: filter
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            BASE="origin/${{ github.base_ref }}"
+            git fetch origin "${{ github.base_ref }}" --depth=1 2>/dev/null || true
+            CHANGED=$(git diff --name-only "$BASE"...HEAD 2>/dev/null || git ls-files)
+          else
+            CHANGED=$(git diff --name-only HEAD~1 HEAD 2>/dev/null || git ls-files)
+          fi
+          echo "변경 파일:"; printf '%s\n' "$CHANGED" | sed 's/^/  /'
+
+          ios=false; docs=false
+          if printf '%s\n' "$CHANGED" | grep -qE '^(ios/|scripts/verify-ios\.sh|mise\.toml)'; then ios=true; fi
+          if printf '%s\n' "$CHANGED" | grep -qE '^(docs/|README\.md|scripts/verify-docs\.sh)'; then docs=true; fi
+          # 워크플로 자체가 바뀌면 둘 다 검증
+          if printf '%s\n' "$CHANGED" | grep -qE '^\.github/workflows/'; then ios=true; docs=true; fi
+
+          echo "ios=$ios"  >> "$GITHUB_OUTPUT"
+          echo "docs=$docs" >> "$GITHUB_OUTPUT"
+          printf '\niOS 검증: %s / 문서 검증: %s\n' "$ios" "$docs"
+
+  docs:
+    needs: detect
+    if: needs.detect.outputs.docs == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: ./scripts/verify-docs.sh
+
+  ios:
+    needs: detect
+    if: needs.detect.outputs.ios == 'true'
+    runs-on: macos-15
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          lfs: true
+
+      - name: mise 설치
+        run: |
+          curl https://mise.run | sh
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+
+      - name: 툴체인 설치
+        run: |
+          mise trust
+          mise install
+
+      - name: Xcode 선택
+        run: sudo xcode-select -s /Applications/Xcode.app
+
+      - name: 게이트 실행
+        run: mise exec -- ./scripts/verify-ios.sh
+
+      - name: 빌드 로그 업로드
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-log
+          path: /tmp/teniteni-build.log
+          retention-days: 7
+
+  # ★ 브랜치 보호의 required status check로 지정할 잡.
+  # 항상 실행되며, 건너뛴 잡은 성공으로 간주하고 실패한 잡만 잡아낸다.
+  gate:
+    needs: [detect, docs, ios]
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: 결과 집계
+        run: |
+          printf 'detect: %s\ndocs:   %s\nios:    %s\n' \
+            "${{ needs.detect.result }}" "${{ needs.docs.result }}" "${{ needs.ios.result }}"
+
+          fail=0
+          for r in "${{ needs.detect.result }}" "${{ needs.docs.result }}" "${{ needs.ios.result }}"; do
+            case "$r" in
+              success|skipped) ;;
+              *) fail=1 ;;
+            esac
+          done
+
+          if [ "$fail" -eq 1 ]; then
+            echo "::error::검증 실패 — 위 결과를 확인하세요"
+            exit 1
+          fi
+          echo "게이트 통과"
