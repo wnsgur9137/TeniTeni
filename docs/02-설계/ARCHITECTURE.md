@@ -133,13 +133,15 @@ erDiagram
 |---|---|
 | **User** | id, appleUserId, nickname, dominantHand, skillLevel, createdAt |
 | **Session** | id, userId, startedAt, endedAt, location?, swingCount, avgScore |
-| **Clip** | id, sessionId, localURL, remoteKey?, duration, fps, resolution, uploadState, analysisState |
+| **Clip** | id, sessionId, localURL, remoteKey?, duration, **captureFPS**, resolution, exposureDuration, uploadState, analysisState |
 | **Swing** | id, clipId, startTime, endTime, type(forehand/backhand/serve/volley), phases[], score, confidence |
 | **SwingMetrics** | swingId, kneeFlexion, hipShoulderSeparation, elbowAngleAtImpact, contactPointHeight, contactPointDepth, followThroughAngle, shoulderTilt, headStability, ... |
 | **PoseFrame** | timestamp, joints[19] {x, y, confidence}, (3D일 경우 z) |
 | **Trajectory** | swingId, points[{t, x, y}], courtPoints[{t, X, Y}]?, bounce?, speedKmh?, inOut? |
 | **Feedback** | swingId, severity, jointName, message, metricValue, recommendedRange |
 | **ReferenceSwing** | id, playerName, type, poseSequence, metrics, videoURL |
+
+> **`captureFPS`가 중요합니다.** 사용자가 120/60을 선택할 수 있으므로 ([촬영 프로토콜 5.2](CAPTURE-PROTOCOL.md#52-캡처-포맷)) 궤적 검출 품질이 클립마다 다릅니다. fps가 다른 세션을 나란히 비교하면 안 되고, 진척도 그래프에는 fps 변경 지점을 표시해야 합니다.
 
 ### 저장 전략
 
