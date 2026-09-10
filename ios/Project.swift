@@ -24,7 +24,7 @@ let project = Project(
             name: "TeniTeni",
             destinations: .iOS,
             product: .app,
-            bundleId: "com.wnsgur9137.teniteni",
+            bundleId: "com.wnsgur9137.TeniTeni",
             deploymentTargets: .iOS("26.0"),
             infoPlist: .file(path: "TeniTeni/Resources/Info.plist"),
             sources: ["TeniTeni/Sources/**"],
