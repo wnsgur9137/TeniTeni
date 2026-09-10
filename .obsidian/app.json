@@ -1,0 +1,17 @@
+{
+  "useMarkdownLinks": true,
+  "newLinkFormat": "relative",
+  "alwaysUpdateLinks": true,
+  "attachmentFolderPath": "docs/90-첨부",
+  "newFileLocation": "current",
+  "showUnsupportedFiles": false,
+  "userIgnoreFilters": [
+    "ios/",
+    "server/",
+    "ml/",
+    "infra/",
+    "scripts/",
+    ".github/",
+    ".claude/"
+  ]
+}

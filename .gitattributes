@@ -1,0 +1,25 @@
+# ---- Git LFS ----
+# 모델 아티팩트
+*.mlpackage/**  filter=lfs diff=lfs merge=lfs -text
+*.mlmodel       filter=lfs diff=lfs merge=lfs -text
+*.mlmodelc/**   filter=lfs diff=lfs merge=lfs -text
+*.pt            filter=lfs diff=lfs merge=lfs -text
+*.pth           filter=lfs diff=lfs merge=lfs -text
+*.onnx          filter=lfs diff=lfs merge=lfs -text
+*.tflite        filter=lfs diff=lfs merge=lfs -text
+
+# 테스트용 샘플 영상 (학습 데이터셋은 DVC로 관리, 여기 넣지 않음)
+*.mov           filter=lfs diff=lfs merge=lfs -text
+*.mp4           filter=lfs diff=lfs merge=lfs -text
+*.m4v           filter=lfs diff=lfs merge=lfs -text
+
+# 대용량 이미지 자산
+*.psd           filter=lfs diff=lfs merge=lfs -text
+*.sketch        filter=lfs diff=lfs merge=lfs -text
+
+# ---- 언어/경로 통계 ----
+docs/**         linguist-documentation
+
+# ---- 줄바꿈 ----
+* text=auto eol=lf
+*.pbxproj       -text merge=union

@@ -1,0 +1,59 @@
+# ---- Obsidian ----
+# 볼트 설정은 공유하되, 개인 작업 상태는 제외
+.obsidian/workspace.json
+.obsidian/workspace-mobile.json
+.obsidian/cache
+.obsidian/plugins/*/data.json
+
+# ---- 에이전트 세션 상태 ----
+.omc/
+.claude/settings.local.json
+
+# ---- macOS ----
+.DS_Store
+.AppleDouble
+.LSOverride
+Icon?
+
+# ---- Xcode ----
+xcuserdata/
+*.xcuserstate
+*.xcscmblueprint
+DerivedData/
+build/
+*.moved-aside
+
+# ---- Tuist ----
+ios/Derived/
+ios/*.xcodeproj
+ios/*.xcworkspace
+ios/Tuist/.build/
+.tuist-version
+
+# ---- SPM ----
+.swiftpm/
+.build/
+Package.resolved
+
+# ---- Python ----
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.mypy_cache/
+.pytest_cache/
+.ruff_cache/
+*.egg-info/
+
+# ---- 환경 / 비밀 ----
+.env
+.env.*
+!.env.example
+*.p8
+*.p12
+*.mobileprovision
+
+# ---- 산출물 ----
+ml/datasets/**
+!ml/datasets/.gitkeep
+!ml/datasets/*.dvc
