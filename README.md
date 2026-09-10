@@ -6,20 +6,22 @@
 
 ## 현재 상태
 
-**설계 단계.** 코드는 아직 없습니다. 기술 스택을 확정하는 중입니다.
+**설계 완료, 코드 착수 전.** 기술 스택 결정 22건이 모두 확정됐습니다.
 
 - **[문서 허브 (INDEX)](docs/INDEX.md)** — 모든 설계 문서의 진입점
-- [결정 현황](docs/05-결정/DECISION-LOG.md) — 기술 스택 결정 **0 / 22**
+- [결정 현황](docs/05-결정/DECISION-LOG.md) — 기술 스택 결정 **22 / 22 ✅**
 
 ## 개요
 
 | 항목 | 내용 |
 |---|---|
-| 플랫폼 | iOS (Swift) |
+| 플랫폼 | iOS 26.0+ (Swift 6) |
+| iOS 스택 | SwiftUI · Clean Architecture + TCA · Swift Concurrency · Tuist 4 · Metal |
+| 백엔드 | Python 3.12 + FastAPI · PostgreSQL 16 · arq · Cloudflare R2 |
 | 추론 구조 | 온디바이스 실시간 + 서버 비동기 정밀 분석 ([ADR-0001](docs/05-결정/adr/ADR-0001-hybrid-inference.md)) |
 | 저장소 | 모노레포 ([ADR-0002](docs/05-결정/adr/ADR-0002-monorepo.md)) |
 | 자세 평가 | 룰 엔진 우선, 학습형은 유보 ([ADR-0003](docs/05-결정/adr/ADR-0003-rule-based-evaluation.md)) |
-| 핵심 기술 | Apple Vision (포즈 추정, 궤적 검출), Core ML (스윙 분류) |
+| 핵심 기술 | Apple Vision 신규 Swift API (포즈·궤적), Create ML Action Classifier (스윙 분류) |
 
 ## 핵심 기능
 

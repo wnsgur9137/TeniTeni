@@ -14,88 +14,118 @@ status: active
 
 포즈 추정 결과를 화면에 그리는 설계입니다. 이 화면이 앱의 첫인상이자 신뢰도 그 자체이므로 별도 문서로 다룹니다.
 
-"그냥 선 긋기"로 접근하면 반드시 실패하는 지점이 세 군데 있습니다: **좌표 변환**, **지연**, **떨림**.
+"그냥 선 긋기"로 접근하면 반드시 실패하는 지점이 세 군데 있습니다: **지연**, **좌표 변환**, **떨림**.
 
-## 4.1 레이어 구조
+## 4.1 렌더링 구조
+
+✅ **확정** — Metal 프리뷰 직접 렌더 ([D-07](../05-결정/stack/D-07-overlay-rendering.md))
+
+`AVCaptureVideoPreviewLayer`를 **사용하지 않습니다.** 같은 `CMSampleBuffer`에서 영상 텍스처와 스켈레톤·궤적을 함께 그립니다.
 
 ```
 ZStack
-├─ CameraPreview      (UIViewRepresentable → AVCaptureVideoPreviewLayer)
-├─ SkeletonOverlay    (SwiftUI Canvas)
-├─ TrajectoryOverlay  (SwiftUI Canvas)
-└─ GuideOverlay       (프레이밍 가이드, 흔들림 경고)
+├─ MetalCameraView   (UIViewRepresentable → MTKView)   ← 영상 + 스켈레톤 + 궤적
+└─ GuideOverlay      (SwiftUI)                          ← 프레이밍 가이드, 흔들림·발열 경고
 ```
 
-🟡 **잠정** — 렌더링은 SwiftUI `Canvas`
+가이드와 경고는 60fps가 필요 없으므로 SwiftUI로 남겨둡니다. [D-02](../05-결정/stack/D-02-ui-framework.md)에서 예상한 `UIViewRepresentable` 경계가 여기입니다.
 
-관절 19개 + 본 20개는 Canvas가 60fps로 여유롭게 처리합니다. Metal은 아직 필요 없습니다.
+### 렌더 패스
 
-**Metal이 필요해지는 시점**은 두 가지입니다:
-1. 녹화 영상에 스켈레톤을 구워 넣을 때 (AVAssetWriter 합성)
-2. 4.3절의 지연 문제를 정면으로 해결할 때 (프리뷰를 직접 렌더)
+| 패스 | 내용 |
+|---|---|
+| `CameraTexturePass` | `CVMetalTextureCache`로 `CMSampleBuffer` → Metal 텍스처, 풀스크린 quad |
+| `SkeletonPass` | 본 20개를 라인, 관절 19개를 인스턴싱 원 |
+| `TrajectoryPass` | 궤적 점 시퀀스를 스트립으로, 알파 페이드 |
 
-따라서 렌더러는 처음부터 `GraphicsContext`와 `CGContext` 양쪽에서 재사용 가능한 형태로 분리해 둡니다. 그래야 나중에 교체 비용이 한 파일로 끝납니다.
+## 4.2 지연 문제 — Metal이 해결하는 것
 
-## 4.2 좌표 변환 — 가장 흔한 버그
+`AVCaptureVideoPreviewLayer`는 프레임을 **즉시** 화면에 띄웁니다. 반면 Vision 추론 결과는 3~15ms 뒤에 나옵니다. 버퍼 큐까지 더하면 스켈레톤이 **1~3프레임 늦게** 따라옵니다.
 
-Vision은 **정규화 좌표 + 좌하단 원점**, UIKit은 **좌상단 원점**입니다. 여기에 `videoGravity = .resizeAspectFill`의 크롭, 전면 카메라 미러링, 디바이스 회전까지 겹칩니다. **직접 계산하면 거의 확실히 틀립니다.**
+일상 동작에서는 보이지 않지만, **초당 30m로 움직이는 테니스 스윙에서는 팔이 스켈레톤 밖으로 완전히 튀어나갑니다.**
 
-정답은 `AVCaptureVideoPreviewLayer`에게 물어보는 것입니다. 크롭·미러링·회전을 전부 알아서 처리합니다.
+Metal 직접 렌더는 이 문제를 구조적으로 없앱니다.
+
+```
+CMSampleBuffer (t)
+  ├─→ 포즈 추정 ──→ 포즈(t)
+  └─→ 텍스처 보관
+                    ↓ 둘이 준비되면 함께 draw
+                  프레임(t) 렌더  ← 영상과 스켈레톤이 같은 시각
+```
+
+**영상 표시를 추론 결과에 맞춰 지연시키는 방식**입니다. 화면 전체가 3~15ms 늦어지지만, 영상과 오버레이가 어긋나지 않습니다. 사람은 절대 지연보다 **둘 사이의 어긋남**을 훨씬 잘 인지합니다.
+
+### 프레임 예산 초과 시
+
+분석이 밀리면 [D-04](../05-결정/stack/D-04-concurrency.md)의 스트림 분리 정책을 따릅니다. 오버레이 스트림은 `.bufferingNewest(1)`이므로 오래된 프레임이 버려지고, 렌더는 **가장 최근에 포즈가 준비된 프레임**을 그립니다.
+
+## 4.3 좌표 변환 — 단일 변환 행렬
+
+Vision은 **정규화 좌표 + 좌하단 원점**, Metal NDC는 **-1~1 + 좌하단 원점**입니다. 여기에 aspect-fill 크롭, 디바이스 회전, 전면 카메라 미러링이 겹칩니다.
+
+`layerPointConverted(fromCaptureDevicePoint:)`를 쓸 수 없으므로 **변환 행렬을 직접 만들되, 카메라 텍스처와 관절 좌표에 같은 행렬을 적용합니다.**
+
+```
+버퍼 크기 + 뷰 크기      → aspect-fill 스케일
+RotationCoordinator     → 회전
+카메라 위치             → 미러링
+        ↓
+   단일 변환 행렬 (single source of truth)
+        ├─→ 카메라 텍스처 quad 정점
+        └─→ 관절·궤적 정점
+```
+
+**두 곳이 같은 행렬을 쓰므로 어긋날 수 없습니다.** 레이어에 물어보던 방식보다 오히려 안전합니다.
 
 ```swift
-// VisionKit/Pose/PoseCoordinateMapper.swift
+// VisionKit/Render/RenderTransform.swift
+import simd
 import AVFoundation
 
-@MainActor
-struct PoseCoordinateMapper {
-    let previewLayer: AVCaptureVideoPreviewLayer
+struct RenderTransform: Sendable {
+    /// 정규화 이미지 좌표(0~1, 좌상단 원점) → NDC(-1~1)
+    let matrix: simd_float4x4
 
-    /// Vision 정규화 좌표(좌하단 원점) → 오버레이 뷰 좌표(좌상단 원점)
-    func point(from visionPoint: CGPoint) -> CGPoint {
-        // ① Vision(y-up) → capture device 좌표계(y-down)
-        let devicePoint = CGPoint(x: visionPoint.x, y: 1 - visionPoint.y)
-        // ② videoGravity 크롭 / 미러링 / 회전을 레이어가 반영해 변환
-        return previewLayer.layerPointConverted(fromCaptureDevicePoint: devicePoint)
+    init(bufferSize: CGSize, viewSize: CGSize,
+         rotationAngle: CGFloat, isMirrored: Bool) {
+        // 1. aspect-fill 스케일 — 짧은 축을 채우고 긴 축을 넘치게
+        let bufferAspect = Float(bufferSize.width / bufferSize.height)
+        let viewAspect = Float(viewSize.width / viewSize.height)
+        var sx: Float = 1, sy: Float = 1
+        if bufferAspect > viewAspect {
+            sx = bufferAspect / viewAspect     // 좌우가 넘침
+        } else {
+            sy = viewAspect / bufferAspect     // 상하가 넘침
+        }
+
+        // 2. 0~1 → -1~1, y축 뒤집기 (이미지는 y-down, NDC는 y-up)
+        var m = simd_float4x4(diagonal: .init(2 * sx, -2 * sy, 1, 1))
+        m.columns.3 = .init(-sx, sy, 0, 1)
+
+        // 3. 회전
+        let r = simd_float4x4(rotationZ: Float(rotationAngle * .pi / 180))
+        m = r * m
+
+        // 4. 전면 카메라 미러링
+        if isMirrored {
+            m = simd_float4x4(diagonal: .init(-1, 1, 1, 1)) * m
+        }
+        self.matrix = m
+    }
+
+    /// Vision 정규화 좌표(좌하단 원점) → NDC
+    func ndc(visionPoint p: CGPoint) -> SIMD2<Float> {
+        // Vision은 y-up이므로 이미지 좌표계로 뒤집어서 넣는다
+        let v = matrix * SIMD4<Float>(Float(p.x), Float(1 - p.y), 0, 1)
+        return .init(v.x, v.y)
     }
 }
 ```
 
-**주의사항**
-- `layerPointConverted(fromCaptureDevicePoint:)`는 메인 스레드 전용입니다. 비전 처리는 백그라운드 큐에서 하되 **변환은 메인에서 19개 점만** 수행합니다. 프레임당 19회 변환의 비용은 사실상 0입니다.
-- 회전은 iOS 17부터 `AVCaptureConnection.videoRotationAngle`로 설정합니다 (`videoOrientation`은 deprecated). `AVCaptureDevice.RotationCoordinator`를 쓰면 기기 회전을 자동 추종합니다.
+`AVCaptureDevice.RotationCoordinator`(iOS 17+)로 `videoRotationAngle`을 추종합니다. [D-01](../05-결정/stack/D-01-deployment-target.md)에서 iOS 26을 확정했으므로 제약 없이 사용합니다.
 
-## 4.3 지연 — 반드시 인지해야 할 문제
-
-`AVCaptureVideoPreviewLayer`는 프레임을 **즉시** 화면에 띄웁니다. 반면 Vision 추론 결과는 3~15ms 뒤에 나옵니다. 버퍼 큐까지 더하면 스켈레톤은 **1~3프레임 늦게** 따라옵니다.
-
-일상 동작에서는 보이지 않지만, **초당 30m로 움직이는 테니스 스윙에서는 팔이 스켈레톤 밖으로 완전히 튀어나갑니다.**
-
-### 단계별 대응 전략
-
-| 단계 | 방식 | 특징 |
-|---|---|---|
-| Phase 0 | 프리뷰 레이어 + 오버레이 그대로 | 구현 30분. 느린 동작은 문제없음 |
-| Phase 0.5 | **속도 외삽 (extrapolation)** | 마지막 두 프레임의 관절 속도로 예측. 코드 10줄, 체감 개선 큼 |
-| Phase 1 | **Metal로 프리뷰 직접 렌더** | 같은 `CMSampleBuffer`에서 영상과 스켈레톤을 함께 그림 → 지연 0. 정석 |
-| 리플레이 | 항상 정확 | 오프라인이라 동기화 문제 자체가 없음 |
-
-```swift
-// 속도 외삽 — Phase 0.5 임시 대응
-func extrapolated(_ current: CGPoint, previous: CGPoint,
-                  dt: Double, lead: Double) -> CGPoint {
-    guard dt > 0 else { return current }
-    let vx = (current.x - previous.x) / dt
-    let vy = (current.y - previous.y) / dt
-    return CGPoint(x: current.x + vx * lead, y: current.y + vy * lead)
-}
-// lead = 실측한 추론 지연 (기기별로 캘리브레이션)
-```
-
-### 설계 원칙
-
-> **정확한 자세 교정 피드백은 리플레이 화면에서 제공한다.**
-> 라이브 오버레이는 "카메라 안에 잘 잡혔다"는 확신을 주는 용도이지,
-> 라이브에서 각도를 판정하게 만들면 안 된다.
+> **주의**: 관절 좌표를 CPU에서 NDC로 변환해 정점 버퍼에 넣어도 되고, 정규화 좌표를 그대로 넣고 셰이더에서 행렬을 곱해도 됩니다. 관절이 19개뿐이라 어느 쪽이든 비용 차이는 없습니다. **행렬을 uniform으로 넘겨 셰이더에서 적용하는 쪽**이 텍스처와 확실히 같은 변환을 쓰게 되므로 권장합니다.
 
 ## 4.4 스켈레톤 정의
 
@@ -142,70 +172,73 @@ enum PoseSkeleton {
     ]
 }
 
-/// 화면 좌표로 변환이 끝난, 렌더링 직전 상태
-struct RenderablePose {
-    struct Joint {
-        let position: CGPoint
+/// 렌더링 직전 상태. 정규화 좌표를 유지하고 변환은 셰이더에서 한다.
+struct RenderablePose: Sendable {
+    struct Joint: Sendable {
+        let normalized: CGPoint     // Vision 정규화 좌표
         let confidence: Float
         let issue: JointIssue?      // 교정 대상 여부
     }
     var joints: [HumanBodyPoseObservation.JointName: Joint]
+    var hands: HandOverlay?         // detectsHands 결과 (라켓 손 강조용)
     var phase: SwingPhase?          // 임팩트 순간 강조용
+    var timestamp: CMTime           // 짝이 되는 프레임 식별용
 }
 ```
 
-## 4.5 렌더러
+## 4.5 정점 생성
+
+관절 19개 · 본 20개는 매 프레임 정점 버퍼를 새로 채워도 부담이 없습니다.
 
 ```swift
-// Features/Capture/Overlay/SkeletonOverlay.swift
-import SwiftUI
+// VisionKit/Render/SkeletonPass.swift
+struct SkeletonVertex {
+    var position: SIMD2<Float>   // 정규화 좌표 (셰이더에서 변환)
+    var color: SIMD4<Float>
+}
 
-struct SkeletonOverlay: View {
-    let pose: RenderablePose?
+func buildBoneVertices(_ pose: RenderablePose,
+                       style: SkeletonStyle) -> [SkeletonVertex] {
+    var out: [SkeletonVertex] = []
+    out.reserveCapacity(PoseSkeleton.bones.count * 2)
 
-    var body: some View {
-        Canvas { ctx, _ in
-            guard let pose else { return }
+    for bone in PoseSkeleton.bones {
+        guard let a = pose.joints[bone.from],
+              let b = pose.joints[bone.to],
+              a.confidence > style.minConfidence,
+              b.confidence > style.minConfidence else { continue }
 
-            // 본
-            for bone in PoseSkeleton.bones {
-                guard let a = pose.joints[bone.from],
-                      let b = pose.joints[bone.to],
-                      a.confidence > 0.3, b.confidence > 0.3 else { continue }
+        // 신뢰도 → 투명도. 가려진 관절이 흐려지면 사용자가 스스로 카메라를 고친다
+        let alpha = min(a.confidence, b.confidence)
+        var color = style.color(for: bone.part)
+        color.w *= alpha
 
-                var path = Path()
-                path.move(to: a.position)
-                path.addLine(to: b.position)
-
-                let alpha = Double(min(a.confidence, b.confidence))  // 신뢰도 → 투명도
-                ctx.stroke(path,
-                           with: .color(bone.part.color.opacity(alpha)),
-                           style: .init(lineWidth: 4, lineCap: .round))
-            }
-
-            // 관절
-            for (_, joint) in pose.joints where joint.confidence > 0.3 {
-                let r: CGFloat = joint.issue != nil ? 9 : 5
-                let rect = CGRect(x: joint.position.x - r,
-                                  y: joint.position.y - r,
-                                  width: r * 2, height: r * 2)
-                ctx.fill(Path(ellipseIn: rect),
-                         with: .color(joint.issue != nil ? .red : .white))
-
-                if let issue = joint.issue {
-                    ctx.draw(
-                        Text("\(Int(issue.angle))°")
-                            .font(.caption2).bold()
-                            .foregroundStyle(.red),
-                        at: CGPoint(x: joint.position.x, y: joint.position.y - 20)
-                    )
-                }
-            }
-        }
-        .allowsHitTesting(false)
+        out.append(.init(position: .init(Float(a.normalized.x), Float(a.normalized.y)),
+                         color: color))
+        out.append(.init(position: .init(Float(b.normalized.x), Float(b.normalized.y)),
+                         color: color))
     }
+    return out
 }
 ```
+
+셰이더에서 `RenderTransform.matrix`를 uniform으로 받아 적용합니다.
+
+```metal
+// Shaders.metal
+vertex VertexOut skeleton_vertex(const device SkeletonVertex* v [[buffer(0)]],
+                                 constant float4x4& transform [[buffer(1)]],
+                                 uint vid [[vertex_id]]) {
+    VertexOut out;
+    // Vision은 y-up이므로 이미지 좌표계로 뒤집어 넣는다
+    float2 p = float2(v[vid].position.x, 1.0 - v[vid].position.y);
+    out.position = transform * float4(p, 0.0, 1.0);
+    out.color = v[vid].color;
+    return out;
+}
+```
+
+> 선 굵기: Metal의 라인 프리미티브는 굵기를 지정할 수 없습니다. **본을 사각형(quad)으로 확장**해 그려야 원하는 두께가 나옵니다. 관절 원도 인스턴싱된 quad + 프래그먼트 셰이더에서 원형 마스크로 처리합니다.
 
 ## 4.6 떨림 제거 — One Euro Filter
 
@@ -266,46 +299,63 @@ confidence가 임계값 아래로 떨어진 관절은 필터를 갱신하지 않
 | **부위별 컬러** | 라켓 팔은 강조색, 나머지는 저채도 | 시선을 어디에 둘지 알려줌 |
 | **신뢰도 → 투명도** | confidence를 그대로 alpha에 매핑 | 가려진 관절이 흐려지면 사용자가 스스로 카메라 위치를 고침. **에러 메시지보다 강력함** |
 | **문제 관절 강조** | 빨강 원 + 각도 라벨 | 룰 엔진이 잡은 이탈 관절만. 3개 넘게 띄우면 아무도 안 봄 |
-| **모션 트레일** | 최근 N프레임 손목 궤적을 잔상으로 | 스윙 경로가 한눈에 들어옴 |
+| **모션 트레일** | 최근 N프레임 손목 궤적을 잔상으로 | 스윙 경로가 한눈에 들어옴. Metal에서는 링 버퍼 정점으로 거의 무료 |
 | **페이즈 강조** | 임팩트 프레임에서 스켈레톤 펄스 | 결정적 순간을 인지시킴 |
 | **레퍼런스 고스트** | 프로 스켈레톤을 반투명으로 겹침 | **킬러 기능.** 단, 신체 비율 정규화 선행 필요 → Phase 2 |
 
+각도 라벨 같은 텍스트는 Metal에서 직접 그리기 번거로우므로, **`GuideOverlay`(SwiftUI)에 올려 관절 화면 좌표로 배치**합니다. 라벨은 초당 60회 갱신할 필요가 없습니다.
+
 ### 레퍼런스 고스트의 선결 과제
 
-프로 선수 스켈레톤을 그냥 겹치면 체격 차이 때문에 전혀 맞지 않습니다. 다음이 필요합니다:
+프로 선수 스켈레톤을 그냥 겹치면 체격 차이 때문에 전혀 맞지 않습니다.
 1. 어깨너비 또는 신장 기준 스케일 정규화
 2. 골반(root) 기준 위치 정렬
 3. DTW로 시간축 정렬 (스윙 속도가 다르므로)
 
-## 4.8 파일 배치
+## 4.8 녹화 영상 합성
+
+Metal 렌더 경로를 **그대로 재사용**합니다. 화면 대신 오프스크린 텍스처에 그려 `AVAssetWriterInputPixelBufferAdaptor`로 넘깁니다.
+
+이것이 [D-07](../05-결정/stack/D-07-overlay-rendering.md)에서 Canvas 대신 Metal을 택한 두 번째 이유입니다. Canvas였다면 합성용 렌더러를 따로 만들어야 했습니다.
+
+## 4.9 파일 배치
 
 ```
 Projects/
-├── VisionKit/Sources/Pose/
-│   ├── PoseEstimator.swift          # DetectHumanBodyPoseRequest 래핑
-│   ├── PoseSkeleton.swift           # Bone 정의
-│   ├── OneEuroFilter.swift          # 떨림 제거
-│   ├── PoseSmoother.swift           # 관절별 필터 관리 + 속도 외삽
-│   └── JointAngle.swift             # 각도 계산 → 교정 판정 입력
+├── VisionKit/Sources/
+│   ├── Pose/
+│   │   ├── PoseEstimator.swift          # DetectHumanBodyPoseRequest 래핑
+│   │   ├── PoseSkeleton.swift           # Bone 정의
+│   │   ├── OneEuroFilter.swift          # 떨림 제거
+│   │   ├── PoseSmoother.swift           # 관절별 필터 관리
+│   │   └── JointAngle.swift             # 각도 계산 → 교정 판정 입력
+│   └── Render/
+│       ├── FrameRenderer.swift          # Metal 파이프라인 총괄
+│       ├── CameraTexturePass.swift      # CVMetalTextureCache
+│       ├── SkeletonPass.swift           # 본·관절 정점 생성
+│       ├── TrajectoryPass.swift         # 궤적 트레일
+│       ├── RenderTransform.swift        # ★ 단일 변환 행렬
+│       ├── RenderablePose.swift         # 렌더 직전 모델
+│       ├── OffscreenRenderer.swift      # 녹화 합성용
+│       ├── Shaders.metal
+│       └── SkeletonStyle.swift          # 컬러·굵기 토큰
 │
-└── Features/Capture/Sources/Overlay/
-    ├── SkeletonOverlay.swift        # SwiftUI Canvas 렌더러
-    ├── PoseCoordinateMapper.swift   # Vision → 뷰 좌표 변환
-    ├── RenderablePose.swift         # 렌더 직전 모델
-    ├── TrajectoryOverlay.swift      # 공 궤적 (별도 레이어)
-    ├── GuideOverlay.swift           # 프레이밍 가이드, 흔들림 경고
-    └── SkeletonStyle.swift          # 컬러·굵기 토큰 (DesignSystem 연동)
+└── Features/Capture/Sources/
+    ├── View/
+    │   └── MetalCameraView.swift        # UIViewRepresentable → MTKView
+    └── Overlay/
+        └── GuideOverlay.swift           # SwiftUI. 가이드·경고·각도 라벨
 ```
 
-`VisionKit`은 UIKit/SwiftUI를 import하지 않으므로 샘플 영상 기반 회귀 테스트가 가능하고, `Features/Capture/Overlay`는 순수 렌더링만 담당합니다. 이 경계를 지키면 나중에 Metal 렌더러로 교체할 때 `SkeletonOverlay.swift` 한 파일만 바뀝니다.
+`VisionKit`은 SwiftUI를 import하지 않으므로 샘플 영상 기반 회귀 테스트가 가능합니다. `OffscreenRenderer`를 쓰면 **렌더 결과 자체를 스냅샷 테스트**할 수도 있습니다.
 
-## 4.9 미결 사항
+## 4.10 Phase 0 검증 항목
 
-⬜ **라이브 오버레이와 리플레이 오버레이 중 어느 쪽을 먼저 구현할 것인가**
-
-- 리플레이는 지연 문제가 없어 훨씬 빨리 완성되고, 자세 교정의 실제 가치도 리플레이 쪽에 있음
-- 다만 촬영 중 스켈레톤이 안 보이면 "제대로 인식되고 있나" 불안해지므로 라이브는 저품질이라도 있는 편이 나음
-- 잠정 결론: **라이브를 최소 품질로 먼저 → 리플레이를 제대로 → 라이브를 Metal로 개선**
+- [ ] `MTKView` + `CVMetalTextureCache`로 카메라 영상이 60fps로 표시되는가
+- [ ] `RenderTransform`이 세로/가로, 전면/후면에서 모두 정확한가
+- [ ] 스켈레톤이 몸과 어긋나지 않는가 (빠른 스윙에서)
+- [ ] One Euro `beta` 튜닝 — 임팩트 순간 손목이 잘리지 않는가
+- [ ] 프레임 예산 내에 렌더가 끝나는가 (목표 1~2ms)
 
 ## 관련 문서
 
@@ -313,6 +363,7 @@ Projects/
 - [iOS 기술 스택](../03-기술스택/IOS-STACK.md)
 - [D-07 오버레이 렌더링](../05-결정/stack/D-07-overlay-rendering.md)
 - [D-06 포즈 추정 엔진](../05-결정/stack/D-06-pose-engine.md)
+- [D-04 비동기 / 상태 관리](../05-결정/stack/D-04-concurrency.md)
 
 ---
 

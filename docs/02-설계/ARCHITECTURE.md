@@ -70,7 +70,8 @@ flowchart TB
 
 ```
 ┌──────────────────────────────────────────────┐
-│ Presentation   SwiftUI Views / ViewModels    │
+│ Presentation   SwiftUI Views / TCA Store     │
+│                (프레임 스트림은 Store 바깥)  │
 ├──────────────────────────────────────────────┤
 │ Domain         Entities / UseCases           │  ← 순수 Swift, 의존성 0
 │                Repository Protocols          │
@@ -90,11 +91,12 @@ flowchart TB
 ### 촬영 시
 ```
 CMSampleBuffer (1080p60)
-  ├─→ AVCaptureVideoPreviewLayer          (즉시 표시)
+  ├─→ Metal 텍스처 보관                    (포즈와 짝을 맞춰 렌더)
   ├─→ 다운스케일 640x360 → 분석 파이프라인 (비동기)
-  │     ├─ 포즈 → 필터 → 스켈레톤 오버레이
-  │     ├─ 포즈 시퀀스 → 스윙 검출 → 분류
-  │     └─ 궤적 검출 → 궤적 오버레이
+  │     ├─ 오버레이 스트림 (.bufferingNewest(1)) → 포즈 → 필터
+  │     ├─ 분석 스트림 (연속 처리)          → 궤적 검출
+  │     └─ 포즈 시퀀스 → 스윙 검출 → 분류
+  ├─→ MTKView 렌더: 영상 텍스처 + 스켈레톤 + 궤적 (단일 변환 행렬)
   └─→ 링 버퍼 (최근 5초 보관)
         └─ 스윙 감지 시 [t-2s, t+2s] 구간을 AVAssetWriter로 기록
 ```

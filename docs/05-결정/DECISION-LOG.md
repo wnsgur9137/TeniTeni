@@ -135,7 +135,7 @@ D-14 ~ D-21 (백엔드) ← Phase 2 착수 직전에 확정해도 늦지 않음
 | # | 제목 | 상태 |
 |---|---|---|
 | [ADR-0001](./adr/ADR-0001-hybrid-inference.md) | 온디바이스/서버 하이브리드 추론 구조 | Accepted |
-| [ADR-0002](./adr/ADR-0002-monorepo.md) | 모노레포 채택 | Proposed |
+| [ADR-0002](./adr/ADR-0002-monorepo.md) | 모노레포 채택 | Accepted |
 | [ADR-0003](./adr/ADR-0003-rule-based-evaluation.md) | 자세 평가는 룰 엔진 우선 | Accepted |
 
 ADR 상태: **Proposed**(제안) / **Accepted**(채택) / **Superseded by ADR-XXXX** / **Deprecated**

@@ -6,12 +6,12 @@ tags:
   - 영역/인프라
 created: 2026-09-10
 updated: 2026-09-10
-status: proposed
+status: accepted
 ---
 
 # ADR-0002. 모노레포 채택
 
-- **상태**: Proposed
+- **상태**: Accepted
 - **날짜**: 2026-09-10
 
 ## 맥락
@@ -43,7 +43,7 @@ iOS 앱, 백엔드 API, ML 학습 코드, API 스펙을 어떻게 저장소로 �
 
 ## 결정
 
-**B. 모노레포를 채택한다.**
+**B. 모노레포를 채택한다.** ([D-22](../stack/D-22-repository-workflow.md)에서 확정, 2026-09-10 적용 완료)
 
 비용은 다음으로 완화합니다:
 - GitHub Actions `paths` 필터로 변경 영역만 CI 실행

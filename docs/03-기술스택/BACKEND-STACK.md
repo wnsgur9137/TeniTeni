@@ -54,35 +54,37 @@ ML 파이프라인은 Python 외의 선택지가 사실상 없습니다. 따라�
 |---|---|---|---|
 | 런타임 | Python 3.12 | ✅ | [D-14](../05-결정/stack/D-14-backend-framework.md) |
 | 웹 프레임워크 | FastAPI | ✅ | [D-14](../05-결정/stack/D-14-backend-framework.md) |
-| 검증/직렬화 | Pydantic v2 | 🟡 | — |
-| ORM | SQLAlchemy 2.0 | 🟡 | SQLModel, Tortoise |
-| 마이그레이션 | Alembic | 🟡 | — |
+| 검증/직렬화 | Pydantic v2 | ✅ | FastAPI에 수반 |
+| ORM | SQLAlchemy 2.0 | ✅ | D-15 자체 구축에 수반 |
+| 마이그레이션 | Alembic | ✅ | SQLAlchemy에 수반 |
 | DB | PostgreSQL 16 | ✅ | [D-16](../05-결정/stack/D-16-database.md). TimescaleDB 미사용 |
 | 큐 | **arq** + Redis | ✅ | [D-17](../05-결정/stack/D-17-task-queue.md) |
 | 오브젝트 스토리지 | Cloudflare R2 | ✅ | [D-18](../05-결정/stack/D-18-object-storage.md) |
 | 인증 | Sign in with Apple + 자체 JWT | ✅ | [D-19](../05-결정/stack/D-19-authentication.md) |
-| 패키지 관리 | uv | ⬜ | poetry, pdm |
-| 린트/포맷 | ruff | 🟡 | black + flake8 |
-| 타입 체크 | mypy | 🟡 | pyright |
-| 테스트 | pytest | 🟡 | — |
-| 컨테이너 | Docker + Compose | 🟡 | — |
+| 패키지 관리 | uv | 🟡 | poetry, pdm — Phase 2 착수 시 확정 |
+| 린트/포맷 | ruff | ✅ | 사실상 표준 |
+| 타입 체크 | mypy | 🟡 | pyright — Phase 2 착수 시 확정 |
+| 테스트 | pytest | ✅ | 사실상 표준 |
+| 컨테이너 | Docker + Compose | ✅ | [D-21](../05-결정/stack/D-21-deployment.md) |
 | 배포 | 단일 VM + Docker Compose | ✅ | [D-21](../05-결정/stack/D-21-deployment.md) |
-| 관측 | Sentry + OpenTelemetry | ⬜ | Grafana Cloud |
+| 관측 | Sentry | 🟡 | 서버 전용. 앱은 [D-13](../05-결정/stack/D-13-observability.md) Crashlytics |
 
 ## 6.4 ML 스택
 
+⏸ **전체 보류** — [D-20](../05-결정/stack/D-20-server-ml.md). Phase 2를 CPU 추론으로 시작해 온디바이스 대비 개선폭을 정량 비교한 뒤 도입 여부를 결정합니다. 개선폭이 작으면 이 절 전체가 불필요해집니다.
+
 | 영역 | 잠정안 | 상태 |
 |---|---|---|
-| 프레임워크 | PyTorch 2.x | 🟡 |
-| 공 검출 | TrackNetV2/V3 | ⬜ |
-| 포즈 | MMPose (ViTPose / HRNet) | ⬜ |
-| 3D 리프팅 | MotionBERT 계열 | ⬜ |
-| 고전 CV | OpenCV (코트 라인, 호모그래피) | 🟡 |
+| 프레임워크 | PyTorch 2.x | ⏸ |
+| 공 검출 | TrackNetV2/V3 | ⏸ |
+| 포즈 | MMPose (ViTPose / HRNet) | ⏸ |
+| 3D 리프팅 | MotionBERT 계열 | ⏸ |
+| 고전 CV | OpenCV (코트 라인, 호모그래피) | ⏸ |
 | 수치 후처리 | NumPy, SciPy (칼만, 궤적 피팅) | ✅ |
 | Core ML 변환 | coremltools | 🟡 |
-| 실험 관리 | MLflow 또는 W&B | ⬜ |
-| 데이터 버전 | DVC | ⬜ |
-| 모델 서빙 | 워커 프로세스 내 직접 로드 | 🟡 |
+| 실험 관리 | MLflow 또는 W&B | ⏸ |
+| 데이터 버전 | DVC | 🟡 |
+| 모델 서빙 | 워커 프로세스 내 직접 로드 | ⏸ |
 
 **모델 서빙에 대해**: 초기에는 TorchServe나 Triton을 도입하지 않습니다. arq 워커가 시작 시 모델을 메모리에 올려두고(`on_startup`) 직접 추론하는 것이 가장 단순합니다. 동시 처리량이 문제가 될 때 분리합니다.
 
@@ -104,7 +106,7 @@ Python 분석 워커 1개 (직접 운영)
 **비용**
 - 비즈니스 로직이 클라이언트와 DB 함수로 분산됨
 - 벤더 종속. 다만 PostgreSQL 기반이라 이관 경로는 열려 있음
-- swift-openapi-generator 기반 계약 검증의 이점을 잃음
+- 계약 검증의 이점을 잃음 (단 [D-11](../05-결정/stack/D-11-networking.md)에서 Moya를 택해 이 이점은 이미 포기한 상태)
 
 **미채택 이유**: 진척도 집계와 레퍼런스 DTW 비교 등 서버 로직이 Phase 3에서 늘어납니다. 그 시점에 로직이 클라이언트와 DB 함수로 흩어지는 비용이, Phase 2를 수 주 단축하는 이득보다 큽니다.
 

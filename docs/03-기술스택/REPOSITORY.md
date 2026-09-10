@@ -13,7 +13,7 @@ status: active
 
 ## 7.1 결정: 모노레포
 
-🟡 **잠정** — 단일 저장소 `wnsgur9137/TeniTeni` — [ADR-0002](../05-결정/adr/ADR-0002-monorepo.md)
+✅ **확정** — 단일 저장소 `wnsgur9137/TeniTeni` — [ADR-0002](../05-결정/adr/ADR-0002-monorepo.md), [D-22](../05-결정/stack/D-22-repository-workflow.md)
 
 ### 근거
 
@@ -123,7 +123,7 @@ TeniTeni/
 
 ## 7.4 브랜치 전략
 
-🟡 **잠정** — Trunk-based
+✅ **확정** — Trunk-based — [D-22](../05-결정/stack/D-22-repository-workflow.md)
 
 ```
 main                    보호됨. 항상 배포 가능 상태
@@ -133,7 +133,10 @@ main                    보호됨. 항상 배포 가능 상태
 ```
 
 - 브랜치 수명은 **짧게** (2~3일). 길어지면 쪼갭니다
-- `main` 보호 규칙: PR 필수, CI 통과 필수, 직접 푸시 금지
+- `main` 보호 규칙은 **단계적으로 적용**합니다 ([D-22](../05-결정/stack/D-22-repository-workflow.md))
+  - 지금: force push 차단, 브랜치 삭제 차단
+  - Phase 0 CI 구축 후: PR 필수 + 상태 검사(골든 테스트 포함) 통과 필수
+  - ⚠️ 로컬 `gh`가 회사 계정으로 인증되어 있어 **저장소 소유자가 직접 설정**해야 합니다
 - Git Flow는 도입하지 않습니다. 1인 개발에 `develop` 브랜치는 순수 오버헤드입니다
 
 ### 태그와 릴리즈
@@ -148,7 +151,7 @@ model-v0.2.0    → 모델 아티팩트 릴리즈
 
 ## 7.5 커밋 컨벤션
 
-🟡 **잠정** — gitmoji + Conventional Commits
+✅ **확정** — gitmoji + Conventional Commits — [D-22](../05-결정/stack/D-22-repository-workflow.md)
 
 ```
 ✨ feat(vision): 스윙 구간 자동 검출 추가
@@ -197,14 +200,14 @@ on:
     paths: ['contracts/**', 'server/src/teniteni/schemas/**']
 steps:
   - FastAPI에서 OpenAPI 재생성 → contracts/openapi.yaml과 diff 검증
-  - swift-openapi-generator 실행 → 생성 코드가 최신인지 검증
+  - protoc 실행 → Swift/Python 생성 코드가 스키마와 일치하는지 검증
 ```
 
-이 워크플로가 **서버-클라이언트 계약 불일치를 PR 단계에서 차단**합니다.
+[D-11](../05-결정/stack/D-11-networking.md)에서 Moya를 택해 REST 클라이언트는 수동 작성이므로, 계약 검증은 **Protobuf 스키마([D-09](../05-결정/stack/D-09-serialization.md))** 에 집중합니다. OpenAPI에서 DTO만 생성하는 절충안을 도입하면 그 검증도 여기에 추가합니다.
 
 ## 7.7 Obsidian 볼트
 
-🟡 **잠정** — **저장소 루트가 볼트**입니다. 기존 프로젝트(SimpleCare, Lumio, Timespread_IOS)와 동일한 방식입니다.
+✅ **확정** — **저장소 루트가 볼트**입니다. 기존 프로젝트(SimpleCare, Lumio, Timespread_IOS)와 동일한 방식입니다.
 
 ### 설정
 

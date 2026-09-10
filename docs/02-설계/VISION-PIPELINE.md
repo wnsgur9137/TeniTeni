@@ -57,7 +57,7 @@ status: active
 
 ### 3D 포즈
 
-🟡 **잠정** — `DetectHumanBodyPose3DRequest`
+🟡 **v2+ 검토** — `DetectHumanBodyPose3DRequest` (iOS 26이라 사용 가능하나 v1 범위 밖)
 
 - 3D 관절 17개, 카메라 상대 좌표
 - **실시간 예산에 들어가지 않음.** 리플레이 화면에서 선택된 스윙에만 적용
@@ -67,7 +67,7 @@ status: active
 
 ### 서버 (정밀)
 
-⬜ **미결** — 후보: MMPose(ViTPose / HRNet), 3D 리프팅은 MotionBERT 계열
+⏸ **보류** — [D-20](../05-결정/stack/D-20-server-ml.md). 후보는 MMPose(ViTPose / HRNet), 3D 리프팅은 MotionBERT 계열
 
 서버 정밀 분석이 실제로 온디바이스 대비 유의미한 개선을 주는지는 Phase 2에서 정량 검증 후 도입합니다. **차이가 작으면 서버 포즈 재분석은 하지 않습니다** (GPU 비용 대비 가치 없음).
 
@@ -132,7 +132,7 @@ status: active
 
 ### 온디바이스 접근
 
-🟡 **잠정** — Apple Vision `DetectTrajectoriesRequest` (신규 Swift API)
+✅ **확정(온디바이스)** — Apple Vision `DetectTrajectoriesRequest` (신규 Swift API). [D-06](../05-결정/stack/D-06-pose-engine.md)과 같은 근거 — 의존성 0, ANE 가속. **Phase 0 게이트의 검증 대상**이다
 
 **이 API는 정확히 이 문제를 위해 만들어졌습니다.** 일반 object detection이 아니라, 연속 프레임에서 **포물선 궤적을 그리는 움직임**을 직접 찾습니다. Apple의 WWDC20 *Action & Vision* 샘플 앱이 그대로 레퍼런스입니다 (빈백 던지기 궤적 + 자세 분석 — TeniTeni와 문제 구조가 동일).
 
@@ -155,7 +155,7 @@ status: active
 
 ### 서버 접근 (고정밀)
 
-⬜ **미결** — 후보:
+⏸ **보류** — [D-20](../05-결정/stack/D-20-server-ml.md). Phase 0에서 온디바이스 검출률이 70%를 넘으면 도입 명분이 크게 줄어든다. 후보:
 
 | 후보 | 방식 | 비고 |
 |---|---|---|
@@ -167,7 +167,7 @@ status: active
 
 ### 코트 인식과 좌표 변환
 
-⬜ **미결** — Phase 3 과제
+⏸ **Phase 3 과제** — [D-20](../05-결정/stack/D-20-server-ml.md) 판정과 함께 결정
 
 1. 코트 라인 검출 (Hough 변환 또는 학습 기반 세그멘테이션)
 2. 표준 코트 규격(23.77m × 8.23m 단식)과 대응점 매칭

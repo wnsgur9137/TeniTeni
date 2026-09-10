@@ -11,8 +11,8 @@ status: active
 
 # 05. iOS 기술 스택
 
-> 이 문서의 모든 항목은 [stack-decisions.md](../05-결정/DECISION-LOG.md)에서 순차적으로 확정합니다.
-> 현재 대부분 🟡 잠정 상태입니다.
+> 기술 스택 결정은 [결정 현황](../05-결정/DECISION-LOG.md)에서 **22/22 완료**됐습니다.
+> ✅는 결정 노트가 있거나 그에 수반되는 항목, 🟡는 관례적 선택으로 착수 시 확인할 항목입니다.
 
 ## 5.1 로컬 환경
 
@@ -32,7 +32,7 @@ status: active
 
 | 레이어 | 잠정안 | 상태 | 대안 |
 |---|---|---|---|
-| 언어 | Swift 6.x (strict concurrency) | 🟡 | — |
+| 언어 | Swift 6.x (strict concurrency) | ✅ | [D-01](../05-결정/stack/D-01-deployment-target.md)에 수반 |
 | 최소 타깃 | **iOS 26.0** | ✅ | [D-01](../05-결정/stack/D-01-deployment-target.md)에서 확정 |
 | UI | SwiftUI + `@Observable` | ✅ | [D-02](../05-결정/stack/D-02-ui-framework.md)에서 확정 |
 | 아키텍처 | Clean Architecture + **TCA** | ✅ | [D-03](../05-결정/stack/D-03-architecture-pattern.md)에서 확정 |
@@ -83,8 +83,8 @@ iOS 18이 아니라 26을 택한 이유는 **레거시 분기를 아예 만들�
 
 | 영역 | 구현 |
 |---|---|
-| 카메라 프리뷰 | `UIViewRepresentable` → `AVCaptureVideoPreviewLayer` (D-07에서 `MTKView`로 전환 가능) |
-| 스켈레톤·궤적 오버레이 | SwiftUI `Canvas` |
+| 카메라 프리뷰 | `UIViewRepresentable` → **`MTKView`** (Metal 직접 렌더, [D-07](../05-결정/stack/D-07-overlay-rendering.md)) |
+| 스켈레톤·궤적 오버레이 | **Metal 렌더 패스** (영상과 같은 draw) |
 | 그 외 전 화면 | SwiftUI |
 | 상태 | `@Observable` |
 
@@ -206,17 +206,15 @@ ios/
 │   │   │   ├── Sources/
 │   │   │   │   ├── View/
 │   │   │   │   │   ├── CaptureView.swift
-│   │   │   │   │   ├── CameraPreview.swift        # UIViewRepresentable
+│   │   │   │   │   ├── MetalCameraView.swift      # UIViewRepresentable → MTKView
 │   │   │   │   │   └── CaptureControlBar.swift
-│   │   │   │   ├── ViewModel/
-│   │   │   │   │   └── CaptureViewModel.swift
+│   │   │   │   ├── Reducer/
+│   │   │   │   │   ├── CaptureFeature.swift       # @Reducer
+│   │   │   │   │   └── CaptureFeature+Effects.swift
+│   │   │   │   ├── OverlayState/
+│   │   │   │   │   └── OverlayModel.swift         # @Observable, TCA 바깥 60fps 경로
 │   │   │   │   ├── Overlay/
-│   │   │   │   │   ├── SkeletonOverlay.swift
-│   │   │   │   │   ├── TrajectoryOverlay.swift
-│   │   │   │   │   ├── GuideOverlay.swift
-│   │   │   │   │   ├── PoseCoordinateMapper.swift
-│   │   │   │   │   ├── RenderablePose.swift
-│   │   │   │   │   └── SkeletonStyle.swift
+│   │   │   │   │   └── GuideOverlay.swift         # SwiftUI. 가이드·경고·각도 라벨
 │   │   │   │   └── Camera/
 │   │   │   │       ├── CameraSession.swift        # AVCaptureSession 구성
 │   │   │   │       ├── FormatSelector.swift       # 120/240fps 포맷 선택
@@ -261,7 +259,7 @@ ios/
 │   │   ├── Project.swift
 │   │   └── Sources/
 │   │       ├── Network/
-│   │       │   ├── Generated/         # swift-openapi-generator 산출물
+│   │       │   ├── Targets/           # Moya TargetType (D-11)
 │   │       │   ├── APIClient.swift
 │   │       │   ├── AuthMiddleware.swift
 │   │       │   └── UploadService.swift
@@ -284,6 +282,16 @@ ios/
 │   │   │   │   ├── OneEuroFilter.swift
 │   │   │   │   ├── PoseSmoother.swift
 │   │   │   │   └── JointAngle.swift
+│   │   │   ├── Render/                        # ★ Metal (D-07)
+│   │   │   │   ├── FrameRenderer.swift
+│   │   │   │   ├── CameraTexturePass.swift
+│   │   │   │   ├── SkeletonPass.swift
+│   │   │   │   ├── TrajectoryPass.swift
+│   │   │   │   ├── RenderTransform.swift      # 단일 변환 행렬
+│   │   │   │   ├── RenderablePose.swift
+│   │   │   │   ├── OffscreenRenderer.swift    # 녹화 합성용
+│   │   │   │   ├── Shaders.metal
+│   │   │   │   └── SkeletonStyle.swift
 │   │   │   ├── Ball/
 │   │   │   │   ├── BallTracker.swift          # DetectTrajectoriesRequest 래핑
 │   │   │   │   └── TrajectoryFitter.swift
@@ -322,7 +330,7 @@ ios/
 |---|---|---|
 | **골든 테스트** | VisionKit — 고정 샘플 영상 입력 → 검출 결과 검증 | Swift Testing |
 | 단위 테스트 | Domain UseCase, RuleEngine, DTW, OneEuroFilter | Swift Testing |
-| 스냅샷 테스트 | 오버레이 렌더링 결과 | swift-snapshot-testing (⬜ 검토) |
+| 스냅샷 테스트 | 오버레이 렌더링 결과 | `OffscreenRenderer` 출력 비교 (⬜ 검토) |
 | 통합 테스트 | Data 레이어 (mock 서버) | XCTest |
 | UI 테스트 | 핵심 플로우 1~2개만 | XCUITest |
 
