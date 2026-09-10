@@ -13,7 +13,7 @@ status: active
 
 설계 문서의 모든 🟡 잠정 / ⬜ 미결 항목을 하나씩 확정하기 위한 허브입니다.
 
-**진행: 6 / 22 확정**
+**진행: 7 / 22 확정**
 
 ## 확정 요약
 
@@ -24,6 +24,7 @@ status: active
 | [D-03](./stack/D-03-architecture-pattern.md) | 아키텍처 | **Clean + TCA** | 촬영 화면 상태 얽힘을 Reducer 합성으로 분해 |
 | [D-04](./stack/D-04-concurrency.md) | 비동기 | **Swift Concurrency** | 오버레이는 최신성, 궤적은 연속성 → 스트림 분리 |
 | [D-06](./stack/D-06-pose-engine.md) | 포즈 엔진 | **Apple Vision** | 의존성 0 + ANE. 발끝은 발목으로 근사 |
+| [D-07](./stack/D-07-overlay-rendering.md) | 오버레이 렌더링 | **Metal** | 프리뷰 직접 렌더로 지연 0. Phase 0 +1~2주 |
 | [D-05](./stack/D-05-module-tooling.md) | 모듈 빌드 | **Tuist 4** | TCA로 모듈 세트가 늘어 템플릿화 가치 상승 |
 
 ### 확정에 따른 고정 사항
@@ -58,7 +59,7 @@ status: active
 | ID | 항목 | 잠정안 / **확정안** | 확정 시점 | 상태 |
 |---|---|---|---|---|
 | [D-06](./stack/D-06-pose-engine.md) | 포즈 추정 엔진 | **Apple Vision** | 2026-09-10 | ✅ |
-| [D-07](./stack/D-07-overlay-rendering.md) | 오버레이 렌더링 | Canvas → Metal | Phase 0 | ⬜ |
+| [D-07](./stack/D-07-overlay-rendering.md) | 오버레이 렌더링 | **Metal (직접 렌더)** | 2026-09-10 | ✅ |
 | [D-08](./stack/D-08-local-db.md) | 로컬 데이터베이스 | SwiftData | Phase 1 | ⬜ |
 | [D-09](./stack/D-09-serialization.md) | 포즈 시계열 직렬화 | Protobuf | Phase 1 | ⬜ |
 | [D-10](./stack/D-10-swing-classifier.md) | 스윙 분류 모델 | Create ML | Phase 1 | ⬜ |
