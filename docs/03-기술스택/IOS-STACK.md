@@ -48,7 +48,7 @@ status: active
 | 모듈 빌드 | Tuist 4 | ✅ | [D-05](../05-결정/stack/D-05-module-tooling.md)에서 확정 |
 | 수치 연산 | Accelerate / simd | ✅ | — |
 | 로깅 | OSLog | 🟡 | swift-log |
-| 크래시/분석 | Firebase Crashlytics | ⬜ | Sentry, TelemetryDeck |
+| 크래시/분석 | Firebase Crashlytics | ✅ | [D-13](../05-결정/stack/D-13-observability.md)에서 확정 |
 | 린트 | SwiftLint + SwiftFormat | 🟡 | — |
 | 테스트 | Swift Testing + XCTest | 🟡 | Quick/Nimble |
 | 배포 | Fastlane → TestFlight | 🟡 | Xcode Cloud |
