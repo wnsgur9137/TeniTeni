@@ -43,7 +43,7 @@ status: active
 | 녹화 | AVAssetWriter | ✅ | — |
 | 로컬 DB | SwiftData | ✅ | [D-08](../05-결정/stack/D-08-local-db.md)에서 확정 |
 | 시계열 저장 | 파일 (Protobuf) | ✅ | [D-09](../05-결정/stack/D-09-serialization.md)에서 확정 |
-| 네트워크 | URLSession + swift-openapi-generator | 🟡 | Alamofire, Moya |
+| 네트워크 | **Moya** (+ Alamofire) | ✅ | [D-11](../05-결정/stack/D-11-networking.md)에서 확정 |
 | DI | swift-dependencies (TCA 내장) | 🟡 | D-03이 좁힘. D-12에서 확인 |
 | 모듈 빌드 | Tuist 4 | ✅ | [D-05](../05-결정/stack/D-05-module-tooling.md)에서 확정 |
 | 수치 연산 | Accelerate / simd | ✅ | — |
@@ -90,13 +90,15 @@ iOS 18이 아니라 26을 택한 이유는 **레거시 분기를 아예 만들�
 
 **RxSwift는 도입하지 않습니다.** UI 프레임워크와 무관한 별개 사안으로 D-04에서 확정하지만, 방향은 정해져 있습니다 — 비디오 프레임 파이프라인은 분석이 밀릴 때 프레임을 버려야 하는데(백프레셔) Rx의 기본 동작은 버퍼링이라 메모리가 터집니다.
 
-### 네트워크: swift-openapi-generator
+### 네트워크: Moya
 
-🟡 **잠정** — Apple 공식 도구
+✅ **확정** — [D-11](../05-결정/stack/D-11-networking.md) (2026-09-10)
 
-FastAPI가 OpenAPI 스펙을 자동 생성하고, 그 스펙에서 Swift 클라이언트 코드를 자동 생성합니다. **서버-클라이언트 계약 불일치를 컴파일 타임에 잡을 수 있습니다.** 1인 개발에서 이 가치는 큽니다.
+엔드포인트를 `TargetType` enum으로 선언해 API 표면을 한눈에 봅니다. 스텁 응답이 내장되어 서버 없이 Data 계층을 테스트할 수 있습니다.
 
-Alamofire는 이 프로젝트에서 필요한 기능(재시도, 멀티파트)이 대부분 `URLSession`으로 충분하므로 제외 검토.
+**절충안**: `contracts/openapi.yaml`에서 DTO만 생성하고 전송은 Moya가 담당하면, 스펙 변경이 모델 레벨에서는 컴파일 타임에 잡힙니다. Phase 2 착수 시 판단합니다.
+
+⬜ Phase 2에서 Moya/Alamofire의 Swift 6 strict concurrency 대응 상태를 확인해야 합니다.
 
 ### 아키텍처: Clean Architecture + TCA
 
