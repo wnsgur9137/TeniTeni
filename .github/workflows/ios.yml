@@ -5,6 +5,7 @@ on:
     paths:
       - 'ios/**'
       - 'scripts/verify-ios.sh'
+      - 'mise.toml'
       - '.github/workflows/ios.yml'
   push:
     branches: [main]
@@ -30,13 +31,15 @@ jobs:
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
 
       - name: 툴체인 설치
-        run: mise install
+        run: |
+          mise trust
+          mise install
 
       - name: Xcode 선택
         run: sudo xcode-select -s /Applications/Xcode.app
 
       - name: 게이트 실행
-        run: ./scripts/verify-ios.sh
+        run: mise exec -- ./scripts/verify-ios.sh
 
       - name: 빌드 로그 업로드
         if: failure()

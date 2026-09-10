@@ -95,6 +95,7 @@ TeniTeni/
 │   └── check-lfs.sh
 │
 ├── .obsidian/                      # Obsidian 볼트 설정 (workspace.json 제외 커밋)
+├── mise.toml                       # 툴체인 버전 고정 (Tuist)
 ├── .gitattributes                  # Git LFS 규칙
 ├── .gitignore
 ├── CLAUDE.md
