@@ -13,7 +13,7 @@ status: active
 
 설계 문서의 모든 🟡 잠정 / ⬜ 미결 항목을 하나씩 확정하기 위한 허브입니다.
 
-**진행: 21 / 22 확정** (D-20은 '보류'로 확정)
+**진행: 22 / 22 완료** ✅ (D-20은 '의도적 보류'로 확정)
 
 ## 확정 요약
 
@@ -39,6 +39,7 @@ status: active
 | [D-19](./stack/D-19-authentication.md) | 인증 | **Apple + 자체 JWT** | iOS 단독 앱. 인증까지 벤더 종속시키지 않음 |
 | [D-20](./stack/D-20-server-ml.md) | 서버 ML | **⏸ 보류** | 개선폭 미검증. CPU로 시작해 Phase 2에서 정량 비교 |
 | [D-21](./stack/D-21-deployment.md) | 인프라 | **단일 VM + Compose** | D-20 보류로 GPU 불필요. 비용·복잡도 최소 |
+| [D-22](./stack/D-22-repository-workflow.md) | 저장소 | **모노레포 + trunk-based** | 브랜치 보호는 CI 구축 후 단계 적용 |
 | [D-05](./stack/D-05-module-tooling.md) | 모듈 빌드 | **Tuist 4** | TCA로 모듈 세트가 늘어 템플릿화 가치 상승 |
 
 ### 확정에 따른 고정 사항
@@ -49,6 +50,10 @@ status: active
 - RxSwift 미도입 확정
 - Phase 0은 단일 타깃, Phase 1에서 Tuist 모듈화
 
+
+## ⚠️ 남은 수동 조치
+
+- **`main` 브랜치 보호 설정** — 로컬 `gh`가 회사 계정으로 인증되어 있어 admin 권한이 없다. 소유자가 직접 설정 필요 ([D-22](./stack/D-22-repository-workflow.md) 참고)
 
 ## 진행 방법
 
@@ -103,7 +108,7 @@ status: active
 
 | ID | 항목 | 잠정안 / **확정안** | 확정 시점 | 상태 |
 |---|---|---|---|---|
-| [D-22](./stack/D-22-repository-workflow.md) | 저장소 구조 및 워크플로 | 모노레포 + trunk-based | 첫 커밋 전 | ⬜ |
+| [D-22](./stack/D-22-repository-workflow.md) | 저장소 구조 및 워크플로 | **모노레포 + trunk-based** | 2026-09-10 | ✅ |
 
 ## 결정 순서
 

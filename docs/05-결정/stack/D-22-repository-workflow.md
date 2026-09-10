@@ -5,20 +5,20 @@ tags:
   - 문서유형/결정
   - 영역/인프라
 id: D-22
-status: open
+status: decided
 group: "E. 저장소 / 프로세스"
 depends_on: ["D-05"]
 affects: []
 decide_by: "첫 커밋 전"
 created: 2026-09-10
 updated: 2026-09-10
-decided_on: 
-decision: 
+decided_on: 2026-09-10
+decision: 모노레포 + trunk-based, 브랜치 보호는 단계적 적용
 ---
 
 # D-22. 저장소 구조 및 워크플로
 
-> **상태** ⬜ 미결 · **그룹** E. 저장소 / 프로세스 · **확정 시점** 첫 커밋 전
+> **상태** ✅ **확정** (2026-09-10) · **그룹** E. 저장소 / 프로세스
 
 ## 질문
 
@@ -53,9 +53,56 @@ decision:
 
 ## 결정
 
-> 아직 결정되지 않았습니다.
+**모노레포 + trunk-based + gitmoji/Conventional Commits.** 브랜치 보호는 **단계적으로 적용**한다.
 
-## 근거
+## 적용 완료 (2026-09-10)
+
+| 항목 | 상태 |
+|---|---|
+| 모노레포 `wnsgur9137/TeniTeni` | ✅ [ADR-0002](../adr/ADR-0002-monorepo.md) |
+| Git LFS + `.gitattributes` | ✅ 첫 커밋 전에 설정 |
+| `core.precomposeunicode` | ✅ 한글 경로 NFD 대응 |
+| 커밋 컨벤션 | ✅ gitmoji + Conventional Commits |
+| 기본 브랜치 `main` | ✅ |
+
+## 브랜치 보호 — 단계적 적용
+
+**지금 (CI 없음)**
+
+CI가 없는 상태에서 PR을 필수화하면 검사할 것이 없는데 마찰만 생긴다. 히스토리 훼손 방지만 건다.
+
+- Force push 차단
+- 브랜치 삭제 차단
+
+**Phase 0에서 CI 구축 후**
+
+`ios.yml`이 동작하기 시작하면 강제한다.
+
+- PR 필수 (직접 푸시 차단)
+- 상태 검사 통과 필수 (`ios`, `server`, `contracts`)
+- **골든 테스트를 필수 검사에 포함** — 비전 파이프라인은 튜닝이 잦아 회귀 검증이 없으면 개선인지 퇴보인지 알 수 없다
+
+## ⚠️ 수동 조치 필요
+
+로컬 `gh` CLI가 **회사 계정(`JunHyeok0206`)으로 인증**되어 있어 이 저장소에 admin 권한이 없다. 브랜치 보호는 저장소 소유자(`wnsgur9137`)가 직접 설정해야 한다.
+
+```
+GitHub → Settings → Branches → Add branch ruleset
+  Target: main
+  ☑ Block force pushes
+  ☑ Restrict deletions
+```
+
+또는 `gh auth login`으로 `wnsgur9137` 계정을 추가한 뒤:
+
+```bash
+gh api -X PUT repos/wnsgur9137/TeniTeni/branches/main/protection \
+  -f required_status_checks=null -F enforce_admins=false \
+  -f required_pull_request_reviews=null -f restrictions=null \
+  -F allow_force_pushes=false -F allow_deletions=false
+```
+
+> 참고: git 푸시는 SSH 키(`git@wnsgur9137`)를 쓰므로 정상 동작한다. `gh` CLI 계정과는 별개다.
 
 ---
 
