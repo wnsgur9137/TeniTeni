@@ -42,7 +42,7 @@ status: active
 | 오버레이 렌더 | **Metal** (프리뷰 직접 렌더) | ✅ | [D-07](../05-결정/stack/D-07-overlay-rendering.md)에서 확정 |
 | 녹화 | AVAssetWriter | ✅ | — |
 | 로컬 DB | SwiftData | ✅ | [D-08](../05-결정/stack/D-08-local-db.md)에서 확정 |
-| 시계열 저장 | 파일 (Protobuf) | ⬜ | JSON+gzip, FlatBuffers |
+| 시계열 저장 | 파일 (Protobuf) | ✅ | [D-09](../05-결정/stack/D-09-serialization.md)에서 확정 |
 | 네트워크 | URLSession + swift-openapi-generator | 🟡 | Alamofire, Moya |
 | DI | swift-dependencies (TCA 내장) | 🟡 | D-03이 좁힘. D-12에서 확인 |
 | 모듈 빌드 | Tuist 4 | ✅ | [D-05](../05-결정/stack/D-05-module-tooling.md)에서 확정 |

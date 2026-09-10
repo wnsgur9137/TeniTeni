@@ -54,8 +54,12 @@ TeniTeni/
 ├── ios/                            # → iOS 기술 스택 문서
 ├── server/                         # → 백엔드 기술 스택 문서
 │
-├── contracts/
-│   ├── openapi.yaml                # ★ 단일 진실 공급원
+├── contracts/                      # ★ 단일 진실 공급원
+│   ├── openapi.yaml                # REST API 스펙
+│   ├── proto/                      # Protobuf 스키마 (D-09)
+│   │   ├── pose.proto
+│   │   ├── trajectory.proto
+│   │   └── swing.proto
 │   └── README.md                   # 생성/소비 절차
 │
 ├── ml/
@@ -87,6 +91,7 @@ TeniTeni/
 ├── scripts/
 │   ├── bootstrap.sh                # 개발 환경 초기 세팅
 │   ├── gen-openapi-client.sh       # 스펙 → Swift 클라이언트
+│   ├── gen-proto.sh                # .proto → Swift/Python 코드
 │   └── check-lfs.sh
 │
 ├── .obsidian/                      # Obsidian 볼트 설정 (workspace.json 제외 커밋)

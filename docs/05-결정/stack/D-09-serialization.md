@@ -5,20 +5,20 @@ tags:
   - 문서유형/결정
   - 영역/비전
 id: D-09
-status: open
+status: decided
 group: "B. 비전 파이프라인"
 depends_on: ["D-06", "D-08"]
 affects: []
 decide_by: "Phase 1"
 created: 2026-09-10
 updated: 2026-09-10
-decided_on: 
-decision: 
+decided_on: 2026-09-10
+decision: Protobuf (swift-protobuf)
 ---
 
 # D-09. 포즈 시계열 직렬화 포맷
 
-> **상태** ⬜ 미결 · **그룹** B. 비전 파이프라인 · **확정 시점** Phase 1
+> **상태** ✅ **확정 — Protobuf** (2026-09-10) · **그룹** B. 비전 파이프라인
 
 ## 질문
 
@@ -54,9 +54,33 @@ decision:
 
 ## 결정
 
-> 아직 결정되지 않았습니다.
+**Protobuf** (`swift-protobuf`). 스키마는 `contracts/`에 두고 Swift·Python 양쪽에서 생성한다.
 
 ## 근거
+
+- 스윙 하나에 좌표 5,700개(60fps × 19관절 × 5초). 크기와 파싱 속도가 실제로 영향을 준다
+- **Swift와 Python이 같은 스키마를 공유**한다. Phase 2 서버 연동에서 파서를 따로 작성하지 않는다
+- [D-11](./D-11-networking.md)의 OpenAPI와 같은 원칙 — 계약을 한 곳에 두고 양쪽에서 생성한다
+
+`HumanBodyPoseObservation`이 `Codable`을 준수하지만, 그 형태에 묶이면 서버 쪽 파서를 직접 작성해야 하고 Apple 타입 변경에 영향을 받는다. **자체 스키마를 두어 도메인 표현을 통제한다.**
+
+## 스키마 배치
+
+```
+contracts/
+├── openapi.yaml           # REST API (D-11)
+└── proto/
+    ├── pose.proto         # PoseFrame, Joint
+    ├── trajectory.proto   # TrajectoryPoint
+    └── swing.proto        # Swing, SwingMetrics
+```
+
+생성 산출물은 커밋하지 않고 빌드 시 생성한다(`scripts/gen-proto.sh`).
+
+## 비용
+
+- 스키마 관리와 변환 레이어가 Phase 1부터 생긴다. Phase 1까지는 로컬 전용이라 당장의 이득은 크기·속도뿐이다
+- 디버깅 시 사람이 읽을 수 없다 → **개발 빌드에서 JSON 덤프 옵션**을 함께 제공한다
 
 ---
 

@@ -150,7 +150,7 @@ erDiagram
 | 궤적 시계열 | 메타 DB에 인라인 | 점 개수가 적음 (수십 개) |
 | 영상 | 로컬 파일 / 오브젝트 스토리지 | HEVC |
 
-🟡 **잠정** — 포즈 시계열 직렬화 포맷은 Protobuf 우선 검토. FlatBuffers, MessagePack도 후보.
+✅ **확정** — 포즈 시계열은 **Protobuf**로 직렬화한다 ([D-09](../05-결정/stack/D-09-serialization.md)). 스키마는 `contracts/proto/`에 두고 Swift·Python 양쪽에서 생성한다.
 
 ## 2.5 상태 머신
 
