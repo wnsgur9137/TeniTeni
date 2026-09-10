@@ -143,35 +143,46 @@ ios/
 │   └── ProjectDescriptionHelpers/     # 모듈 템플릿
 ├── Workspace.swift
 └── Projects/
-    ├── App/                           # 앱 진입점, DI Composition Root
-    ├── Features/                      # 화면 단위 모듈
+    ├── Application/                   # 앱 진입점, DI Composition Root, 라우팅
+    ├── Presentation/                  # 화면 단위 TCA Feature
     │   ├── Capture/
     │   ├── Analysis/
     │   ├── Session/
     │   ├── Library/
     │   ├── Progress/
     │   └── Onboarding/
-    ├── Domain/                        # 순수 Swift, 의존성 0
-    ├── Data/                          # 네트워크 / 영속성 / 리포지토리 구현
-    ├── VisionKit/                     # 분석 엔진 (UIKit 의존 없음)
+    ├── Domain/                        # Entity, UseCase, Repository 프로토콜 — 의존성 0
+    ├── Data/                          # Repository 구현, SwiftData 영속화, 파일 저장소
+    ├── Network/                       # Moya TargetType, DTO, 인증 인터셉터
+    ├── VisionKit/                     # 분석·렌더 엔진 (UI 의존 없음 → macOS CLI 공유)
     ├── MLModels/                      # .mlpackage + 로더 (Git LFS)
     ├── DesignSystem/                  # 컬러, 타이포, 공용 컴포넌트
     └── Core/                          # Logger, Extensions, 공용 유틸
 ```
 
+**모듈 도입은 한 번에 하지 않습니다.** 각 모듈이 필요해지는 시점이 다릅니다 — [작업 순서 9.6](../04-계획/WORK-PLAN.md#96-tuist-모듈-구성) 참고. `VisionKit`이 0-C에서 가장 먼저 분리되는데, **macOS CLI 분석 도구와 코드를 공유해야 하기 때문**입니다.
+
 ### 의존성 방향
 
 ```
-App → Features → Domain ← Data
-              ↘         ↗
-               VisionKit
-        Features → DesignSystem → Core
-        Data, VisionKit → Core
+        Application
+             │
+    ┌────────┼────────┐
+Presentation  Data ──→ Network
+    │  │       │           │
+    │  └──→ Domain ←───────┘
+    │          ▲
+    │      VisionKit
+    │          │
+DesignSystem   │
+    └────→ Core ←───┘
 ```
 
 - `Domain`은 아무것도 import하지 않습니다 (Foundation 제외)
-- `VisionKit`은 `Domain`의 엔티티만 알고 UI는 모릅니다
-- `Features` 간 직접 의존은 금지. 필요하면 `App`의 코디네이터를 경유합니다
+- `VisionKit`은 `Domain` 엔티티와 `Core`만 압니다. **UI를 모르므로 macOS CLI에서 재사용됩니다**
+- `Network`는 `Domain`을 모릅니다. DTO만 다루고 매핑은 `Data`가 합니다
+- `Presentation` 내 Feature 간 직접 의존은 금지. `Application` 코디네이터를 경유합니다
+- 프레임 스트림은 `Presentation`이 `VisionKit`을 직접 씁니다 (TCA 바깥 경로)
 
 ## 5.5 전체 파일 구조
 
