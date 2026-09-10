@@ -30,7 +30,7 @@ status: active
 
 ### 온디바이스 (실시간)
 
-🟡 **잠정** — Apple Vision `DetectHumanBodyPoseRequest` (신규 Swift API)
+✅ **확정** — Apple Vision `DetectHumanBodyPoseRequest` (신규 Swift API) — [D-06](../05-결정/stack/D-06-pose-engine.md)
 
 [D-01](../05-결정/stack/D-01-deployment-target.md)에서 타깃을 iOS 26으로 확정했으므로 **신규 Swift API를 쓴다.** 레거시 `VN*` 클래스는 사용하지 않는다.
 
@@ -53,7 +53,7 @@ status: active
 | MoveNet Thunder (Core ML) | 17 | 빠름 | 정확도가 Vision 대비 우위 없음 |
 | YOLO-Pose | 17 | 다중 인물 강함 | 단일 인물 시나리오에 과함 |
 
-> ⬜ **미결** — 손 관절은 `detectsHands`로 해결됐으므로, 남은 쟁점은 **발끝뿐**이다. 체중 이동 분석에 발끝이 필수인지 Phase 1에서 실측 후 [D-06](../05-결정/stack/D-06-pose-engine.md)에서 결정한다.
+> ✅ **확정** — Vision 채택. 발끝 부재는 **발목 중점 대비 골반 수평 이동량으로 근사**한다. Phase 1에서 이 근사가 부정확하면 경량 발 검출 모델 추가를 재검토한다.
 
 ### 3D 포즈
 

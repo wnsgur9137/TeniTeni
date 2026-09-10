@@ -38,7 +38,7 @@ status: active
 | 아키텍처 | Clean Architecture + **TCA** | ✅ | [D-03](../05-결정/stack/D-03-architecture-pattern.md)에서 확정 |
 | 비동기 | Swift Concurrency + TCA Effect | ✅ | [D-04](../05-결정/stack/D-04-concurrency.md)에서 확정 |
 | 카메라 | AVFoundation | ✅ | — |
-| 비전 | Vision (신규 Swift API) + Core ML | 🟡 | MediaPipe |
+| 비전 | Vision (신규 Swift API) + Core ML | ✅ | [D-06](../05-결정/stack/D-06-pose-engine.md)에서 확정 |
 | 오버레이 렌더 | SwiftUI Canvas → Metal | 🟡 | CAShapeLayer |
 | 녹화 | AVAssetWriter | ✅ | — |
 | 로컬 DB | SwiftData | ⬜ | GRDB, Realm, Core Data |
