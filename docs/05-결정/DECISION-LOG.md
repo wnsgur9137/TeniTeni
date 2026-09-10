@@ -13,7 +13,7 @@ status: active
 
 설계 문서의 모든 🟡 잠정 / ⬜ 미결 항목을 하나씩 확정하기 위한 허브입니다.
 
-**진행: 17 / 22 확정**
+**진행: 18 / 22 확정**
 
 ## 확정 요약
 
@@ -35,6 +35,7 @@ status: active
 | [D-15](./stack/D-15-baas-vs-selfhosted.md) | 구축 방식 | **자체 구축** | Phase 3 서버 로직 증가 대비. 벤더 종속 없음 |
 | [D-16](./stack/D-16-database.md) | 서버 DB | **PostgreSQL 16** | 메타데이터만 저장. TimescaleDB 불필요 |
 | [D-17](./stack/D-17-task-queue.md) | 작업 큐 | **arq** | async 네이티브. 작업이 2개뿐이라 Celery는 과함 |
+| [D-18](./stack/D-18-object-storage.md) | 스토리지 | **Cloudflare R2** | egress 무료. 영상 반복 다운로드 패턴에 결정적 |
 | [D-05](./stack/D-05-module-tooling.md) | 모듈 빌드 | **Tuist 4** | TCA로 모듈 세트가 늘어 템플릿화 가치 상승 |
 
 ### 확정에 따른 고정 사항
@@ -90,7 +91,7 @@ status: active
 | [D-15](./stack/D-15-baas-vs-selfhosted.md) | 자체 구축 vs BaaS | **FastAPI 자체 구축** | 2026-09-10 | ✅ |
 | [D-16](./stack/D-16-database.md) | 데이터베이스 | **PostgreSQL 16** | 2026-09-10 | ✅ |
 | [D-17](./stack/D-17-task-queue.md) | 작업 큐 | **arq + Redis** | 2026-09-10 | ✅ |
-| [D-18](./stack/D-18-object-storage.md) | 오브젝트 스토리지 | Cloudflare R2 | Phase 2 | ⬜ |
+| [D-18](./stack/D-18-object-storage.md) | 오브젝트 스토리지 | **Cloudflare R2** | 2026-09-10 | ✅ |
 | [D-19](./stack/D-19-authentication.md) | 인증 | 미정 | Phase 2 | ⬜ |
 | [D-20](./stack/D-20-server-ml.md) | 서버 ML 스택 | 미정 | Phase 2 | ⬜ |
 | [D-21](./stack/D-21-deployment.md) | 배포 / 인프라 | 단일 VM + Compose | Phase 2 | ⬜ |
