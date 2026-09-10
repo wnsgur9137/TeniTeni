@@ -44,7 +44,7 @@ status: active
 | 로컬 DB | SwiftData | ✅ | [D-08](../05-결정/stack/D-08-local-db.md)에서 확정 |
 | 시계열 저장 | 파일 (Protobuf) | ✅ | [D-09](../05-결정/stack/D-09-serialization.md)에서 확정 |
 | 네트워크 | **Moya** (+ Alamofire) | ✅ | [D-11](../05-결정/stack/D-11-networking.md)에서 확정 |
-| DI | swift-dependencies (TCA 내장) | 🟡 | D-03이 좁힘. D-12에서 확인 |
+| DI | swift-dependencies (TCA 내장) | ✅ | [D-12](../05-결정/stack/D-12-dependency-injection.md)에서 확정 |
 | 모듈 빌드 | Tuist 4 | ✅ | [D-05](../05-결정/stack/D-05-module-tooling.md)에서 확정 |
 | 수치 연산 | Accelerate / simd | ✅ | — |
 | 로깅 | OSLog | 🟡 | swift-log |

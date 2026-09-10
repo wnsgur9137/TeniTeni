@@ -5,20 +5,20 @@ tags:
   - 문서유형/결정
   - 영역/iOS
 id: D-12
-status: open
+status: decided
 group: "C. iOS 부가 스택"
 depends_on: ["D-03"]
 affects: []
 decide_by: "Phase 1"
 created: 2026-09-10
 updated: 2026-09-10
-decided_on: 
-decision: 
+decided_on: 2026-09-10
+decision: swift-dependencies (TCA 내장)
 ---
 
 # D-12. 의존성 주입
 
-> **상태** ⬜ 미결 · **그룹** C. iOS 부가 스택 · **확정 시점** Phase 1
+> **상태** ✅ **확정 — swift-dependencies** (2026-09-10) · **그룹** C. iOS 부가 스택
 
 ## 질문
 
@@ -53,9 +53,24 @@ decision:
 
 ## 결정
 
-> 아직 결정되지 않았습니다.
+**swift-dependencies** (TCA 내장). Repository·VisionKit·시스템 서비스를 모두 `DependencyValues`에 등록한다.
 
 ## 근거
+
+- [D-03](./D-03-architecture-pattern.md) TCA 채택으로 **이미 포함된 라이브러리**다. 추가 의존성이 0
+- `TestStore`와 통합되어 있어 `withDependencies`로 테스트 격리가 깔끔하다
+- 다른 DI를 얹으면 Reducer는 `@Dependency`, 그 외는 다른 방식이 되어 **주입 경로가 두 개로 갈라진다**
+
+## 등록 대상
+
+| 종류 | 예 |
+|---|---|
+| Repository | `clipRepository`, `swingRepository`, `sessionRepository` |
+| VisionKit | `poseEstimator`, `ballTracker`, `swingClassifier` |
+| 시스템 | `cameraSession`, `clipRecorder`, `thermalMonitor`, `motionMonitor` |
+| 인프라 | `apiClient`(Moya), `fileStore`, `uploadService` |
+
+`Projects/App/Sources/DI/DependencyValues+App.swift`에서 live 값을, 각 모듈 테스트에서 test 값을 주입한다.
 
 ---
 

@@ -13,7 +13,7 @@ status: active
 
 설계 문서의 모든 🟡 잠정 / ⬜ 미결 항목을 하나씩 확정하기 위한 허브입니다.
 
-**진행: 11 / 22 확정**
+**진행: 12 / 22 확정**
 
 ## 확정 요약
 
@@ -29,6 +29,7 @@ status: active
 | [D-09](./stack/D-09-serialization.md) | 시계열 직렬화 | **Protobuf** | Swift·Python 스키마 공유. 좌표 5,700개/스윙 |
 | [D-10](./stack/D-10-swing-classifier.md) | 스윙 분류 | **Create ML** | keypoints 직결. 데이터 적은 초기엔 단순 모델이 유리 |
 | [D-11](./stack/D-11-networking.md) | 네트워크 | **Moya** | TargetType으로 API 표면 일람. 스텁으로 서버 없이 테스트 |
+| [D-12](./stack/D-12-dependency-injection.md) | DI | **swift-dependencies** | TCA 내장이라 추가 의존성 0. 주입 경로 단일화 |
 | [D-05](./stack/D-05-module-tooling.md) | 모듈 빌드 | **Tuist 4** | TCA로 모듈 세트가 늘어 템플릿화 가치 상승 |
 
 ### 확정에 따른 고정 사항
@@ -73,7 +74,7 @@ status: active
 | ID | 항목 | 잠정안 / **확정안** | 확정 시점 | 상태 |
 |---|---|---|---|---|
 | [D-11](./stack/D-11-networking.md) | 네트워크 계층 | **Moya** | 2026-09-10 | ✅ |
-| [D-12](./stack/D-12-dependency-injection.md) | 의존성 주입 | swift-dependencies | Phase 1 | ⬜ (D-03이 좁힘) |
+| [D-12](./stack/D-12-dependency-injection.md) | 의존성 주입 | **swift-dependencies** | 2026-09-10 | ✅ |
 | [D-13](./stack/D-13-observability.md) | 크래시 리포팅 / 분석 | 미정 | Phase 1 | ⬜ |
 
 ## D. 백엔드 — Phase 2 직전까지 미뤄도 무방
