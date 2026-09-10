@@ -5,20 +5,20 @@ tags:
   - 문서유형/결정
   - 영역/iOS
 id: D-08
-status: open
+status: decided
 group: "B. 비전 파이프라인"
 depends_on: ["D-01"]
 affects: ["D-09"]
 decide_by: "Phase 1"
 created: 2026-09-10
 updated: 2026-09-10
-decided_on: 
-decision: 
+decided_on: 2026-09-10
+decision: SwiftData
 ---
 
 # D-08. 로컬 데이터베이스
 
-> **상태** ⬜ 미결 · **그룹** B. 비전 파이프라인 · **확정 시점** Phase 1
+> **상태** ✅ **확정 — SwiftData** (2026-09-10) · **그룹** B. 비전 파이프라인
 
 ## 질문
 
@@ -55,9 +55,17 @@ decision:
 
 ## 결정
 
-> 아직 결정되지 않았습니다.
+**SwiftData.** 메타데이터(User, Session, Clip, Swing, Metrics, Feedback)만 저장한다.
 
 ## 근거
+
+- [D-01](./D-01-deployment-target.md) iOS 26 확정으로 제약 없이 사용 가능
+- [D-02](./D-02-ui-framework.md) SwiftUI + `@Observable`과 바로 맞물려 보일러플레이트가 최소
+- **포즈 시계열을 파일로 빼므로 DB 부하가 낮다** ([D-09](./D-09-serialization.md)). SwiftData의 약점(복잡한 쿼리·대용량)이 드러나기 어려운 구조
+
+## 리스크와 대응
+
+진척도 화면의 기간별 집계에서 SwiftData의 쿼리 표현력이 부족할 수 있다. 이 경우 **집계 결과를 별도 스냅샷 테이블에 미리 계산해 저장**하는 방식으로 우회한다. 그래도 부족하면 Phase 3에서 GRDB 이전을 검토하되, Repository 프로토콜 뒤에 가려져 있으므로 교체 비용은 Data 계층에 한정된다.
 
 ---
 
