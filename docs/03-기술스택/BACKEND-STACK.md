@@ -58,7 +58,7 @@ ML 파이프라인은 Python 외의 선택지가 사실상 없습니다. 따라�
 | ORM | SQLAlchemy 2.0 | 🟡 | SQLModel, Tortoise |
 | 마이그레이션 | Alembic | 🟡 | — |
 | DB | PostgreSQL 16 | ✅ | [D-16](../05-결정/stack/D-16-database.md). TimescaleDB 미사용 |
-| 큐 | Celery + Redis | ⬜ | Dramatiq, arq, RQ |
+| 큐 | **arq** + Redis | ✅ | [D-17](../05-결정/stack/D-17-task-queue.md) |
 | 오브젝트 스토리지 | Cloudflare R2 | ⬜ | AWS S3, Supabase Storage |
 | 인증 | Sign in with Apple + 자체 JWT | ⬜ | Firebase Auth, Supabase Auth |
 | 패키지 관리 | uv | ⬜ | poetry, pdm |
@@ -84,7 +84,7 @@ ML 파이프라인은 Python 외의 선택지가 사실상 없습니다. 따라�
 | 데이터 버전 | DVC | ⬜ |
 | 모델 서빙 | 워커 프로세스 내 직접 로드 | 🟡 |
 
-**모델 서빙에 대해**: 초기에는 TorchServe나 Triton을 도입하지 않습니다. Celery 워커가 프로세스 시작 시 모델을 메모리에 올려두고 직접 추론하는 것이 가장 단순합니다. 동시 처리량이 문제가 될 때 분리합니다.
+**모델 서빙에 대해**: 초기에는 TorchServe나 Triton을 도입하지 않습니다. arq 워커가 시작 시 모델을 메모리에 올려두고(`on_startup`) 직접 추론하는 것이 가장 단순합니다. 동시 처리량이 문제가 될 때 분리합니다.
 
 ## 6.5 검토했으나 채택하지 않은 대안: BaaS
 
@@ -111,7 +111,7 @@ Python 분석 워커 1개 (직접 운영)
 ## 6.6 API 설계 원칙
 
 - **OpenAPI가 단일 진실 공급원(SSOT)** — `contracts/openapi.yaml`. FastAPI가 생성하고, iOS 클라이언트가 소비
-- **긴 작업은 반드시 비동기** — 영상 분석은 수십 초 단위. 동기 응답 금지. `202 Accepted` + 상태 폴링/푸시
+- **긴 작업은 반드시 비동기** — 영상 분석은 수십 초 단위. 동기 응답 금지. `202 Accepted` + 상태 폴링/푸시. arq는 모니터링 UI가 없으므로 `clips.analysis_state`를 DB에서 관리해 노출한다
 - **영상은 API 서버를 경유하지 않음** — presigned URL로 클라이언트가 스토리지에 직접 업로드
 - **멱등성** — 업로드 완료, 분석 요청은 재시도 안전하게 설계
 - **버저닝** — `/v1/` 프리픽스. 앱 배포 주기가 서버보다 느리므로 하위 호환 필수
@@ -180,7 +180,7 @@ server/
 │   ├── storage/
 │   │   └── object_store.py         # presigned URL
 │   └── worker/
-│       ├── celery_app.py
+│       ├── worker.py               # arq WorkerSettings
 │       └── tasks/
 │           ├── analyze_clip.py
 │           └── generate_report.py
@@ -214,7 +214,7 @@ server/
 ## 6.8 인프라 계획
 
 **Phase 2 (초기)**
-- 단일 VM에 Docker Compose로 API + 워커 + Postgres + Redis
+- 단일 VM에 Docker Compose로 API + arq 워커 + Postgres + Redis
 - GPU 없이 CPU 추론으로 시작. 처리 시간이 길어도 비동기라 허용 가능
 - 스토리지만 Cloudflare R2 (egress 무료가 영상 서비스에 결정적)
 
