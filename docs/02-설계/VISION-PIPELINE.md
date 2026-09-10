@@ -91,14 +91,14 @@ status: active
 
 ### 유형 분류
 
-🟡 **잠정** — Create ML **Action Classifier** (`MLActionClassifier`)
+✅ **확정** — Create ML **Action Classifier** (`MLActionClassifier`) — [D-10](../05-결정/stack/D-10-swing-classifier.md)
 
-- 입력: 포즈 시퀀스 (관절 좌표 × N프레임 윈도우, 통상 45~90프레임)
+- 입력: `HumanBodyPoseObservation.keypoints` (Core ML 호환 multi-array) × N프레임 윈도우, 통상 45~90프레임
 - 출력: forehand / backhand / serve / volley / none
 - Mac에서 학습 → Core ML로 온디바이스 추론
 - Apple 공식 경로라 툴체인이 안정적
 
-**대안** ⬜: 관절 각도 시퀀스를 입력으로 하는 커스텀 1D-CNN / GRU / 소형 Transformer. 서버에서 PyTorch로 학습 후 Core ML 변환. 유연하지만 초기 비용이 큼.
+**교체 경로**: 정확도 90% 미달 시 커스텀 1D-CNN / GRU로 전환. 수집 데이터는 그대로 재사용되므로 비용은 학습 파이프라인 구축에 한정된다.
 
 **학습 데이터 확보 계획**
 1. 자체 촬영 (본인 + 지인) — 유형별 최소 200회씩

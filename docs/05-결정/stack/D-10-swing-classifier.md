@@ -5,20 +5,20 @@ tags:
   - 문서유형/결정
   - 영역/비전
 id: D-10
-status: open
+status: decided
 group: "B. 비전 파이프라인"
 depends_on: ["D-06"]
 affects: ["D-20"]
 decide_by: "Phase 1"
 created: 2026-09-10
 updated: 2026-09-10
-decided_on: 
-decision: 
+decided_on: 2026-09-10
+decision: Create ML Action Classifier
 ---
 
 # D-10. 스윙 분류 모델
 
-> **상태** ⬜ 미결 · **그룹** B. 비전 파이프라인 · **확정 시점** Phase 1
+> **상태** ✅ **확정 — Create ML Action Classifier** (2026-09-10) · **그룹** B. 비전 파이프라인
 
 ## 질문
 
@@ -54,9 +54,26 @@ decision:
 
 ## 결정
 
-> 아직 결정되지 않았습니다.
+**Create ML Action Classifier** (`MLActionClassifier`). 4종 분류 — forehand / backhand / serve / volley (+ none).
 
 ## 근거
+
+- [D-06](./D-06-pose-engine.md) Vision의 `HumanBodyPoseObservation.keypoints`가 **Core ML 호환 multi-array**로 나온다. 변환 레이어가 거의 없다
+- Apple 공식 경로라 툴체인이 안정적이고 Mac에서 바로 학습해 Core ML로 떨어진다
+- **학습 데이터가 적은 초기에는 단순한 모델이 유리하다.** 커스텀 모델의 성능 상한은 데이터가 충분할 때만 의미가 있다
+
+## 진짜 병목은 데이터다
+
+모델 선택보다 **학습 데이터 확보가 어렵다.** 유형별 200회 이상이 필요하다.
+
+1. 자체 촬영 (본인 + 지인) — 유형별 200회+
+2. 증강 — 좌우 반전, 시간 신축, 관절 노이즈 주입
+3. 공개 데이터셋 검토 — THETIS, Tenniset 등
+4. 출시 후 사용자 데이터 수집(옵트인) → 재학습
+
+## 교체 경로
+
+정확도 90% 목표에 미달하거나 페이즈 분할이 부정확하면 커스텀 1D-CNN / GRU로 옮긴다. **수집한 데이터는 그대로 재사용**되므로 전환 비용은 학습 파이프라인 구축에 한정된다. 이 경우 `server/ml/`의 PyTorch 학습 → `coremltools` 변환 경로를 사용한다.
 
 ---
 

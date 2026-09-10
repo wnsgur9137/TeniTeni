@@ -13,7 +13,7 @@ status: active
 
 설계 문서의 모든 🟡 잠정 / ⬜ 미결 항목을 하나씩 확정하기 위한 허브입니다.
 
-**진행: 9 / 22 확정**
+**진행: 10 / 22 확정**
 
 ## 확정 요약
 
@@ -27,6 +27,7 @@ status: active
 | [D-07](./stack/D-07-overlay-rendering.md) | 오버레이 렌더링 | **Metal** | 프리뷰 직접 렌더로 지연 0. Phase 0 +1~2주 |
 | [D-08](./stack/D-08-local-db.md) | 로컬 DB | **SwiftData** | 시계열은 파일로 빼 DB 부하가 낮음 |
 | [D-09](./stack/D-09-serialization.md) | 시계열 직렬화 | **Protobuf** | Swift·Python 스키마 공유. 좌표 5,700개/스윙 |
+| [D-10](./stack/D-10-swing-classifier.md) | 스윙 분류 | **Create ML** | keypoints 직결. 데이터 적은 초기엔 단순 모델이 유리 |
 | [D-05](./stack/D-05-module-tooling.md) | 모듈 빌드 | **Tuist 4** | TCA로 모듈 세트가 늘어 템플릿화 가치 상승 |
 
 ### 확정에 따른 고정 사항
@@ -64,7 +65,7 @@ status: active
 | [D-07](./stack/D-07-overlay-rendering.md) | 오버레이 렌더링 | **Metal (직접 렌더)** | 2026-09-10 | ✅ |
 | [D-08](./stack/D-08-local-db.md) | 로컬 데이터베이스 | **SwiftData** | 2026-09-10 | ✅ |
 | [D-09](./stack/D-09-serialization.md) | 포즈 시계열 직렬화 | **Protobuf** | 2026-09-10 | ✅ |
-| [D-10](./stack/D-10-swing-classifier.md) | 스윙 분류 모델 | Create ML | Phase 1 | ⬜ |
+| [D-10](./stack/D-10-swing-classifier.md) | 스윙 분류 모델 | **Create ML Action Classifier** | 2026-09-10 | ✅ |
 
 ## C. iOS 부가 스택
 
