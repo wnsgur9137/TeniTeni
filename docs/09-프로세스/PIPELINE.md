@@ -19,7 +19,7 @@ status: active
 |---|---|---|---|
 | 1 | 현재 작업 상황 파악 | — | 열린 이슈·마일스톤 진행률 |
 | 2 | 예정 작업 파악 | — | 후보 이슈 목록 |
-| 3 | 진행 작업 확정 | — | 이슈 선택 + `in-progress` 라벨 |
+| 3 | 진행 작업 확정 | — | 이슈 선택 + `⏳InProgress` 라벨 |
 | 4 | 레퍼런스 확인 | ✅ | `docs/08-레퍼런스/` 갱신 |
 | 5 | 기존 설계 파악 | — | (읽기만) |
 | 6 | 기획서 작성·검증 | ✅ | `docs/07-기획/SPEC-NNNN-*.md` |
@@ -61,21 +61,31 @@ status: active
 
 #### area 축 — 이 프로젝트에서 신설
 
-기존 체계에 없던 축입니다. 디자인 단계 판정에 필요합니다.
+기존 체계에 없던 축입니다. 디자인 단계 판정에 필요합니다. **type 축과 같은 이모지 컨벤션을 씁니다.**
 
 | 라벨 | 의미 |
 |---|---|
-| `area:ios-ui` | 화면이 있는 iOS 작업 |
-| `area:ios-core` | VisionKit·카메라·동시성 등 **화면 없는** iOS 작업 (0-A가 여기) |
-| `area:backend` | FastAPI·워커·DB |
-| `area:ml` | 모델·학습·평가 |
-| `area:docs` | 문서만 |
+| `📱UI` | 화면이 있는 iOS 작업 |
+| `🧩Core` | VisionKit·카메라·동시성 등 **화면 없는** iOS 작업 (0-A가 여기) |
+| `☁️Backend` | FastAPI·워커·DB |
+| `🧠ML` | 모델·학습·평가 |
+| `📃Docs` | 문서 — **기존 type 라벨을 재사용** |
+
+> `📃Docs`는 **type과 area 양쪽에 속하는 유일한 라벨**입니다. type 해석 시 다른 type 라벨(`⚙️Setting` 등)이 함께 있으면 그쪽이 우선하므로 모호하지 않습니다.
+> 예: `⚙️Setting` + `📃Docs` → type=chore, area=docs. `📃Docs` 단독 → type=docs, area=docs.
 
 #### 보조
 
-`in-progress`(3단계에서 부여), `blocked`(후보에서 제외하되 사유 표시)
+| 라벨 | 의미 |
+|---|---|
+| `⏳InProgress` | 파이프라인 3단계에서 부여. 재개 판정의 근거 |
+| `🚧Blocked` | 선행 조건 미충족. 후보에서 제외하되 사유를 표시 |
 
-> 파이프라인 도입 시 `type:*` 라벨을 새로 만들었다가 기존 이모지 라벨과 중복되어 제거했습니다. **기존 컨벤션이 먼저이고 파이프라인이 거기 맞추는 것**이 맞습니다.
+> 파이프라인 도입 시 `type:*`·`area:*` 라벨을 새로 만들었다가, 기존 이모지 라벨과 중복되거나 컨벤션이 어긋나 모두 이모지 체계로 재작성했습니다. **기존 컨벤션이 먼저이고 파이프라인이 거기 맞추는 것**이 맞습니다.
+
+#### 라벨 신설 금지
+
+파이프라인은 **위 목록에 없는 라벨을 새로 만들지 않습니다.** 분류가 부족하면 규약을 먼저 고칩니다.
 
 ## 12.3 단계 실행 매트릭스
 
@@ -83,10 +93,10 @@ status: active
 
 | type 라벨 | area | 4 레퍼런스 | 6 기획서 | 7 디자인 | 8 개발 |
 |---|---|---|---|---|---|
-| `✨Feature` | `ios-ui` | ✅ | ✅ | ✅ | ✅ |
-| `✨Feature` | `ios-core` | ⚪ | ✅ | ❌ | ✅ |
-| `✨Feature` | `backend` | ⚪ | ✅ | ❌ | ✅ |
-| `✨Feature` | `ml` | ✅ | ✅ | ❌ | ✅ |
+| `✨Feature` | `📱UI` | ✅ | ✅ | ✅ | ✅ |
+| `✨Feature` | `🧩Core` | ⚪ | ✅ | ❌ | ✅ |
+| `✨Feature` | `☁️Backend` | ⚪ | ✅ | ❌ | ✅ |
+| `✨Feature` | `🧠ML` | ✅ | ✅ | ❌ | ✅ |
 | `🐞Bug` `🔨BugFix` `🔥HotFix` | 전부 | ❌ | ⚪ | ❌ | ✅ |
 | `♻️Refactor` | 전부 | ❌ | ⚪ | ❌ | ✅ |
 | `📃Docs` | 전부 | ❌ | ❌ | ❌ | ❌ |
@@ -96,7 +106,7 @@ status: active
 
 | 단계 | 실행 조건 |
 |---|---|
-| 4 레퍼런스 (`ios-core`/`backend`) | 사용자에게 보이는 동작이 있을 때. 순수 내부 구조면 생략 |
+| 4 레퍼런스 (`🧩Core`/`☁️Backend`) | 사용자에게 보이는 동작이 있을 때. 순수 내부 구조면 생략 |
 | 6 기획서 (버그·리팩터) | 원인이 불명확하거나 2일 이상 걸릴 때. 명백한 버그는 이슈 본문으로 충분 |
 
 ### 라벨 누락 시
@@ -114,7 +124,7 @@ status: active
 | **Onform** | 영상 코칭. 리플레이·주석 UX |
 | **Hudl Technique** | 스포츠 일반 폼 분석. 페이즈 스크러버 |
 
-`area:ml` 작업은 앱이 아니라 **논문·구현체**를 봅니다 (`docs/08-레퍼런스/ml/`).
+`🧠ML` 작업은 앱이 아니라 **논문·구현체**를 봅니다 (`docs/08-레퍼런스/ml/`).
 
 ### 목적과 한계
 
@@ -150,7 +160,7 @@ status: active
 
 ## 12.6 7단계 — 디자인
 
-`area:ios-ui` + `type:feature`에서만 실행합니다.
+`📱UI` + `✨Feature`에서만 실행합니다.
 
 - [디자인 시스템](../06-디자인/DESIGN-SYSTEM.md)의 토큰만 사용
 - 기존 캔버스가 있으면 **갱신**, 새 캔버스를 남발하지 않는다
@@ -165,7 +175,7 @@ status: active
 
 ## 12.7 8단계 — 개발
 
-**코드가 바뀌는 작업이면 항상 반복 개발 모드(OMC Ralph)를 사용합니다.** `📃Docs` / `area:docs`만 제외입니다.
+**코드가 바뀌는 작업이면 항상 반복 개발 모드(OMC Ralph)를 사용합니다.** type이 `📃Docs`인 작업만 제외입니다.
 
 | 항목 | 값 |
 |---|---|
@@ -177,14 +187,14 @@ status: active
 
 ### 게이트
 
-`area:` 라벨로 스크립트를 고릅니다.
+area 라벨로 스크립트를 고릅니다.
 
 | area | 스크립트 |
 |---|---|
-| `ios-ui` / `ios-core` | `scripts/verify-ios.sh` |
-| `docs` | `scripts/verify-docs.sh` |
-| `backend` | `scripts/verify-backend.sh` (Phase 2에 추가) |
-| `ml` | `scripts/verify-ml.sh` (미정) |
+| `📱UI` / `🧩Core` | `scripts/verify-ios.sh` |
+| `📃Docs` | `scripts/verify-docs.sh` |
+| `☁️Backend` | `scripts/verify-backend.sh` (Phase 2에 추가) |
+| `🧠ML` | `scripts/verify-ml.sh` (미정) |
 
 **게이트가 없는 영역은 경고 후 통과**하되 PR 본문에 "게이트 없음"을 명시합니다.
 
@@ -224,7 +234,7 @@ status: active
 
 | 단계 | 판정 근거 |
 |---|---|
-| 1~3 | 이슈의 `in-progress` 라벨 |
+| 1~3 | 이슈의 `⏳InProgress` 라벨 |
 | 4 | `docs/08-레퍼런스/` 파일 + `researched` 날짜 |
 | 5 | (흔적 없음 — 재개 시 다시 읽음. 비용 낮음) |
 | 6 | `docs/07-기획/SPEC-NNNN-*.md` 존재 |
