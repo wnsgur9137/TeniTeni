@@ -13,7 +13,7 @@ status: active
 
 설계 문서의 모든 🟡 잠정 / ⬜ 미결 항목을 하나씩 확정하기 위한 허브입니다.
 
-**진행: 2 / 22 확정**
+**진행: 4 / 22 확정**
 
 ## 진행 방법
 
@@ -29,9 +29,9 @@ status: active
 |---|---|---|---|---|
 | [D-01](./stack/D-01-deployment-target.md) | 최소 iOS 타깃 버전 | **iOS 26.0** | 2026-09-10 | ✅ |
 | [D-02](./stack/D-02-ui-framework.md) | UI 프레임워크 | **전면 SwiftUI** | 2026-09-10 | ✅ |
-| [D-03](./stack/D-03-architecture-pattern.md) | 아키텍처 패턴 | Clean + MVVM | Phase 1 이전 | ⬜ |
-| [D-04](./stack/D-04-concurrency.md) | 비동기 / 상태 관리 | Swift Concurrency | Phase 0 이전 | ⬜ |
-| [D-05](./stack/D-05-module-tooling.md) | 모듈 빌드 도구 | Tuist 4 | Phase 1 이전 | ⬜ |
+| [D-03](./stack/D-03-architecture-pattern.md) | 아키텍처 패턴 | **Clean + TCA** | 2026-09-10 | ✅ |
+| [D-04](./stack/D-04-concurrency.md) | 비동기 / 상태 관리 | Swift Concurrency + TCA Effect | Phase 0 이전 | ⬜ (D-03이 좁힘) |
+| [D-05](./stack/D-05-module-tooling.md) | 모듈 빌드 도구 | **Tuist 4** | 2026-09-10 | ✅ |
 
 ## B. 비전 파이프라인
 
@@ -48,7 +48,7 @@ status: active
 | ID | 항목 | 잠정안 / **확정안** | 확정 시점 | 상태 |
 |---|---|---|---|---|
 | [D-11](./stack/D-11-networking.md) | 네트워크 계층 | openapi-generator | Phase 2 | ⬜ |
-| [D-12](./stack/D-12-dependency-injection.md) | 의존성 주입 | 수동 Composition Root | Phase 1 | ⬜ |
+| [D-12](./stack/D-12-dependency-injection.md) | 의존성 주입 | swift-dependencies | Phase 1 | ⬜ (D-03이 좁힘) |
 | [D-13](./stack/D-13-observability.md) | 크래시 리포팅 / 분석 | 미정 | Phase 1 | ⬜ |
 
 ## D. 백엔드 — Phase 2 직전까지 미뤄도 무방

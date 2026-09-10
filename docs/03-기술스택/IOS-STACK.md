@@ -35,8 +35,8 @@ status: active
 | 언어 | Swift 6.x (strict concurrency) | 🟡 | — |
 | 최소 타깃 | **iOS 26.0** | ✅ | [D-01](../05-결정/stack/D-01-deployment-target.md)에서 확정 |
 | UI | SwiftUI + `@Observable` | ✅ | [D-02](../05-결정/stack/D-02-ui-framework.md)에서 확정 |
-| 아키텍처 | Clean Architecture + MVVM | 🟡 | TCA, MVI |
-| 비동기 | Swift Concurrency (async/await, AsyncStream) | 🟡 | RxSwift, Combine |
+| 아키텍처 | Clean Architecture + **TCA** | ✅ | [D-03](../05-결정/stack/D-03-architecture-pattern.md)에서 확정 |
+| 비동기 | Swift Concurrency + TCA Effect | 🟡 | D-03이 좁힘. D-04에서 확인 |
 | 카메라 | AVFoundation | ✅ | — |
 | 비전 | Vision (신규 Swift API) + Core ML | 🟡 | MediaPipe |
 | 오버레이 렌더 | SwiftUI Canvas → Metal | 🟡 | CAShapeLayer |
@@ -44,8 +44,8 @@ status: active
 | 로컬 DB | SwiftData | ⬜ | GRDB, Realm, Core Data |
 | 시계열 저장 | 파일 (Protobuf) | ⬜ | JSON+gzip, FlatBuffers |
 | 네트워크 | URLSession + swift-openapi-generator | 🟡 | Alamofire, Moya |
-| DI | 수동 Composition Root | ⬜ | Factory, swift-dependencies, Swinject |
-| 모듈 빌드 | Tuist 4 | 🟡 | SPM only, XcodeGen |
+| DI | swift-dependencies (TCA 내장) | 🟡 | D-03이 좁힘. D-12에서 확인 |
+| 모듈 빌드 | Tuist 4 | ✅ | [D-05](../05-결정/stack/D-05-module-tooling.md)에서 확정 |
 | 수치 연산 | Accelerate / simd | ✅ | — |
 | 로깅 | OSLog | 🟡 | swift-log |
 | 크래시/분석 | Firebase Crashlytics | ⬜ | Sentry, TelemetryDeck |
@@ -98,11 +98,39 @@ FastAPI가 OpenAPI 스펙을 자동 생성하고, 그 스펙에서 Swift 클라�
 
 Alamofire는 이 프로젝트에서 필요한 기능(재시도, 멀티파트)이 대부분 `URLSession`으로 충분하므로 제외 검토.
 
-### 모듈 빌드: Tuist
+### 아키텍처: Clean Architecture + TCA
 
-🟡 **잠정** — 이미 설치되어 있고, 모듈이 8개 이상으로 늘어날 구조라 프로젝트 파일 충돌 관리에 유리합니다.
+✅ **확정** — [D-03](../05-결정/stack/D-03-architecture-pattern.md) (2026-09-10)
 
-**대안 검토 필요**: SPM local package만으로도 모듈 분리가 가능합니다. 1인 개발이면 `project.pbxproj` 충돌이 없으므로 Tuist의 주된 이점이 사라집니다. 다만 빌드 설정 일관성과 모듈 템플릿화에는 여전히 유리합니다.
+계층 분리는 Clean Architecture, Presentation 계층은 TCA입니다. MVVM은 TCA와 같은 자리를 차지하므로 채택하지 않습니다.
+
+#### ⚠️ 필수 규칙: 프레임 스트림은 TCA 바깥
+
+**초당 60회 프레임 이벤트를 Reducer 액션으로 흘리면 안 됩니다.** 액션 로깅이 무용지물이 되고 디스패치 오버헤드가 프레임 예산을 잠식합니다.
+
+| 경로 | 빈도 | 처리 |
+|---|---|---|
+| 포즈·궤적 프레임 | 60fps | `AsyncStream` → `@Observable` 오버레이 상태. **Store 경유 금지** |
+| 스윙 검출, 세션 상태, 발열, 녹화 완료 | 초당 수 회 이하 | Reducer 액션 |
+
+```
+VisionKit (TCA 바깥)
+  프레임 → 포즈/궤적 → 스무딩 → 오버레이 상태
+    ↓ AsyncStream, 60fps
+  CaptureView 오버레이 레이어가 직접 구독
+
+  ↓ 의미 있는 사건만
+Store / Reducer
+  .swingDetected / .sessionStateChanged / .thermalWarning / .recordingFinished
+```
+
+### 모듈 빌드: Tuist 4
+
+✅ **확정** — [D-05](../05-결정/stack/D-05-module-tooling.md) (2026-09-10)
+
+TCA 채택으로 Feature 모듈마다 Reducer·View·Store가 세트로 생기므로 모듈 템플릿화의 가치가 커졌습니다. TCA 매크로로 빌드 시간이 늘어나는 만큼, 모듈 분리로 증분 빌드 범위를 좁히는 것도 실익입니다.
+
+**Phase 0 예외**: 기술 검증 단계는 단일 타깃으로 시작하고 Phase 1에서 모듈 구조로 재편합니다.
 
 ## 5.4 모듈 구조
 
