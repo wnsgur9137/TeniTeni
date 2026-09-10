@@ -36,7 +36,7 @@ status: active
 | 최소 타깃 | **iOS 26.0** | ✅ | [D-01](../05-결정/stack/D-01-deployment-target.md)에서 확정 |
 | UI | SwiftUI + `@Observable` | ✅ | [D-02](../05-결정/stack/D-02-ui-framework.md)에서 확정 |
 | 아키텍처 | Clean Architecture + **TCA** | ✅ | [D-03](../05-결정/stack/D-03-architecture-pattern.md)에서 확정 |
-| 비동기 | Swift Concurrency + TCA Effect | 🟡 | D-03이 좁힘. D-04에서 확인 |
+| 비동기 | Swift Concurrency + TCA Effect | ✅ | [D-04](../05-결정/stack/D-04-concurrency.md)에서 확정 |
 | 카메라 | AVFoundation | ✅ | — |
 | 비전 | Vision (신규 Swift API) + Core ML | 🟡 | MediaPipe |
 | 오버레이 렌더 | SwiftUI Canvas → Metal | 🟡 | CAShapeLayer |

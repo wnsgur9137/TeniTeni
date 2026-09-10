@@ -13,7 +13,7 @@ status: active
 
 설계 문서의 모든 🟡 잠정 / ⬜ 미결 항목을 하나씩 확정하기 위한 허브입니다.
 
-**진행: 4 / 22 확정**
+**진행: 5 / 22 확정**
 
 ## 확정 요약
 
@@ -22,6 +22,7 @@ status: active
 | [D-01](./stack/D-01-deployment-target.md) | 최소 iOS 타깃 | **iOS 26.0** | 신규 Swift Vision API 확보 + `if #available` 분기 제거 |
 | [D-02](./stack/D-02-ui-framework.md) | UI 프레임워크 | **전면 SwiftUI** | 명령형 영역은 어차피 래핑됨. `Canvas`·Swift Charts는 SwiftUI에서만 공짜 |
 | [D-03](./stack/D-03-architecture-pattern.md) | 아키텍처 | **Clean + TCA** | 촬영 화면 상태 얽힘을 Reducer 합성으로 분해 |
+| [D-04](./stack/D-04-concurrency.md) | 비동기 | **Swift Concurrency** | 오버레이는 최신성, 궤적은 연속성 → 스트림 분리 |
 | [D-05](./stack/D-05-module-tooling.md) | 모듈 빌드 | **Tuist 4** | TCA로 모듈 세트가 늘어 템플릿화 가치 상승 |
 
 ### 확정에 따른 고정 사항
@@ -48,7 +49,7 @@ status: active
 | [D-01](./stack/D-01-deployment-target.md) | 최소 iOS 타깃 버전 | **iOS 26.0** | 2026-09-10 | ✅ |
 | [D-02](./stack/D-02-ui-framework.md) | UI 프레임워크 | **전면 SwiftUI** | 2026-09-10 | ✅ |
 | [D-03](./stack/D-03-architecture-pattern.md) | 아키텍처 패턴 | **Clean + TCA** | 2026-09-10 | ✅ |
-| [D-04](./stack/D-04-concurrency.md) | 비동기 / 상태 관리 | Swift Concurrency + TCA Effect | Phase 0 이전 | ⬜ (D-03이 좁힘) |
+| [D-04](./stack/D-04-concurrency.md) | 비동기 / 상태 관리 | **Swift Concurrency, 스트림 분리** | 2026-09-10 | ✅ |
 | [D-05](./stack/D-05-module-tooling.md) | 모듈 빌드 도구 | **Tuist 4** | 2026-09-10 | ✅ |
 
 ## B. 비전 파이프라인
