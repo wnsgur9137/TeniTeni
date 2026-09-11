@@ -5,7 +5,7 @@ import TeniToolKit
 // 테스트가 링크할 수 있어야 하기 때문이다 (Project.swift 주석 참고).
 @main
 struct Main {
-    static func main() {
-        Teni.main()
+    static func main() async {
+        await Teni.main()
     }
 }
