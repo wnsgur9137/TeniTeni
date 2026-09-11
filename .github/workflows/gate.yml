@@ -51,6 +51,54 @@ jobs:
           echo "docs=$docs" >> "$GITHUB_OUTPUT"
           printf '\niOS 검증: %s / 문서 검증: %s\n' "$ios" "$docs"
 
+  # PR이 커지는 것을 막지는 않되 눈에 띄게 한다.
+  # 규약 12.8 "PR 단위 — 작게 가져갑니다" 참고.
+  size:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: 변경 규모 집계
+        env:
+          LIMIT: 400
+        run: |
+          BASE="origin/${{ github.base_ref }}"
+          git fetch origin "${{ github.base_ref }}" --depth=1 2>/dev/null || true
+
+          # -M(이름변경 탐지)이 핵심이다. 없으면 파일 이동이 "삭제 + 추가"로
+          # 두 번 세어져 실제보다 크게 나온다 (PR #15: 표시 725 / 실제 526).
+          # diff를 못 구하면 0줄로 읽혀 경고가 영영 안 뜬다.
+          # 규약 12.7 "게이트가 조용히 통과하는 함정"의 바로 그 유형이므로
+          # 조용히 넘어가지 않고 실패시킨다.
+          if ! NUMSTAT=$(git diff --numstat -M "$BASE"...HEAD); then
+            echo "::error::$BASE 와의 diff를 구하지 못했습니다"
+            exit 1
+          fi
+
+          # 바이너리는 numstat이 "-"를 내므로 숫자 행만 센다
+          read -r ADD DEL <<EOF
+          $(printf '%s\n' "$NUMSTAT" | awk '$1 ~ /^[0-9]+$/ {a+=$1; d+=$2} END {print a+0, d+0}')
+          EOF
+          # 기준은 "추가 줄"이다. 삭제는 리뷰 부담이 훨씬 작으므로 세지 않는다
+          # (1000줄을 지우고 10줄을 넣은 PR은 큰 PR이 아니다).
+          printf '변경 규모 (이름변경 탐지 후): +%s/-%s — 기준은 추가 %s줄\n' "$ADD" "$DEL" "$LIMIT"
+
+          {
+            echo "### PR 규모"
+            echo ""
+            echo "추가 **$ADD줄** / 삭제 $DEL줄 (기준: 추가 $LIMIT줄)"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          if [ "$ADD" -gt "$LIMIT" ]; then
+            echo "::warning::추가 ${ADD}줄입니다 (기준 ${LIMIT}줄). 쪼갤 수 없는 이유를 PR 본문에 적으세요 — 규약 12.8"
+            echo "" >> "$GITHUB_STEP_SUMMARY"
+            echo "⚠️ 기준 초과. 쪼갤 수 없는 이유를 PR 본문에 적으세요 ([규약 12.8](../blob/main/docs/09-프로세스/PIPELINE.md))." >> "$GITHUB_STEP_SUMMARY"
+          fi
+
   docs:
     needs: detect
     if: needs.detect.outputs.docs == 'true'
@@ -107,6 +155,7 @@ jobs:
     steps:
       - name: 결과 집계
         run: |
+          # size는 경고 전용이므로 판정에 넣지 않는다.
           printf 'detect: %s\ndocs:   %s\nios:    %s\n' \
             "${{ needs.detect.result }}" "${{ needs.docs.result }}" "${{ needs.ios.result }}"
 
