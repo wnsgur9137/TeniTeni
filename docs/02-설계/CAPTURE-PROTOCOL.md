@@ -61,6 +61,10 @@ status: active
 > 계산식: `공 픽셀 지름 = 가로 해상도 × 0.067m ÷ (2 × 거리 × tan(화각/2))`
 > 이 식은 `ClipMetadata.ballPixelDiameter` 및 `FormatReport.FormatInfo.ballPixelDiameter`와 동일합니다.
 > 참고 임계 거리: 공 12px = 7.7m, 공 8px = 11.5m (화각 70° 기준)
+>
+> **`TrajectoryObservation.movingAverageRadius`가 추적 중인 물체의 실측 반지름을 돌려줍니다.**
+> 검출이 성공하면 공이 실제로 몇 px였는지 바로 나오므로, 화각 실측을 거친 간접 계산보다
+> 직접적인 검증 수단입니다. 0-C 분석 도구가 이 값을 반드시 기록해야 합니다.
 
 ### 왜 1.1m인가
 
@@ -115,7 +119,7 @@ fps가 검출 품질을 좌우하므로 **`Clip` 엔티티에 `captureFPS`를 �
 `AVCaptureSession.Preset`은 프레임레이트를 표현하지 못하므로 `activeFormat`을 직접 고릅니다.
 
 ```swift
-// VisionKit/Camera/FormatSelector.swift
+// TeniVision/Camera/FormatSelector.swift
 func selectFormat(_ device: AVCaptureDevice,
                   targetFPS: Double,
                   width: Int32 = 1920) -> AVCaptureDevice.Format? {
@@ -231,9 +235,12 @@ ISO 상한을 두고, 상한에 도달하면 노출을 단계적으로 늘리는
                "exposureDuration": "1/1000", "distanceM": 6.0, "heightM": 1.1 },
   "params": { "trajectoryLength": 5, "minRadius": 0.002, "maxRadius": 0.015 },
   "groundTruth": { "impactFrames": [142, 389, 601] },
-  "detected":   [ { "startFrame": 143, "durationSec": 0.42, "matchedImpact": 142 },
-                  { "startFrame": 390, "durationSec": 0.31, "matchedImpact": 389 },
-                  { "startFrame": 512, "durationSec": 0.21, "matchedImpact": null } ],
+  "detected":   [ { "startFrame": 143, "durationSec": 0.42, "matchedImpact": 142,
+                    "movingAverageRadius": 0.0041, "ballPixelDiameter": 15.7 },
+                  { "startFrame": 390, "durationSec": 0.31, "matchedImpact": 389,
+                    "movingAverageRadius": 0.0039, "ballPixelDiameter": 15.0 },
+                  { "startFrame": 512, "durationSec": 0.21, "matchedImpact": null,
+                    "movingAverageRadius": 0.0112, "ballPixelDiameter": 43.0 } ],
   "result": { "hits": 2, "total": 3, "detectionRate": 0.667, "falsePositives": 1 }
 }
 ```

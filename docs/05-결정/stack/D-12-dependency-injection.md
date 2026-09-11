@@ -53,7 +53,7 @@ decision: swift-dependencies (TCA 내장)
 
 ## 결정
 
-**swift-dependencies** (TCA 내장). Repository·VisionKit·시스템 서비스를 모두 `DependencyValues`에 등록한다.
+**swift-dependencies** (TCA 내장). Repository·TeniVision·시스템 서비스를 모두 `DependencyValues`에 등록한다.
 
 ## 근거
 
@@ -66,7 +66,7 @@ decision: swift-dependencies (TCA 내장)
 | 종류 | 예 |
 |---|---|
 | Repository | `clipRepository`, `swingRepository`, `sessionRepository` |
-| VisionKit | `poseEstimator`, `ballTracker`, `swingClassifier` |
+| TeniVision | `poseEstimator`, `ballTracker`, `swingClassifier` |
 | 시스템 | `cameraSession`, `clipRecorder`, `thermalMonitor`, `motionMonitor` |
 | 인프라 | `apiClient`(Moya), `fileStore`, `uploadService` |
 

@@ -66,7 +66,7 @@ status: active
 | 라벨 | 의미 |
 |---|---|
 | `📱UI` | 화면이 있는 iOS 작업 |
-| `🧩Core` | VisionKit·카메라·동시성 등 **화면 없는** iOS 작업 (0-A가 여기) |
+| `🧩Core` | TeniVision·카메라·동시성 등 **화면 없는** iOS 작업 (0-A가 여기) |
 | `☁️Backend` | FastAPI·워커·DB |
 | `🧠ML` | 모델·학습·평가 |
 | `📃Docs` | 문서 — **기존 type 라벨을 재사용** |

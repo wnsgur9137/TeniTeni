@@ -108,14 +108,14 @@ Phase 3 │ 코트 분석 · 레퍼런스 비교 · 3D 포즈(X-Factor)
 
 | # | 작업 | 비고 |
 |---|---|---|
-| 1 | `VisionKit` 모듈 분리 | **여기서 첫 모듈이 생긴다** (9.5절) |
+| 1 | `TeniVision` 모듈 분리 | **여기서 첫 모듈이 생긴다** (9.5절). ⚠️ 착수 시 **Tuist가 하나의 모듈을 iOS+macOS 양쪽 타깃으로 만들 수 있는지 먼저 확인** — 안 되면 소스를 공유하는 별도 타깃 2개로 |
 | 2 | macOS CLI 분석 도구 | 영상 → `DetectTrajectoriesRequest` → 결과 JSON |
 | 3 | 임팩트 프레임 라벨링 도구 | 프레임 넘기며 수동 기록. 게이트의 분모 |
 | 4 | 파라미터 스윕 | `trajectoryLength`, radius, 노출·거리별 |
 | 5 | **검출률 집계 및 판정** | [측정 방법](../02-설계/CAPTURE-PROTOCOL.md#55-phase-0-게이트-측정-방법) |
 
 ```
-Mac ──→ VisionKit (공유) ──→ 검출 결과 JSON ──→ 집계 스크립트 ──→ 판정
+Mac ──→ TeniVision (공유) ──→ 검출 결과 JSON ──→ 집계 스크립트 ──→ 판정
         ↑
         └── iOS 앱도 같은 모듈을 쓴다 (0-D부터)
 ```
@@ -151,7 +151,7 @@ Mac ──→ VisionKit (공유) ──→ 검출 결과 JSON ──→ 집계 �
 
 ### 1-A. 모듈 재편 (3~4일)
 
-**Tuist 전면 도입 시점.** 9.5절의 구조로 재편합니다. 여기까지는 `VisionKit` + 앱 타깃 정도만 있었습니다.
+**Tuist 전면 도입 시점.** 9.5절의 구조로 재편합니다. 여기까지는 `TeniVision` + 앱 타깃 정도만 있었습니다.
 
 ### 1-B. 스윙 검출 (1~2주)
 
@@ -223,7 +223,7 @@ Presentation    화면 단위 TCA Feature (Capture, Analysis, Session, Library, 
 Domain          Entity, UseCase, Repository 프로토콜 — 의존성 0
 Data            Repository 구현, SwiftData 영속화, 파일 저장소
 Network         Moya TargetType, DTO, 인증 인터셉터
-VisionKit       분석·렌더 엔진 (Pose / Ball / Render / Swing / Metrics)
+TeniVision       분석·렌더 엔진 (Pose / Ball / Render / Swing / Metrics)
 DesignSystem    컬러·타이포·공용 컴포넌트
 Core            Logger, Extensions, 공용 유틸
 ```
@@ -238,7 +238,7 @@ Presentation  Data ──→ Network
     │  │       │           │
     │  └──→ Domain ←───────┘
     │          ▲
-    │      VisionKit
+    │      TeniVision
     │          │
 DesignSystem   │
     └────→ Core ←───┘
@@ -247,17 +247,17 @@ DesignSystem   │
 **규칙**
 
 - `Domain`은 아무것도 import하지 않는다 (Foundation 제외)
-- `VisionKit`은 `Domain` 엔티티와 `Core`만 안다. **UI를 모른다** → macOS CLI에서 재사용 가능
+- `TeniVision`은 `Domain` 엔티티와 `Core`만 안다. **UI를 모른다** → macOS CLI에서 재사용 가능
 - `Network`는 `Domain`을 모른다. DTO만 다루고 매핑은 `Data`가 한다
 - `Presentation` 내 Feature 간 직접 의존 금지. `Application` 코디네이터 경유
-- 프레임 스트림은 `Presentation`이 `VisionKit`을 직접 쓴다 ([D-03](../05-결정/stack/D-03-architecture-pattern.md) TCA 바깥 경로)
+- 프레임 스트림은 `Presentation`이 `TeniVision`을 직접 쓴다 ([D-03](../05-결정/stack/D-03-architecture-pattern.md) TCA 바깥 경로)
 
 ### 도입 순서 — 필요할 때 만든다
 
 | 시점 | 도입 | 강제 이유 |
 |---|---|---|
 | 0-A | (단일 타깃) | 모듈 불필요 |
-| **0-C** | **VisionKit** | **macOS CLI와 iOS 앱이 같은 분석 코드를 써야 함** |
+| **0-C** | **TeniVision** | **macOS CLI와 iOS 앱이 같은 분석 코드를 써야 함** |
 | 0-D | Core | 실시간 파이프라인에서 공용 유틸 발생 |
 | **1-A** | **Domain, Data, Presentation, Application, DesignSystem** | TCA Feature가 여러 개 생기는 시점 |
 | **2-C** | **Network** | 서버 연동 시작. 그전에 만들면 빈 모듈 |

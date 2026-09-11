@@ -60,7 +60,7 @@ decision: Tuist 4
 ## 근거
 
 - [D-03](./D-03-architecture-pattern.md)에서 TCA를 택해 Feature 모듈마다 Reducer·View·Store가 세트로 생기므로, **모듈 템플릿화의 가치가 커졌다**
-- Domain / Data / VisionKit / Features / DesignSystem 등 모듈이 10개 내외로 늘어난다. 빌드 설정을 한 곳에서 관리해야 한다
+- Domain / Data / TeniVision / Features / DesignSystem 등 모듈이 10개 내외로 늘어난다. 빌드 설정을 한 곳에서 관리해야 한다
 - TCA는 매크로로 빌드 시간이 늘어나므로, 모듈 분리로 증분 빌드 범위를 좁히는 것이 실익이 된다
 
 **Phase 0 예외**: 기술 검증 단계에서는 단일 타깃으로 시작하고, Phase 1에서 Tuist 모듈 구조로 재편한다. 검증 전에 모듈을 나누는 것은 이르다.

@@ -36,7 +36,7 @@ status: active
 |---|---|---|---|
 | **[0-A](https://github.com/wnsgur9137/TeniTeni/milestone/1) 정찰** | 책상 | 포맷 덤프·화각 실측, **최소 촬영 앱**(포맷/노출 고정 + 녹화만) | 2~3일 |
 | **[0-B](https://github.com/wnsgur9137/TeniTeni/milestone/2) 촬영** | 코트 | 조건별 영상 세트 확보 (fps·노출·거리·배경 변주) | 1일 |
-| **[0-C](https://github.com/wnsgur9137/TeniTeni/milestone/3) 검증** | 책상 | VisionKit 분리, macOS CLI 분석·라벨링 도구, 파라미터 스윕 → **게이트 판정** | 1주 |
+| **[0-C](https://github.com/wnsgur9137/TeniTeni/milestone/3) 검증** | 책상 | TeniVision 분리, macOS CLI 분석·라벨링 도구, 파라미터 스윕 → **게이트 판정** | 1주 |
 | **[0-D](https://github.com/wnsgur9137/TeniTeni/milestone/4) 파이프라인** | — | **게이트 통과 시에만.** Metal·스켈레톤·One Euro·실시간·발열·동시성 | 2~3주 |
 
 **게이트를 앞으로 당긴 이유**: 궤적 검출률은 오프라인으로 재도 같은 값입니다. 영상을 찍어두고 나중에 돌리면 파라미터를 바꿔가며 반복 측정할 수 있고, 코트에 여러 번 나가지 않아도 됩니다. 반대로 Metal 렌더·스켈레톤·One Euro는 검출률 측정과 **무관**합니다. 게이트가 실패하면 그 작업이 무의미해지므로 뒤로 미룹니다.

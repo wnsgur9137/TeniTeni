@@ -79,7 +79,7 @@ RotationCoordinator     → 회전
 **두 곳이 같은 행렬을 쓰므로 어긋날 수 없습니다.** 레이어에 물어보던 방식보다 오히려 안전합니다.
 
 ```swift
-// VisionKit/Render/RenderTransform.swift
+// TeniVision/Render/RenderTransform.swift
 import simd
 import AVFoundation
 
@@ -130,7 +130,7 @@ struct RenderTransform: Sendable {
 ## 4.4 스켈레톤 정의
 
 ```swift
-// VisionKit/Pose/PoseSkeleton.swift
+// TeniVision/Pose/PoseSkeleton.swift
 // iOS 26 타깃이므로 신규 Swift Vision API를 사용한다 (레거시 VN* 아님)
 import Vision
 
@@ -191,7 +191,7 @@ struct RenderablePose: Sendable {
 관절 19개 · 본 20개는 매 프레임 정점 버퍼를 새로 채워도 부담이 없습니다.
 
 ```swift
-// VisionKit/Render/SkeletonPass.swift
+// TeniVision/Render/SkeletonPass.swift
 struct SkeletonVertex {
     var position: SIMD2<Float>   // 정규화 좌표 (셰이더에서 변환)
     var color: SIMD4<Float>
@@ -247,7 +247,7 @@ Vision 원본 출력은 **정지 상태에서도 관절이 2~5px씩 떱니다.**
 단순 이동평균은 빠른 스윙에서 지연을 만들므로, **속도에 따라 컷오프 주파수가 변하는 One Euro Filter**가 정답입니다. 느릴 때는 강하게 평활화하고 빠를 때는 반응성을 살립니다.
 
 ```swift
-// VisionKit/Pose/OneEuroFilter.swift
+// TeniVision/Pose/OneEuroFilter.swift
 struct OneEuroFilter {
     var minCutoff: Double = 1.0    // 정지 시 안정성 ↑ (낮게)
     var beta: Double = 0.02        // 빠른 동작 반응성 ↑ (테니스는 크게)
@@ -322,7 +322,7 @@ Metal 렌더 경로를 **그대로 재사용**합니다. 화면 대신 오프스
 
 ```
 Projects/
-├── VisionKit/Sources/
+├── TeniVision/Sources/
 │   ├── Pose/
 │   │   ├── PoseEstimator.swift          # DetectHumanBodyPoseRequest 래핑
 │   │   ├── PoseSkeleton.swift           # Bone 정의
@@ -347,7 +347,7 @@ Projects/
         └── GuideOverlay.swift           # SwiftUI. 가이드·경고·각도 라벨
 ```
 
-`VisionKit`은 SwiftUI를 import하지 않으므로 샘플 영상 기반 회귀 테스트가 가능합니다. `OffscreenRenderer`를 쓰면 **렌더 결과 자체를 스냅샷 테스트**할 수도 있습니다.
+`TeniVision`은 SwiftUI를 import하지 않으므로 샘플 영상 기반 회귀 테스트가 가능합니다. `OffscreenRenderer`를 쓰면 **렌더 결과 자체를 스냅샷 테스트**할 수도 있습니다.
 
 ## 4.10 Phase 0 검증 항목
 

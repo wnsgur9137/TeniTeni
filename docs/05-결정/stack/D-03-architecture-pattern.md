@@ -59,7 +59,7 @@ UI 상태             (오버레이, 가이드, 흔들림 경고, 발열 경고)
 
 **TCA로 해결되지 않는 것**
 
-이 앱에서 진짜 어려운 것은 화면 상태 관리가 아니라 **비전 파이프라인**이다. 60fps 프레임 처리, 백프레셔, 발열 대응, 검출 정확도는 전부 `VisionKit` 안에서 벌어지며 아키텍처 패턴이 닿지 않는다.
+이 앱에서 진짜 어려운 것은 화면 상태 관리가 아니라 **비전 파이프라인**이다. 60fps 프레임 처리, 백프레셔, 발열 대응, 검출 정확도는 전부 `TeniVision` 안에서 벌어지며 아키텍처 패턴이 닿지 않는다.
 
 ## 의존 관계
 
@@ -77,7 +77,7 @@ UI 상태             (오버레이, 가이드, 흔들림 경고, 발열 경고)
 - Domain: 순수 Swift. Entity, UseCase, Repository 프로토콜. 의존성 0
 - Data: Repository 구현, 네트워크, 영속화
 - Presentation: TCA Store / Reducer / View
-- VisionKit: 분석 엔진. TCA와 무관한 독립 모듈
+- TeniVision: 분석 엔진. TCA와 무관한 독립 모듈
 
 ## 근거
 
@@ -90,7 +90,7 @@ Domain 계층을 순수 Swift로 유지하는 것은 TCA와 무관하게 지킨�
 **이 규칙을 어기면 Phase 1에서 반드시 문제가 된다.**
 
 ```
-VisionKit (TCA 바깥)
+TeniVision (TCA 바깥)
   프레임 → 포즈/궤적 → 스무딩 → 오버레이 상태
     ↓ AsyncStream, 60fps
   CaptureView의 오버레이 레이어가 직접 구독 (@Observable)
