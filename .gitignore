@@ -28,6 +28,9 @@ ios/Derived/
 ios/*.xcodeproj
 ios/*.xcworkspace
 ios/Tuist/.build/
+# 모듈별 생성물 — Workspace.swift의 projects 목록마다 하나씩 생긴다
+ios/Projects/*/Derived/
+ios/Projects/*/*.xcodeproj
 .tuist-version
 
 # ---- SPM ----
