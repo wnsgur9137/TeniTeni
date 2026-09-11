@@ -14,7 +14,11 @@ let project = Project(
         .target(
             name: "TeniVision",
             destinations: [.iPhone, .mac],
-            product: .framework,
+            // 정적 프레임워크다. macOS CLI(TeniTool)는 앱 번들이 아니라
+            // 프레임워크를 동봉할 자리가 없고, @rpath로 찾을 수도 없다.
+            // 정적 링크면 양쪽이 같은 설정을 쓴다. 리소스가 없으므로
+            // 정적으로 바꿔도 앱이 잃는 것이 없다.
+            product: .staticFramework,
             bundleId: "com.wnsgur9137.TeniTeni.TeniVision",
             deploymentTargets: .multiplatform(iOS: "26.0", macOS: "15.0"),
             sources: ["Sources/**"]
