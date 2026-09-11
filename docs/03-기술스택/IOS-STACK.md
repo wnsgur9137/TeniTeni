@@ -193,6 +193,21 @@ macOS 하한이 15.0인 것은 `DetectTrajectoriesRequest`가 macOS 15+이기 �
 
 CLI는 **실행 파일 + 라이브러리 두 타깃**입니다. 실행 파일의 심볼은 테스트 번들에서 링크할 수 없으므로(앱과 달리 `bundle_loader`를 쓸 수 없습니다) 로직을 `TeniToolKit`에 두고 실행 파일은 `@main`만 갖습니다.
 
+### 코드 서명
+
+**`DEVELOPMENT_TEAM`은 매니페스트에 둡니다.** Xcode의 Signing & Capabilities에서 팀을 고르면 생성된 `.xcodeproj`에만 기록되고, 다음 `tuist generate`가 덮어씁니다. 매번 다시 고르게 됩니다.
+
+| 설정 | 값 | 대상 |
+|---|---|---|
+| `DEVELOPMENT_TEAM` | `VW2UR5Y845` (JUNHYEOK LEE) | 앱 타깃만 |
+| `CODE_SIGN_STYLE` | `Automatic` | 앱 타깃만 |
+
+**프레임워크와 CLI에는 넣지 않습니다.** `TeniVision`은 정적 프레임워크라 앱에 링크될 뿐 따로 서명되지 않고, `TeniTool`은 로컬에서 돌리는 개발 도구입니다.
+
+게이트는 `CODE_SIGNING_ALLOWED=NO`로 빌드하므로 CI 러너에 인증서가 없어도 통과합니다. **서명이 실제로 되는지는 실기기 빌드에서만 드러납니다** — 게이트가 덮지 못하는 항목입니다.
+
+> 팀 ID는 표시 이름이 아닙니다. `security find-identity -v -p codesigning`으로 인증서를, 프로비저닝 프로필의 `TeamIdentifier`로 ID를 확인합니다.
+
 ### 의존성 방향
 
 ```

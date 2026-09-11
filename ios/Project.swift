@@ -13,6 +13,10 @@ let project = Project(
             "SWIFT_VERSION": "6.0",
             "SWIFT_STRICT_CONCURRENCY": "complete",
             "SWIFT_UPCOMING_FEATURE_EXISTENTIAL_ANY": "YES",
+            // JUNHYEOK LEE 개인 팀. Xcode에서 손으로 고르면
+            // tuist generate가 덮어쓰므로 매니페스트에 둔다.
+            "DEVELOPMENT_TEAM": "VW2UR5Y845",
+            "CODE_SIGN_STYLE": "Automatic",
         ],
         configurations: [
             .debug(name: "Debug"),
