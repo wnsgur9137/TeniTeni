@@ -117,4 +117,41 @@ else
   ok "전 문서 등재됨"
 fi
 
+step "디자인 토큰 일치"
+# DESIGN-SYSTEM.md가 정본이고 Tokens.swift가 그것을 코드로 옮긴 것이다.
+# 갈라지면 목업과 구현이 어긋난다.
+TOKENS_SWIFT="ios/TeniTeni/Sources/DesignSystem/Tokens.swift"
+DESIGN_DOC="docs/06-디자인/DESIGN-SYSTEM.md"
+if [ -f "$TOKENS_SWIFT" ]; then
+  MISMATCH=$(python3 - "$TOKENS_SWIFT" "$DESIGN_DOC" <<'PY2'
+import re, sys, pathlib
+
+swift = pathlib.Path(sys.argv[1]).read_text(encoding="utf-8")
+doc = pathlib.Path(sys.argv[2]).read_text(encoding="utf-8")
+
+# 0xRRGGBB → RRGGBB
+code = {m.upper() for m in re.findall(r"0x([0-9A-Fa-f]{6})", swift)}
+# 문서의 #RRGGBB. 11.8 대역 색 절은 토큰이 아니므로 제외한다.
+body = doc.split("## 11.8")[0]
+docs = {m.upper() for m in re.findall(r"#([0-9A-Fa-f]{6})", body)}
+
+missing = sorted(docs - code)
+extra = sorted(code - docs)
+out = []
+if missing:
+    out.append("문서에만 있음 (코드에 누락): " + " ".join("#" + c for c in missing))
+if extra:
+    out.append("코드에만 있음 (문서에 없는 값): " + " ".join("#" + c for c in extra))
+print("\n".join(out))
+PY2
+)
+  if [ -n "$MISMATCH" ]; then
+    printf '%s\n' "$MISMATCH" | sed 's/^/    /'
+    fail "Tokens.swift와 DESIGN-SYSTEM.md의 색이 어긋납니다"
+  fi
+  ok "토큰 일치"
+else
+  printf "Tokens.swift 없음 — 건너뜁니다\n"
+fi
+
 printf '\n\033[32m=== 문서 게이트 통과 ===\033[0m\n'

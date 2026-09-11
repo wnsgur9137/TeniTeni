@@ -43,7 +43,9 @@ jobs:
 
           ios=false; docs=false
           if printf '%s\n' "$CHANGED" | grep -qE '^(ios/|scripts/verify-ios\.sh|mise\.toml)'; then ios=true; fi
-          if printf '%s\n' "$CHANGED" | grep -qE '^(docs/|README\.md|scripts/verify-docs\.sh)'; then docs=true; fi
+          # Tokens.swift는 코드지만 문서 게이트가 DESIGN-SYSTEM.md와 대조하므로
+          # 그것만 바뀌어도 문서 검증을 돌려야 한다.
+          if printf '%s\n' "$CHANGED" | grep -qE '^(docs/|README\.md|scripts/verify-docs\.sh|ios/TeniTeni/Sources/DesignSystem/)'; then docs=true; fi
           # 워크플로 자체가 바뀌면 둘 다 검증
           if printf '%s\n' "$CHANGED" | grep -qE '^\.github/workflows/'; then ios=true; docs=true; fi
 
