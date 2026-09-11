@@ -97,19 +97,39 @@ LOGS+=("$IOS_LOG")
 ok "iOS 빌드 성공"
 
 for mac_scheme in ${MAC_SCHEMES[@]+"${MAC_SCHEMES[@]}"}; do
-  step "macOS 빌드 ($mac_scheme)"
+  # 테스트 타깃이 있으면 build 대신 test를 돌린다. 빌드만 보면
+  # "테스트는 있는데 한 번도 실행되지 않는" 상태를 못 잡는다.
+  ACTION=build
+  if grep -q 'product: \.unitTests' "Projects/$mac_scheme/Project.swift" 2>/dev/null; then
+    ACTION=test
+  fi
+
+  step "macOS $ACTION ($mac_scheme)"
   MAC_LOG="/tmp/teniteni-build-macos-$mac_scheme.log"
   set +e
   xcodebuild $CONTAINER_FLAG -scheme "$mac_scheme" \
     -destination "platform=macOS,arch=$(uname -m)" \
     -configuration Debug \
     CODE_SIGNING_ALLOWED=NO \
-    build 2>&1 | tee "$MAC_LOG" | tail -30
+    "$ACTION" 2>&1 | tee "$MAC_LOG" | tail -30
   STATUS=${PIPESTATUS[0]}
   set -e
-  [ "$STATUS" -eq 0 ] || fail "macOS 빌드 실패 ($mac_scheme) — 전체 로그: $MAC_LOG"
+  [ "$STATUS" -eq 0 ] || fail "macOS $ACTION 실패 ($mac_scheme) — 전체 로그: $MAC_LOG"
   LOGS+=("$MAC_LOG")
-  ok "macOS 빌드 성공 ($mac_scheme)"
+
+  if [ "$ACTION" = test ]; then
+    # 통과 개수만 보면 수집되지 않아 조용히 건너뛴 테스트를 놓친다.
+    # 실제 형식: "Test run with 25 tests in 6 suites passed after 48.3 seconds."
+    # tests와 passed 사이에 "in N suites"가 끼므로 붙여서 매칭하면 안 된다.
+    SUMMARY="$(grep -oE 'Test run with [0-9]+ tests?[^.]*' "$MAC_LOG" | tail -1 || true)"
+    COUNT=$(printf '%s' "$SUMMARY" | grep -oE '[0-9]+' | head -1 || true)
+    if [ -z "${COUNT:-}" ] || [ "$COUNT" -eq 0 ]; then
+      fail "테스트가 0건 실행됐습니다 ($mac_scheme) — 수집 실패일 수 있습니다. 로그: $MAC_LOG"
+    fi
+    ok "macOS 테스트 성공 ($mac_scheme) — $SUMMARY"
+  else
+    ok "macOS 빌드 성공 ($mac_scheme)"
+  fi
 done
 
 step "동시성 경고 집계"

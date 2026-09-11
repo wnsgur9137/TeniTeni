@@ -155,6 +155,7 @@ ios/
     ├── Data/                          # Repository 구현, SwiftData 영속화, 파일 저장소
     ├── Network/                       # Moya TargetType, DTO, 인증 인터셉터
     ├── TeniVision/                    # 분석·렌더 엔진 — destinations: [.iPhone, .mac]
+    ├── TeniTool/                      # 0-C 검증 CLI (macOS 전용) — teni
     ├── MLModels/                      # .mlpackage + 로더 (Git LFS)
     ├── DesignSystem/                  # 컬러, 타이포, 공용 컴포넌트
     └── Core/                          # Logger, Extensions, 공용 유틸
@@ -180,7 +181,17 @@ macOS 하한이 15.0인 것은 `DetectTrajectoriesRequest`가 macOS 15+이기 �
 - 살아있는 `AVCaptureDevice`를 다루는 코드는 iOS 전용입니다. `AVCaptureDevice.Format`의 `isVideoBinned`·`videoFieldOfView`·`minISO`·`videoMaxZoomFactor` 등이 macOS에 없습니다
 - 반대로 **Codable 데이터 모델과 계산식은 반드시 양 플랫폼 공용**으로 둡니다. CLI가 앱이 내보낸 JSON을 읽는 경로이기 때문입니다
 
-`scripts/verify-ios.sh`가 `Projects/*/Project.swift`에서 `.mac`을 선언한 모듈을 찾아 macOS로도 빌드하므로, 이 규약 위반은 게이트에서 걸립니다.
+`scripts/verify-ios.sh`가 `Projects/*/Project.swift`에서 `.mac`을 선언한 모듈을 찾아 macOS로도 빌드하므로, 이 규약 위반은 게이트에서 걸립니다. 테스트 타깃(`product: .unitTests`)이 있는 모듈은 `build` 대신 `test`를 돌립니다.
+
+`TeniVision`은 **정적 프레임워크**입니다. macOS CLI는 앱 번들이 아니라 프레임워크를 동봉할 자리가 없고 `@rpath`로 찾을 수도 없습니다. 리소스가 없으므로 정적으로 바꿔도 앱이 잃는 것이 없습니다.
+
+### 개발 도구의 외부 의존성
+
+**앱과 `TeniVision`은 의존성 0을 유지합니다.** 외부 패키지는 `TeniTool`에만 붙입니다 — 개발 도구는 앱 크기·ANE·기동 시간과 무관하므로 [D-06](../05-결정/stack/D-06-pose-engine.md)·[D-12](../05-결정/stack/D-12-dependency-injection.md)의 판단이 적용되지 않습니다.
+
+선언은 `ios/Tuist/Package.swift`에, 사용은 `.external(name:)`으로 합니다.
+
+CLI는 **실행 파일 + 라이브러리 두 타깃**입니다. 실행 파일의 심볼은 테스트 번들에서 링크할 수 없으므로(앱과 달리 `bundle_loader`를 쓸 수 없습니다) 로직을 `TeniToolKit`에 두고 실행 파일은 `@main`만 갖습니다.
 
 ### 의존성 방향
 
