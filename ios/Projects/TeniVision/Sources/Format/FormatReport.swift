@@ -2,48 +2,46 @@ import Foundation
 
 /// 0-A의 핵심 산출물. 실기기에서 이 JSON을 내보내
 /// docs/02-설계/CAPTURE-PROTOCOL.md 5.7절 "미결 사항"을 채운다.
-struct FormatReport: Codable, Sendable {
-    let generatedAt: Date
-    let device: DeviceInfo
-    let cameras: [CameraInfo]
+public struct FormatReport: Codable, Sendable {
+    public let generatedAt: Date
+    public let device: DeviceInfo
+    public let cameras: [CameraInfo]
 
-    struct DeviceInfo: Codable, Sendable {
-        let model: String          // 예: iPhone16,2
-        let systemName: String
-        let systemVersion: String
+    public struct DeviceInfo: Codable, Sendable {
+        public let model: String          // 예: iPhone16,2
+        public let systemName: String
+        public let systemVersion: String
     }
 
-    struct CameraInfo: Codable, Sendable {
-        let deviceType: String     // builtInWideAngleCamera 등
-        let position: String       // back / front
-        let localizedName: String
-        let formats: [FormatInfo]
+    public struct CameraInfo: Codable, Sendable {
+        public let deviceType: String     // builtInWideAngleCamera 등
+        public let position: String       // back / front
+        public let localizedName: String
+        public let formats: [FormatInfo]
     }
 
-    struct FormatInfo: Codable, Sendable, Hashable {
-        let width: Int32
-        let height: Int32
-        let mediaSubType: String
-        let isVideoBinned: Bool
-        let minFrameRate: Double
-        let maxFrameRate: Double
+    public struct FormatInfo: Codable, Sendable, Hashable {
+        public let width: Int32
+        public let height: Int32
+        public let mediaSubType: String
+        public let isVideoBinned: Bool
+        public let minFrameRate: Double
+        public let maxFrameRate: Double
         /// 계산값 검증에 쓰이는 실측 시야각 (도)
-        let videoFieldOfView: Float
-        let minExposureDurationSeconds: Double
-        let maxExposureDurationSeconds: Double
-        let minISO: Float
-        let maxISO: Float
-        let supportsVideoHDR: Bool
-        let maxZoomFactor: Double
+        public let videoFieldOfView: Float
+        public let minExposureDurationSeconds: Double
+        public let maxExposureDurationSeconds: Double
+        public let minISO: Float
+        public let maxISO: Float
+        public let supportsVideoHDR: Bool
+        public let maxZoomFactor: Double
 
-        /// CAPTURE-PROTOCOL 5.1절 계산 검증용:
-        /// 이 시야각에서 거리 d일 때 테니스공(6.7cm)이 몇 px로 보이는가
-        func ballPixelDiameter(atDistanceMeters d: Double) -> Double {
-            guard videoFieldOfView > 0, d > 0 else { return 0 }
-            let halfFOV = Double(videoFieldOfView) * .pi / 180 / 2
-            let frameWidthMeters = 2 * d * tan(halfFOV)
-            guard frameWidthMeters > 0 else { return 0 }
-            return Double(width) * 0.067 / frameWidthMeters
+        /// CAPTURE-PROTOCOL 5.1절 계산 검증용.
+        /// 식은 BallGeometry 한 곳에만 둔다.
+        public func ballPixelDiameter(atDistanceMeters d: Double) -> Double {
+            BallGeometry.pixelDiameter(
+                width: width, fieldOfView: videoFieldOfView, distanceMeters: d
+            )
         }
     }
 }

@@ -1,4 +1,5 @@
 import SwiftUI
+import TeniVision
 
 /// 0-A의 핵심 산출물 화면. 지원 포맷을 열거하고 JSON으로 내보낸다.
 struct FormatInspectorView: View {
