@@ -90,16 +90,20 @@ public struct SweepRunner: Sendable {
             "--noise", "\(noise)",
         ])
         let plan = try SynthPlan(command: command)
-        let output = plan.render()
-        try VideoWriter(
+
+        // 스트리밍으로 쓴다. 배열로 쌓으면 1080p 9조건에서 메모리가 터진다
+        // (이슈 #31).
+        let session = try VideoWriter(
             url: movie, width: plan.camera.widthPx, height: plan.camera.heightPx, fps: plan.fps
-        ).write(frames: output.frames)
-        try output.groundTruth.write(to: truth)
+        ).makeSession()
+        let groundTruth = try plan.render { _, frame in try session.append(frame) }
+        try session.finish()
+        try groundTruth.write(to: truth)
 
         // 공이 프레임을 벗어나면 검출이 0이 나오는데, 그것은 검출기 문제가
         // 아니라 영상 문제다. 해상도를 줄여 회전을 빠르게 하려다 실제로
         // 겪었다 — 세로를 360으로 줄이자 공이 위로 벗어나 전 조건이 0%였다.
-        if let warning = Self.framingWarning(output.groundTruth, width: plan.camera.widthPx, height: plan.camera.heightPx) {
+        if let warning = Self.framingWarning(groundTruth, width: plan.camera.widthPx, height: plan.camera.heightPx) {
             print("      ⚠️ \(warning)")
         }
         return (movie, truth)

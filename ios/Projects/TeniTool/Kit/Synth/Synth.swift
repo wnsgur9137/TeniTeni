@@ -116,25 +116,30 @@ public struct Synth: ParsableCommand {
 
     public func run() throws {
         let plan = try SynthPlan(command: self)
-        let result = plan.render()
-
         let movieURL = URL(fileURLWithPath: out)
-        try VideoWriter(url: movieURL, width: width, height: height, fps: fps)
-            .write(frames: result.frames)
+
+        // 프레임을 만드는 즉시 인코더로 넘긴다. 배열로 쌓으면 1080p에서
+        // 1.5GB가 되어 스윕이 메모리 부족으로 죽는다 (이슈 #31).
+        let session = try VideoWriter(
+            url: movieURL, width: width, height: height, fps: fps
+        ).makeSession()
+        let truth = try plan.render { _, frame in try session.append(frame) }
+        try session.finish()
 
         let jsonURL = movieURL.deletingPathExtension().appendingPathExtension("json")
-        try result.groundTruth.write(to: jsonURL)
+        try truth.write(to: jsonURL)
 
         let diameter = plan.camera.ballDiameterPx
+        let referenceBlur = plan.referenceBlurLengthPx
         print("""
             생성 완료
               영상      \(movieURL.path)
               정답      \(jsonURL.path)
-              프레임    \(result.frames.count) (\(String(format: "%.2f", Double(result.frames.count) / fps))초 @ \(fps)fps)
+              프레임    \(plan.frameCount) (\(String(format: "%.2f", Double(plan.frameCount) / fps))초 @ \(fps)fps)
               공 지름   \(String(format: "%.2f", diameter)) px
-              노출      \(exposure.label) → 블러 \(String(format: "%.2f", result.referenceBlurLengthPx)) px (공 지름의 \(String(format: "%.0f", result.referenceBlurLengthPx / diameter * 100))%)
+              노출      \(exposure.label) → 블러 \(String(format: "%.2f", referenceBlur)) px (공 지름의 \(String(format: "%.0f", referenceBlur / diameter * 100))%)
               하위 표본 \(plan.blurSampleCount)장/프레임
-              타구      \(result.groundTruth.groundTruth.impactFrames.map(String.init).joined(separator: ", "))
+              타구      \(truth.groundTruth.impactFrames.map(String.init).joined(separator: ", "))
             """)
     }
 }

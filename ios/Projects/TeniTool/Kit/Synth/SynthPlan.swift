@@ -90,9 +90,13 @@ public struct SynthPlan {
         return (0..<blurSampleCount).map { start + (Double($0) + 0.5) * step }
     }
 
-    public func render() -> Output {
+    /// 프레임을 하나씩 넘긴다. **누적하지 않으므로 메모리가 해상도에 비례한다.**
+    ///
+    /// 1080p·120fps·6초를 배열로 쌓으면 756장 × 2MB = 1.5GB다. 실제로
+    /// 1080p 스윕이 메모리 부족으로 죽었다 (이슈 #31).
+    @discardableResult
+    public func render(onFrame: (Int, [UInt8]) throws -> Void) rethrows -> GroundTruth {
         var noise = NoiseGenerator(seed: seed)
-        var frames: [[UInt8]] = []
         var centers: [GroundTruth.BallCenter] = []
         let radius = camera.ballDiameterPx / 2
 
@@ -129,7 +133,8 @@ public struct SynthPlan {
             }
 
             // 화면 밖으로 완전히 나간 표본은 피복률이 0이므로 그대로 두면 된다
-            frames.append(
+            try onFrame(
+                frame,
                 renderer.render(
                     ballCenters: allPositions,
                     sampleCount: blurSampleCount,
@@ -139,9 +144,12 @@ public struct SynthPlan {
             )
         }
 
-        let impactFrames = trajectories.map { Int(($0.impactTime * fps).rounded()) }
+        return makeGroundTruth(centers: centers)
+    }
 
-        let truth = GroundTruth(
+    private func makeGroundTruth(centers: [GroundTruth.BallCenter]) -> GroundTruth {
+        let impactFrames = trajectories.map { Int(($0.impactTime * fps).rounded()) }
+        return GroundTruth(
             clipId: clipId,
             condition: .init(location: "synthetic", light: "uniform", background: "simple"),
             capture: .init(
@@ -163,11 +171,19 @@ public struct SynthPlan {
                 rollingShutter: false
             )
         )
+    }
 
+    /// 전체 프레임을 모아 반환한다. **테스트용이다** — 생산 경로는
+    /// `render(onFrame:)`으로 스트리밍한다.
+    public func render() -> Output {
+        var frames: [[UInt8]] = []
+        frames.reserveCapacity(frameCount)
+        let truth = render { _, frame in frames.append(frame) }
         return Output(
             frames: frames,
             groundTruth: truth,
             referenceBlurLengthPx: referenceBlurLengthPx
         )
     }
+
 }
