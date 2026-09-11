@@ -37,6 +37,7 @@ status: active
 | [TrackNet](ml/TrackNet.md) | 소형 고속 물체 추적. [D-20](../05-결정/stack/D-20-server-ml.md) 판정 시 필요 | 미조사 |
 | [모션 블러와 공 추적](ml/MotionBlur.md) | 블러 = 속도 × 노출. 노출 고정 결정의 물리적 근거와 블러 합성 기법 | 2026-09-11 |
 | [DetectTrajectoriesRequest API](ml/DetectTrajectories.md) | 궤적 검출 API 표면. `timeRange`·`uuid`가 타입 페이지에 안 보인다 | 2026-09-11 |
+| [스포츠 영상 이벤트 라벨링](ml/EventAnnotation.md) | Action Spotting. **우리 ±3프레임 기준이 문헌 표준보다 4배 엄격** | 2026-09-11 |
 
 ## 재조사 주기
 
