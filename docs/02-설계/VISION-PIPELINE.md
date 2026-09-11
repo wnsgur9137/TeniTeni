@@ -5,7 +5,7 @@ tags:
   - 문서유형/설계
   - 영역/비전
 created: 2026-09-10
-updated: 2026-09-10
+updated: 2026-09-11
 status: active
 ---
 
@@ -140,10 +140,23 @@ status: active
 | 파라미터 | 의미 | 튜닝 방향 |
 |---|---|---|
 | `trajectoryLength` | 궤적 확정에 필요한 최소 검출 점 수 (최소 5) | **5**로 시작 — Phase 0은 검출 상한을 재야 하므로 관대하게 |
-| `frameAnalysisSpacing` | 분석 프레임 간격 | 0으로 두면 전 프레임 분석 |
+| `frameAnalysisSpacing` | 분석 간격 (`CMTime?`) | **`nil`이 기본이고 그때 전 프레임 분석.** 0이 아니다 |
 | `targetFrameTime` | 목표 프레임 처리 시간 | 성능 예산에 맞춰 조절 |
 | `objectMinimumNormalizedRadius` | 검출 대상 최소 크기 | **0.002** — [촬영 프로토콜 5.4](CAPTURE-PROTOCOL.md#54-궤적-검출-파라미터-초기값) |
 | `objectMaximumNormalizedRadius` | 최대 크기 | **0.015** — 모션 블러 여유 포함 |
+
+관측에서 얻는 것:
+
+| 멤버 | 쓰임 |
+|---|---|
+| `detectedPoints` · `projectedPoints` | 검출점과 이상적 궤적 |
+| `movingAverageRadius` | 추적 물체의 실측 반지름 — 화각 실측을 거친 간접 계산보다 직접적이다 |
+| `timeRange` | **시작 시각과 지속 시간.** `VisionObservation` 프로토콜에서 온다 |
+| `uuid` | **같은 궤적의 중복 보고를 식별한다** |
+
+> `timeRange`와 `uuid`는 `TrajectoryObservation` 문서 페이지에 나오지 않습니다. 준수 프로토콜을 따라가야 보입니다 — 없는 줄 알고 프레임을 직접 세면 안 됩니다. 자세한 것은 [DetectTrajectoriesRequest API](../08-레퍼런스/ml/DetectTrajectories.md).
+>
+> `timeRange`를 얻으려면 **`CMSampleBuffer`로 먹여야 합니다.** `CGImage`로 변환하면 타임스탬프가 사라져 `nil`이 됩니다.
 
 **결정적 제약: 카메라가 고정되어야 합니다.** 프레임 간 배경 움직임을 노이즈로 처리하는 구조라, 손으로 들고 찍으면 검출이 완전히 무너집니다.
 
