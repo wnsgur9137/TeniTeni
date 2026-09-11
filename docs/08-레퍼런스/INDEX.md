@@ -23,7 +23,7 @@ status: active
 
 | 앱 | 참고 지점 | 최근 조사 |
 |---|---|---|
-| [SwingVision](SwingVision.md) | 가장 직접적 경쟁. iOS 네이티브, 온디바이스 분석, 코트 인식·인아웃 | 미조사 |
+| [SwingVision](SwingVision.md) | 가장 직접적 경쟁. iOS 네이티브, 온디바이스 분석, 코트 인식·인아웃 | 2026-09-11 (촬영 UX만) |
 | [Zepp Tennis](ZeppTennis.md) | 센서 기반. 영상으로 푸는 것을 IMU로 푼 사례 — 지표 정의 | 미조사 |
 | [Onform](Onform.md) | 영상 코칭. 리플레이·주석 UX | 미조사 |
 | [Hudl Technique](HudlTechnique.md) | 스포츠 일반 폼 분석. 페이즈 스크러버 | 미조사 |
