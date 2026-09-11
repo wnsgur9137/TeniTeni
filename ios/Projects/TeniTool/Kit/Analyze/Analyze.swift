@@ -82,12 +82,12 @@ public struct Analyze: AsyncParsableCommand {
     /// `teni synth`의 `GroundTruth`와 `teni label`의 `LabelSet`을 **둘 다** 받는다.
     /// 정답이 합성에서 왔는지 사람에게서 왔는지는 분석에 상관없다 —
     /// 필요한 것은 임팩트 프레임과 촬영 메타뿐이다.
-    struct TruthEnvelope: Decodable {
-        struct Truth: Decodable {
-            let impactFrames: [Int]
+    public struct TruthEnvelope: Decodable {
+        public struct Truth: Decodable {
+            public let impactFrames: [Int]
         }
-        let groundTruth: Truth
-        let capture: GroundTruth.Capture?
+        public let groundTruth: Truth
+        public let capture: GroundTruth.Capture?
     }
 
     private func loadContext() throws -> Context {
