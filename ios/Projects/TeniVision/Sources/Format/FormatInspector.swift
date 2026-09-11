@@ -122,6 +122,10 @@ public enum FormatInspector {
 
 /// utsname.machine 을 문자열로 읽는다 (예: iPhone16,2)
 public enum DeviceIdentifier {
+    /// `utsname.machine`. iOS에서는 모델 식별자("iPhone17,1"),
+    /// **macOS에서는 CPU 아키텍처("arm64")**가 나온다 — 성질이 다른 값이다.
+    /// 0-C CLI가 기기를 식별하는 용도로 쓰면 안 된다. 기기 정보는 앱이
+    /// 내보낸 FormatReport.device에서 읽어야 한다.
     public static var current: String {
         var sysinfo = utsname()
         uname(&sysinfo)

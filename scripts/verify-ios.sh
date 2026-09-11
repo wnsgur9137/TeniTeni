@@ -70,7 +70,8 @@ step "멀티플랫폼 스킴 탐색"
 MAC_SCHEMES=()
 for manifest in Projects/*/Project.swift; do
   [ -f "$manifest" ] || continue
-  grep -q "\.mac" "$manifest" || continue
+  # destinations 선언만 본다. 주석에 ".mac"이 있어도 오탐하지 않는다.
+  grep -qE '^[[:space:]]*destinations:.*\.mac' "$manifest" || continue
   MAC_SCHEMES+=("$(basename "$(dirname "$manifest")")")
 done
 if [ ${#MAC_SCHEMES[@]} -gt 0 ]; then
