@@ -98,47 +98,45 @@ public struct SynthPlan {
 
         for frame in 0..<frameCount {
             let times = sampleTimes(frame: frame)
-            var positions: [(px: Double, py: Double)] = []
-            var worldPoints: [(x: Double, y: Double)] = []
-            var activeTrajectory: BallTrajectory?
+            var allPositions: [(px: Double, py: Double)] = []
 
-            for trajectory in trajectories {
+            // 궤적마다 따로 모은다. 합쳐버리면 어느 타구의 공인지 잃고,
+            // 정답에 한 공만 남는다.
+            for (hitIndex, trajectory) in trajectories.enumerated() {
                 let projected = times.compactMap { time -> (px: Double, py: Double)? in
                     guard let world = trajectory.position(at: time) else { return nil }
-                    worldPoints.append(world)
                     return camera.project(x: world.x, y: world.y)
                 }
-                if !projected.isEmpty {
-                    positions.append(contentsOf: projected)
-                    activeTrajectory = trajectory
-                }
-            }
+                guard !projected.isEmpty else { continue }
 
-            // 화면 밖으로 완전히 나간 표본은 피복률이 0이므로 그대로 두면 된다
-            frames.append(
-                renderer.render(ballCenters: positions, ballRadiusPx: radius, noise: &noise)
-            )
+                allPositions.append(contentsOf: projected)
 
-            if let trajectory = activeTrajectory, !positions.isEmpty {
                 let midTime = Double(frame) / fps + exposureSeconds / 2
-                let first = positions.first!
-                let last = positions.last!
+                let first = projected.first!
+                let last = projected.last!
                 let blur = ((last.px - first.px) * (last.px - first.px)
                     + (last.py - first.py) * (last.py - first.py)).squareRoot()
-                let center = (
-                    x: positions.reduce(0) { $0 + $1.px } / Double(positions.count),
-                    y: positions.reduce(0) { $0 + $1.py } / Double(positions.count)
-                )
                 centers.append(
                     .init(
                         frame: frame,
-                        x: center.x,
-                        y: center.y,
+                        hitIndex: hitIndex,
+                        x: projected.reduce(0) { $0 + $1.px } / Double(projected.count),
+                        y: projected.reduce(0) { $0 + $1.py } / Double(projected.count),
                         blurLengthPx: blur,
                         speedMetersPerSecond: trajectory.speed(at: midTime)
                     )
                 )
             }
+
+            // 화면 밖으로 완전히 나간 표본은 피복률이 0이므로 그대로 두면 된다
+            frames.append(
+                renderer.render(
+                    ballCenters: allPositions,
+                    sampleCount: blurSampleCount,
+                    ballRadiusPx: radius,
+                    noise: &noise
+                )
+            )
         }
 
         let impactFrames = trajectories.map { Int(($0.impactTime * fps).rounded()) }

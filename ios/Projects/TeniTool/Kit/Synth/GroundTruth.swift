@@ -34,6 +34,9 @@ public struct GroundTruth: Codable, Sendable {
 
     public struct BallCenter: Codable, Sendable {
         public let frame: Int
+        /// 몇 번째 타구의 공인가. 궤적이 겹치는 프레임에는 항목이 둘 이상 생긴다 —
+        /// #7 분석 도구가 검출 궤적을 타구에 대응시킬 때 필요하다.
+        public let hitIndex: Int
         public let x: Double
         public let y: Double
         /// 이 프레임의 노출 구간에서 공이 이동한 거리 (px).

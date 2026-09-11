@@ -39,13 +39,17 @@ public struct FrameRenderer {
     /// 배경이 균일하므로 표본마다 전체 화면을 합성할 필요가 없다.
     /// 각 화소의 **피복률 합**만 모으면
     /// `L = bg + (Σcov / N) · (ball − bg)` 로 정확히 같은 결과가 나온다.
+    /// - Parameter sampleCount: 노출 구간당 하위 표본 수. **`ballCenters.count`에서
+    ///   유추하지 않는다** — 궤적이 둘 이상 겹치는 프레임에서는 위치 개수가
+    ///   표본 수의 배수가 되고, 그걸로 나누면 공이 절반 밝기로 그려진다.
     public func render(
         ballCenters: [(px: Double, py: Double)],
+        sampleCount: Int,
         ballRadiusPx: Double,
         noise: inout NoiseGenerator
     ) -> [UInt8] {
         var coverage = [Double](repeating: 0, count: width * height)
-        let sampleCount = max(1, ballCenters.count)
+        let sampleCount = max(1, sampleCount)
 
         for center in ballCenters {
             accumulateDisc(center: center, radius: ballRadiusPx, into: &coverage)

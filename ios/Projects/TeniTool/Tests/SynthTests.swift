@@ -204,7 +204,7 @@ struct BlurTests {
         // 반 덮인 화소를 만든다 — 피복률 0.5
         let pixels = renderer.render(
             ballCenters: [(px: 4.5, py: 4.5), (px: 100, py: 100)],
-            ballRadiusPx: 3, noise: &noise
+            sampleCount: 2, ballRadiusPx: 3, noise: &noise
         )
         let center = Double(pixels[4 * 9 + 4]) / 255
 
@@ -378,6 +378,43 @@ struct RenderMeasurementTests {
         let a = try makePlan(base + ["--seed", "1"]).render()
         let b = try makePlan(base + ["--seed", "2"]).render()
         #expect(a.frames != b.frames)
+    }
+
+    /// 간격 1.0초는 궤적 지속 시간(1.33초)보다 짧아 두 공이 동시에 보인다.
+    /// 이 상황에서 두 버그가 있었다 — 표본 수를 위치 개수에서 유추해 공이
+    /// 절반 밝기로 그려졌고, 정답에는 마지막 궤적 하나만 기록됐다.
+    @Test("궤적이 겹쳐도 공 밝기와 정답이 온전하다")
+    func 궤적_겹침() throws {
+        let command = try Synth.parse([
+            "--out", "/tmp/unused.mov", "--height", "256", "--noise", "0",
+            "--fps", "120", "--hits", "2", "--hit-interval", "1.0",
+            "--exposure", "1/1000",
+        ])
+        let p = try SynthPlan(command: command)
+        let output = p.render()
+        let centers = output.groundTruth.groundTruth.ballCenters
+
+        // 두 공이 동시에 보이는 프레임이 있어야 한다
+        let grouped = Dictionary(grouping: centers, by: \.frame)
+        let overlapping = grouped.filter { $0.value.count > 1 }
+        #expect(!overlapping.isEmpty, "겹치는 프레임이 없습니다 — 전제가 깨졌습니다")
+
+        // 그 프레임에는 서로 다른 타구가 기록되어야 한다
+        for (_, group) in overlapping {
+            #expect(Set(group.map(\.hitIndex)).count == group.count)
+        }
+
+        // 겹치는 프레임의 공 밝기가 겹치지 않는 프레임과 같아야 한다
+        let overlapFrame = try #require(overlapping.keys.sorted().first)
+        let soloFrame = try #require(
+            grouped.filter { $0.value.count == 1 }.keys.sorted().first
+        )
+        func peak(_ frame: Int) -> UInt8 { output.frames[frame].max() ?? 0 }
+        let difference = abs(Int(peak(overlapFrame)) - Int(peak(soloFrame)))
+        #expect(
+            difference <= 2,
+            "겹침 프레임 최대 밝기 \(peak(overlapFrame)) vs 단독 \(peak(soloFrame)) — 표본 수가 틀어진 것 같습니다"
+        )
     }
 
     @Test("타구 프레임이 fps에서 올바르게 나온다")
