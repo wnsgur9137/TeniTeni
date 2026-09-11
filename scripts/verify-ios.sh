@@ -64,25 +64,65 @@ print(best or "")' )"
 [ -n "$DEST_ID" ] || fail "iOS 26 iPhone 시뮬레이터를 찾을 수 없습니다"
 ok "시뮬레이터: $DEST_ID"
 
-step "빌드"
+step "멀티플랫폼 스킴 탐색"
+# macOS 대상을 선언한 프레임워크는 macOS로도 빌드해야 한다.
+# 0-C 오프라인 CLI가 같은 엔진을 쓰므로, iOS만 통과하면 그쪽이 뒤늦게 깨진다.
+MAC_SCHEMES=()
+for manifest in Projects/*/Project.swift; do
+  [ -f "$manifest" ] || continue
+  grep -q "\.mac" "$manifest" || continue
+  MAC_SCHEMES+=("$(basename "$(dirname "$manifest")")")
+done
+if [ ${#MAC_SCHEMES[@]} -gt 0 ]; then
+  ok "macOS 대상: ${MAC_SCHEMES[*]}"
+else
+  printf "macOS 대상 없음 — iOS만 검증합니다\n"
+fi
+
+LOGS=()
+
+step "iOS 빌드 ($SCHEME)"
+IOS_LOG=/tmp/teniteni-build-ios.log
 set +e
 xcodebuild $CONTAINER_FLAG -scheme "$SCHEME" \
   -destination "id=$DEST_ID" \
   -configuration Debug \
   CODE_SIGNING_ALLOWED=NO \
-  build 2>&1 | tee /tmp/teniteni-build.log | tail -30
+  build 2>&1 | tee "$IOS_LOG" | tail -30
 STATUS=${PIPESTATUS[0]}
 set -e
-[ "$STATUS" -eq 0 ] || fail "빌드 실패 — 전체 로그: /tmp/teniteni-build.log"
-ok "빌드 성공"
+[ "$STATUS" -eq 0 ] || fail "iOS 빌드 실패 — 전체 로그: $IOS_LOG"
+LOGS+=("$IOS_LOG")
+ok "iOS 빌드 성공"
+
+for mac_scheme in ${MAC_SCHEMES[@]+"${MAC_SCHEMES[@]}"}; do
+  step "macOS 빌드 ($mac_scheme)"
+  MAC_LOG="/tmp/teniteni-build-macos-$mac_scheme.log"
+  set +e
+  xcodebuild $CONTAINER_FLAG -scheme "$mac_scheme" \
+    -destination "platform=macOS,arch=$(uname -m)" \
+    -configuration Debug \
+    CODE_SIGNING_ALLOWED=NO \
+    build 2>&1 | tee "$MAC_LOG" | tail -30
+  STATUS=${PIPESTATUS[0]}
+  set -e
+  [ "$STATUS" -eq 0 ] || fail "macOS 빌드 실패 ($mac_scheme) — 전체 로그: $MAC_LOG"
+  LOGS+=("$MAC_LOG")
+  ok "macOS 빌드 성공 ($mac_scheme)"
+done
 
 step "동시성 경고 집계"
-WARN_COUNT=$(grep -c "warning:" /tmp/teniteni-build.log || true)
-CONC_COUNT=$(grep -ci "sendable\|concurrency\|actor-isolated\|data race" /tmp/teniteni-build.log || true)
+# 컴파일러 경고만 센다. appintentsmetadataprocessor 같은 툴이 내는
+# "warning:" 줄은 소스 품질과 무관하므로 파일:행:열 형태로 한정한다.
+WARN_PATTERN='^/.*:[0-9]+:[0-9]+: warning: '
+CONC_PATTERN='sendable|concurrency|actor-isolated|data race'
+WARNINGS="$(grep -hE "$WARN_PATTERN" "${LOGS[@]}" || true)"
+WARN_COUNT=$(printf '%s' "$WARNINGS" | grep -c . || true)
+CONC_COUNT=$(printf '%s' "$WARNINGS" | grep -ciE "$CONC_PATTERN" || true)
 printf "전체 경고: %s / 동시성 관련: %s\n" "$WARN_COUNT" "$CONC_COUNT"
 if [ "$CONC_COUNT" -gt 0 ]; then
   printf '\033[33m⚠ 동시성 경고가 있습니다 (CONCURRENCY.md 6.8절 검증 항목)\033[0m\n'
-  grep -i "sendable\|concurrency\|actor-isolated\|data race" /tmp/teniteni-build.log | head -10
+  printf '%s\n' "$WARNINGS" | grep -iE "$CONC_PATTERN" | head -10
 fi
 
 printf '\n\033[32m=== 게이트 통과 ===\033[0m\n'
