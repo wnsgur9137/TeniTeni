@@ -42,11 +42,16 @@ final class CameraController: NSObject {
     private(set) var lastSavedURL: URL?
     private(set) var message: String?
 
+    /// 녹화 경과 시간 (초). 6m 밖에서 읽히는 유일한 수치이므로
+    /// 화면이 이 값을 초 단위로 갱신한다 (docs/06-디자인/IA-FLOW.md 10.5).
+    private(set) var recordedDuration: TimeInterval = 0
+
     // MARK: 세션
 
     let session = AVCaptureSession()
     private var device: AVCaptureDevice?
     private let movieOutput = AVCaptureMovieFileOutput()
+    private var elapsedTimer: Timer?
     private var pendingMetadata: ClipMetadata?
     private var rotationCoordinator: AVCaptureDevice.RotationCoordinator?
     private var rotationObservation: NSKeyValueObservation?
@@ -294,6 +299,31 @@ final class CameraController: NSObject {
 
         movieOutput.startRecording(to: url, recordingDelegate: self)
         status = .recording
+        startElapsedTimer()
+    }
+
+    // MARK: 경과 시간
+
+    /// `movieOutput.recordedDuration`을 직접 읽는다. 자체 카운터를 두면
+    /// 실제 기록 길이와 어긋난다 — 세션이 잠시 멈춰도 시계는 흐른다.
+    private func startElapsedTimer() {
+        elapsedTimer?.invalidate()
+        recordedDuration = 0
+        let timer = Timer(timeInterval: 0.25, repeats: true) { [weak self] _ in
+            Task { @MainActor [weak self] in
+                guard let self else { return }
+                let seconds = CMTimeGetSeconds(self.movieOutput.recordedDuration)
+                self.recordedDuration = seconds.isFinite && seconds > 0 ? seconds : 0
+            }
+        }
+        RunLoop.main.add(timer, forMode: .common)
+        elapsedTimer = timer
+    }
+
+    private func stopElapsedTimer() {
+        elapsedTimer?.invalidate()
+        elapsedTimer = nil
+        recordedDuration = 0
     }
 
     private func stopRecording() {
@@ -330,6 +360,9 @@ extension CameraController: AVCaptureFileOutputRecordingDelegate {
     ) {
         let failure = error?.localizedDescription
         Task { @MainActor in
+            // 녹화가 끝나는 모든 경로(정지·실패·suspend)가 이 델리게이트를
+            // 거치므로 타이머 정리를 여기 한 곳에 둔다.
+            self.stopElapsedTimer()
             self.status = .ready
             if let failure {
                 self.message = "녹화 실패: \(failure)"
