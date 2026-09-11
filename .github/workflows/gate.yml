@@ -26,13 +26,18 @@ jobs:
           fetch-depth: 0
 
       - id: filter
+        # core.quotePath=false가 없으면 git이 한글 경로를 따옴표로 감싸고
+        # 옥탈 이스케이프한다 ("docs/05-\352\262\260.../x.md"). 그러면 아래
+        # ^docs/ 패턴이 전부 빗나가 문서 검증이 조용히 건너뛰어진다.
+        # docs/ 하위 폴더명이 전부 한글이므로 문서 게이트가 통째로 무력화된다.
         run: |
+          GIT="git -c core.quotePath=false"
           if [ "${{ github.event_name }}" = "pull_request" ]; then
             BASE="origin/${{ github.base_ref }}"
             git fetch origin "${{ github.base_ref }}" --depth=1 2>/dev/null || true
-            CHANGED=$(git diff --name-only "$BASE"...HEAD 2>/dev/null || git ls-files)
+            CHANGED=$($GIT diff --name-only "$BASE"...HEAD 2>/dev/null || $GIT ls-files)
           else
-            CHANGED=$(git diff --name-only HEAD~1 HEAD 2>/dev/null || git ls-files)
+            CHANGED=$($GIT diff --name-only HEAD~1 HEAD 2>/dev/null || $GIT ls-files)
           fi
           echo "변경 파일:"; printf '%s\n' "$CHANGED" | sed 's/^/  /'
 
@@ -89,7 +94,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: build-log
-          path: /tmp/teniteni-build.log
+          path: /tmp/teniteni-build-*.log
           retention-days: 7
 
   # ★ 브랜치 보호의 required status check로 지정할 잡.
