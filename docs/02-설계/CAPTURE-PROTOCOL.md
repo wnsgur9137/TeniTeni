@@ -241,14 +241,16 @@ ISO 상한을 두고, 상한에 도달하면 노출을 단계적으로 늘리는
   "params": { "trajectoryLength": 5, "minRadius": 0.002, "maxRadius": 0.015 },
   "groundTruth": { "impactFrames": [142, 389, 601] },
   "detected":   [ { "startFrame": 143, "durationSec": 0.42, "matchedImpact": 142,
-                    "movingAverageRadius": 0.0041, "ballPixelDiameter": 15.7 },
+                    "movingAverageRadius": 0.0041, "detectedDiameterPx": 15.7 },
                   { "startFrame": 390, "durationSec": 0.31, "matchedImpact": 389,
-                    "movingAverageRadius": 0.0039, "ballPixelDiameter": 15.0 },
+                    "movingAverageRadius": 0.0039, "detectedDiameterPx": 15.0 },
                   { "startFrame": 512, "durationSec": 0.21, "matchedImpact": null,
-                    "movingAverageRadius": 0.0112, "ballPixelDiameter": 43.0 } ],
+                    "movingAverageRadius": 0.0112, "detectedDiameterPx": 43.0 } ],
   "result": { "hits": 2, "total": 3, "detectionRate": 0.667, "falsePositives": 1 }
 }
 ```
+
+> `detectedDiameterPx`는 `movingAverageRadius`를 가로 해상도 기준으로 환산한 값입니다. **공의 물리적 크기가 아닙니다** — 블러를 포함한 바운딩 원이라 노출이 길수록 커집니다. 실측은 [DetectTrajectoriesRequest API](../08-레퍼런스/ml/DetectTrajectories.md) 6절.
 
 `groundTruth.impactFrames`는 **수동 라벨링**합니다. 영상을 프레임 단위로 넘기며 임팩트 프레임을 기록하는 간단한 도구를 Phase 0에서 함께 만듭니다 (Mac 커맨드라인 또는 앱 내 디버그 화면).
 

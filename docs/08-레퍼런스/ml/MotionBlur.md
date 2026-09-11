@@ -101,6 +101,11 @@ status: active
 - `N ≥ 블러 길이(px)`, 기본값은 최악 조건 기준으로 잡음
 - 노출을 파라미터로 받아 위 표를 **합성 영상으로 재현**할 수 있어야 함 — 생성기 자체의 검증 수단이 됨
 - 정답 JSON에 `blurLengthPx`를 포함 (논문 Eq. 8의 역산 검증용)
+
+> **정정 (2026-09-11, 이슈 [#7](https://github.com/wnsgur9137/TeniTeni/issues/7))**
+> 이전에 `movingAverageRadius`가 "추적 물체의 실측 반지름"이라 적었으나 **틀렸습니다.**
+> 블러를 포함한 바운딩 원의 반지름이라 노출이 길수록 커집니다. 실측은
+> [DetectTrajectoriesRequest API](DetectTrajectories.md) 6절에 있습니다.
 - 롤링 셔터 미구현을 기획서 "만들지 않을 것"에 명시
 
 ## 관련 문서
