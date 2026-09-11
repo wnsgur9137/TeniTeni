@@ -4,7 +4,7 @@ aliases: ["MOC", "문서 목차", "TeniTeni 문서 허브"]
 tags:
   - 문서유형/MOC
 created: 2026-09-10
-updated: 2026-09-10
+updated: 2026-09-11
 status: active
 ---
 
@@ -71,6 +71,11 @@ status: active
 ## 07-기획
 
 작업 단위 스펙 (파이프라인 6단계). `SPEC-NNNN-*.md` 형식으로 이슈마다 하나씩 생성됩니다.
+
+| 문서 | 이슈 | 설명 |
+|------|------|------|
+| [SPEC-0005 TeniVision 모듈 분리](./07-기획/SPEC-0005-tenivision-module.md) | #5 | 단일 타깃 iOS+macOS, 공 크기 계산식 단일화 |
+| [SPEC-0006 합성 영상 생성기](./07-기획/SPEC-0006-synthetic-video.md) | #6 | `teni synth`, 블러 하위 프레임 누적, 정답 JSON |
 
 ## 08-레퍼런스
 
