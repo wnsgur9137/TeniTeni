@@ -1,5 +1,6 @@
 import AVFoundation
 import Observation
+import TeniVision
 import UIKit
 
 /// Phase 0-A 최소 촬영 컨트롤러.
@@ -288,12 +289,7 @@ final class CameraController: NSObject {
             isVideoBinned: isBinned,
             deviceModel: model,
             systemVersion: UIDevice.current.systemVersion,
-            cameraType: device.deviceType.rawValue,
-            estimatedBallPixelDiameter: ClipMetadata.ballPixelDiameter(
-                width: dims.width,
-                fieldOfView: actualFieldOfView,
-                distanceMeters: distanceMeters
-            )
+            cameraType: device.deviceType.rawValue
         )
 
         movieOutput.startRecording(to: url, recordingDelegate: self)

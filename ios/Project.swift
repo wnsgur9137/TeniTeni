@@ -28,7 +28,10 @@ let project = Project(
             deploymentTargets: .iOS("26.0"),
             infoPlist: .file(path: "TeniTeni/Resources/Info.plist"),
             sources: ["TeniTeni/Sources/**"],
-            resources: []
+            resources: [],
+            dependencies: [
+                .project(target: "TeniVision", path: "Projects/TeniVision")
+            ]
         )
     ]
 )

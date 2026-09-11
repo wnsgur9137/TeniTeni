@@ -5,7 +5,7 @@ tags:
   - 문서유형/계획
   - 영역/제품
 created: 2026-09-10
-updated: 2026-09-10
+updated: 2026-09-11
 status: active
 ---
 
@@ -108,7 +108,7 @@ Phase 3 │ 코트 분석 · 레퍼런스 비교 · 3D 포즈(X-Factor)
 
 | # | 작업 | 비고 |
 |---|---|---|
-| 1 | `TeniVision` 모듈 분리 | **여기서 첫 모듈이 생긴다** (9.5절). ⚠️ 착수 시 **Tuist가 하나의 모듈을 iOS+macOS 양쪽 타깃으로 만들 수 있는지 먼저 확인** — 안 되면 소스를 공유하는 별도 타깃 2개로 |
+| 1 | `TeniVision` 모듈 분리 | ✅ 완료 ([SPEC-0005](../07-기획/SPEC-0005-tenivision-module.md)). 단일 타깃 `destinations: [.iPhone, .mac]`로 양쪽 빌드 — 타깃 2개 불필요 |
 | 2 | macOS CLI 분석 도구 | 영상 → `DetectTrajectoriesRequest` → 결과 JSON |
 | 3 | 임팩트 프레임 라벨링 도구 | 프레임 넘기며 수동 기록. 게이트의 분모 |
 | 4 | 파라미터 스윕 | `trajectoryLength`, radius, 노출·거리별 |
@@ -257,7 +257,7 @@ DesignSystem   │
 | 시점 | 도입 | 강제 이유 |
 |---|---|---|
 | 0-A | (단일 타깃) | 모듈 불필요 |
-| **0-C** | **TeniVision** | **macOS CLI와 iOS 앱이 같은 분석 코드를 써야 함** |
+| **0-C** | **TeniVision** ✅ | **macOS CLI와 iOS 앱이 같은 분석 코드를 써야 함** |
 | 0-D | Core | 실시간 파이프라인에서 공용 유틸 발생 |
 | **1-A** | **Domain, Data, Presentation, Application, DesignSystem** | TCA Feature가 여러 개 생기는 시점 |
 | **2-C** | **Network** | 서버 연동 시작. 그전에 만들면 빈 모듈 |

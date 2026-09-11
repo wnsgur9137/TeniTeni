@@ -1,28 +1,44 @@
 import AVFoundation
-import UIKit
+import Foundation
 
-enum FormatInspector {
+public enum FormatInspector {
 
-    @MainActor
-    static func makeReport() -> FormatReport {
+    /// 살아있는 캡처 기기를 훑어 보고서를 만든다.
+    /// AVCaptureDevice.Format의 상세 속성 대부분이 macOS에 없으므로
+    /// iOS에서만 제공한다. macOS CLI는 내보낸 JSON을 FormatReport로
+    /// 디코딩해 읽는다 — 그쪽은 플랫폼 공용이다.
+    #if os(iOS)
+    public static func makeReport() -> FormatReport {
         FormatReport(
             generatedAt: Date(),
             device: deviceInfo(),
             cameras: discoverCameras().map(cameraInfo(for:))
         )
     }
+    #endif
 
-    @MainActor
+    /// UIDevice 대신 ProcessInfo를 쓴다. 양 플랫폼 공통 API라
+    /// macOS CLI에서도 같은 코드가 동작한다 (SPEC-0005 구현 선택지 A).
     private static func deviceInfo() -> FormatReport.DeviceInfo {
-        let identifier = DeviceIdentifier.current
-        let device = UIDevice.current
+        let os = ProcessInfo.processInfo.operatingSystemVersion
         return .init(
-            model: identifier,
-            systemName: device.systemName,
-            systemVersion: device.systemVersion
+            model: DeviceIdentifier.current,
+            systemName: platformName,
+            systemVersion: "\(os.majorVersion).\(os.minorVersion).\(os.patchVersion)"
         )
     }
 
+    private static var platformName: String {
+        #if os(iOS)
+        "iOS"
+        #elseif os(macOS)
+        "macOS"
+        #else
+        "unknown"
+        #endif
+    }
+
+    #if os(iOS)
     private static func discoverCameras() -> [AVCaptureDevice] {
         AVCaptureDevice.DiscoverySession(
             deviceTypes: [
@@ -74,6 +90,8 @@ enum FormatInspector {
         )
     }
 
+    #endif
+
     private static func fourCCString(_ code: FourCharCode) -> String {
         let bytes: [UInt8] = [
             UInt8(truncatingIfNeeded: (code >> 24) & 0xFF),
@@ -85,7 +103,7 @@ enum FormatInspector {
     }
 
     /// 리포트를 Documents에 JSON으로 저장하고 경로를 반환한다.
-    static func export(_ report: FormatReport) throws -> URL {
+    public static func export(_ report: FormatReport) throws -> URL {
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
         encoder.dateEncodingStrategy = .iso8601
@@ -103,8 +121,12 @@ enum FormatInspector {
 
 
 /// utsname.machine 을 문자열로 읽는다 (예: iPhone16,2)
-enum DeviceIdentifier {
-    static var current: String {
+public enum DeviceIdentifier {
+    /// `utsname.machine`. iOS에서는 모델 식별자("iPhone17,1"),
+    /// **macOS에서는 CPU 아키텍처("arm64")**가 나온다 — 성질이 다른 값이다.
+    /// 0-C CLI가 기기를 식별하는 용도로 쓰면 안 된다. 기기 정보는 앱이
+    /// 내보낸 FormatReport.device에서 읽어야 한다.
+    public static var current: String {
         var sysinfo = utsname()
         uname(&sysinfo)
         let bytes = withUnsafeBytes(of: &sysinfo.machine) { Array($0) }

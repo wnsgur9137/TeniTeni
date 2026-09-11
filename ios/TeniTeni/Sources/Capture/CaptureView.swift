@@ -1,4 +1,5 @@
 import SwiftUI
+import TeniVision
 
 struct CaptureView: View {
     @Environment(\.scenePhase) private var scenePhase
