@@ -76,7 +76,18 @@ public struct Analyze: AsyncParsableCommand {
     private struct Context {
         let videoURL: URL
         let outputURL: URL
-        let truth: GroundTruth?
+        let truth: TruthEnvelope?
+    }
+
+    /// `teni synth`의 `GroundTruth`와 `teni label`의 `LabelSet`을 **둘 다** 받는다.
+    /// 정답이 합성에서 왔는지 사람에게서 왔는지는 분석에 상관없다 —
+    /// 필요한 것은 임팩트 프레임과 촬영 메타뿐이다.
+    struct TruthEnvelope: Decodable {
+        struct Truth: Decodable {
+            let impactFrames: [Int]
+        }
+        let groundTruth: Truth
+        let capture: GroundTruth.Capture?
     }
 
     private func loadContext() throws -> Context {
@@ -84,12 +95,12 @@ public struct Analyze: AsyncParsableCommand {
         let outputURL = out.map { URL(fileURLWithPath: $0) }
             ?? videoURL.deletingPathExtension().appendingPathExtension("result.json")
 
-        var truth: GroundTruth?
+        var truth: TruthEnvelope?
         if let groundTruth {
             let decoder = JSONDecoder()
             decoder.dateDecodingStrategy = .iso8601
             truth = try decoder.decode(
-                GroundTruth.self,
+                TruthEnvelope.self,
                 from: Data(contentsOf: URL(fileURLWithPath: groundTruth))
             )
         }

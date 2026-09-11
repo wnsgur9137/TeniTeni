@@ -12,7 +12,7 @@ public struct Teni: AsyncParsableCommand {
             Phase 0-C의 게이트 판정을 위한 도구 모음입니다.
             궤적 검출률 측정 방법은 docs/02-설계/CAPTURE-PROTOCOL.md 5.5절에 있습니다.
             """,
-        subcommands: [Synth.self, Analyze.self]
+        subcommands: [Synth.self, Analyze.self, Label.self]
     )
 
     public init() {}

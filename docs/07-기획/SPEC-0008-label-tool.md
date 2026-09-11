@@ -81,13 +81,13 @@ status: active
 
 ## 완료 기준
 
-- [ ] `teni label --help`가 파라미터 목록을 출력
-- [ ] `--sheet`가 프레임 번호가 새겨진 PNG를 생성
-- [ ] `--around` + `--span`으로 특정 구간을 프레임 단위로 뽑을 수 있음
-- [ ] `--mark`로 만든 JSON을 `teni analyze --ground-truth`가 **그대로 읽음**
-- [ ] `--compare`가 두 라벨링의 프레임 차이와 평균 절대 차이를 출력
-- [ ] `--compare`가 ±3프레임 기준 충족 여부를 명시
-- [ ] `scripts/verify-ios.sh` 통과, 경고 0
+- [x] `teni label --help`가 파라미터 목록을 출력
+- [x] `--sheet`가 프레임 번호가 새겨진 PNG를 생성
+- [x] `--around` + `--span`으로 특정 구간을 프레임 단위로 뽑을 수 있음
+- [x] `--mark`로 만든 JSON을 `teni analyze --ground-truth`가 **그대로 읽음**
+- [x] `--compare`가 두 라벨링의 프레임 차이와 평균 절대 차이를 출력
+- [x] `--compare`가 ±3프레임 기준 충족 여부를 명시
+- [x] `scripts/verify-ios.sh` 통과, 경고 0
 
 ## 검증 방법
 
@@ -99,6 +99,37 @@ status: active
 | 일치도 계산 | 인위적 두 라벨링을 넣어 평균 절대 차이를 단위 테스트로 고정 |
 
 **시트가 실제로 읽히는지는 사람이 봐야 합니다.** 생성 여부와 번호 정확성까지가 자동 검증 범위입니다.
+
+## 구현 중 찾은 결함
+
+### ⚠️ `AVAssetImageGenerator`가 다른 프레임을 준다
+
+시트를 처음 만들었을 때 **공이 프레임 30부터 보였습니다. 정답 타구는 36입니다.**
+
+같은 영상을 `teni analyze`는 정확히 36으로 잡습니다. 차이는 프레임 접근 방식이었습니다.
+
+| 방식 | 결과 |
+|---|---|
+| `AVAssetImageGenerator` (시간 탐색) | 약 **6프레임 어긋남** |
+| `AVAssetReader` (순차 읽기) | 정확 |
+
+`requestedTimeToleranceBefore/After`를 `.zero`로 두어도 어긋났습니다.
+
+**이것을 못 잡았으면 사람이 찍은 라벨과 검출 결과가 다른 프레임 체계를 쓰게 되고, 임팩트 매칭이 통째로 밀립니다.** 게이트 검출률이 0에 가깝게 나왔을 것입니다.
+
+`ContactSheet`를 `AVAssetReader` 순차 읽기로 바꿨습니다. 느리지만 오프라인 도구에서는 정확성이 우선이고, `analyze`와 **같은 방식이라 프레임 번호가 일치**합니다.
+
+테스트로 고정했습니다 — 합성 영상에서 공이 정답 임팩트 프레임부터 나타나는지 픽셀로 확인합니다. 6프레임 밀기를 일부러 넣어 테스트가 잡는 것도 확인했습니다.
+
+### `analyze`가 `label` 출력을 읽지 못했다
+
+완료 기준이 "`teni analyze --ground-truth`가 그대로 읽음"인데 실패했습니다. `analyze`가 `GroundTruth`(합성 출력)로만 디코딩하고 있었고, `LabelSet`에는 `synthetic` 필드가 없습니다.
+
+두 포맷을 모두 받는 최소 구조체(`TruthEnvelope`)로 바꿨습니다. **정답이 합성에서 왔는지 사람에게서 왔는지는 분석에 상관없습니다** — 필요한 것은 임팩트 프레임과 촬영 메타뿐입니다.
+
+### `--compare`를 두 번 지정하는 것이 불편했다
+
+`--compare a.json b.json`이 자연스러운데 배열 옵션은 `--compare a --compare b`를 요구합니다. `--compare` + `--with`로 나눴습니다.
 
 ## 영향받는 문서
 
