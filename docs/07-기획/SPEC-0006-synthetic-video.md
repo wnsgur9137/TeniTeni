@@ -92,7 +92,7 @@ status: active
 - [ ] `.mov` + 정답 JSON 두 파일이 생성됨
 - [ ] 정답 JSON의 `groundTruth.impactFrames`가 [프로토콜 5.5](../02-설계/CAPTURE-PROTOCOL.md) 포맷과 호환
 - [ ] **공 지름이 `BallGeometry`로 계산됨** — 생성기가 자체 계산식을 갖지 않음
-- [ ] **블러 길이가 프로토콜 5.3 표를 재현** — 1/60s → 106 px, 1/1000s → 6.35 px (±5 %)
+- [ ] **블러 길이가 프로토콜 5.3 표를 재현** — 1/60s → 106 px, 1/1000s → 6.3 px
 - [ ] 선형 공간에서 누적 — 감마 평균과 결과가 다름을 테스트로 고정
 - [ ] `scripts/verify-ios.sh` 통과, 경고 0
 

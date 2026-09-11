@@ -5,7 +5,7 @@ tags:
   - 문서유형/설계
   - 영역/인프라
 created: 2026-09-10
-updated: 2026-09-10
+updated: 2026-09-11
 status: active
 ---
 
@@ -49,6 +49,9 @@ TeniTeni/
 │   └── dependabot.yml
 │
 ├── ios/                            # → iOS 기술 스택 문서
+│   └── Projects/
+│       ├── TeniVision/             # 분석 엔진 (iOS + macOS 공용)
+│       └── TeniTool/               # 0-C 검증 CLI (macOS 전용, teni)
 ├── server/                         # → 백엔드 기술 스택 문서
 │
 ├── contracts/                      # ★ 단일 진실 공급원

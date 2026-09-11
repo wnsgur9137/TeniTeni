@@ -109,9 +109,10 @@ Phase 3 │ 코트 분석 · 레퍼런스 비교 · 3D 포즈(X-Factor)
 | # | 작업 | 비고 |
 |---|---|---|
 | 1 | `TeniVision` 모듈 분리 | ✅ 완료 ([SPEC-0005](../07-기획/SPEC-0005-tenivision-module.md)). 단일 타깃 `destinations: [.iPhone, .mac]`로 양쪽 빌드 — 타깃 2개 불필요 |
-| 2 | macOS CLI 분석 도구 | 영상 → `DetectTrajectoriesRequest` → 결과 JSON |
+| 2 | macOS CLI 분석 도구 | `teni analyze`. 영상 → `DetectTrajectoriesRequest` → 결과 JSON. CLI 배치는 [SPEC-0006](../07-기획/SPEC-0006-synthetic-video.md)이 정함 |
 | 3 | 임팩트 프레임 라벨링 도구 | 프레임 넘기며 수동 기록. 게이트의 분모 |
 | 4 | 파라미터 스윕 | `trajectoryLength`, radius, 노출·거리별 |
+| 0 | 합성 영상 생성기 | `teni synth`. 정답을 아는 입력으로 2~4번 도구를 실기기 없이 검증 ([SPEC-0006](../07-기획/SPEC-0006-synthetic-video.md)) |
 | 5 | **검출률 집계 및 판정** | [측정 방법](../02-설계/CAPTURE-PROTOCOL.md#55-phase-0-게이트-측정-방법) |
 
 ```
