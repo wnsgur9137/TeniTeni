@@ -34,7 +34,7 @@ Swift 6 strict concurrency 아래에서 격리 도메인을 어떻게 나눌지,
 | `TrajectoryAnalyzer` | **단일 `Task` + `AsyncStream`** | 프레임 순서가 절대적 (6.4절) |
 | `PoseAnalyzer` | **단일 `Task` + `AsyncStream`** | 스무딩·세그멘테이션이 상태를 누적 |
 | `ClipRecorder` | `actor` | 링 버퍼와 `AVAssetWriter` 상태 보호 |
-| `Domain` UseCase, `VisionKit` 순수 계산 | `nonisolated` | 상태 없음 |
+| `Domain` UseCase, `TeniVision` 순수 계산 | `nonisolated` | 상태 없음 |
 
 ```
                     ┌─ @MainActor ─────────────────────┐
@@ -70,7 +70,7 @@ Swift 6 strict concurrency 아래에서 격리 도메인을 어떻게 나눌지,
 델리게이트에서 받은 `CMSampleBuffer`를 경계에서 한 번 감싸면, 이후로는 `@unchecked Sendable` 없이 격리 도메인을 넘길 수 있습니다.
 
 ```swift
-// VisionKit/Pipeline/FrameIntake.swift
+// TeniVision/Pipeline/FrameIntake.swift
 nonisolated func captureOutput(_ output: AVCaptureOutput,
                                didOutput sampleBuffer: CMSampleBuffer,
                                from connection: AVCaptureConnection) {
@@ -125,16 +125,20 @@ let (poseStream, poseContinuation) = AsyncStream.makeStream(
 
 ### 왜 actor가 아니라 단일 Task인가
 
-`DetectTrajectoriesRequest`는 **연속 프레임을 순서대로** 받아야 포물선을 찾습니다. actor로 만들면 `await` 지점에서 다른 호출이 끼어들 수 있어(재진입) 순서 보장이 코드에 드러나지 않습니다.
+`DetectTrajectoriesRequest`는 **`StatefulRequest`를 준수하는 `final class`** 입니다. 연속 프레임에서 상태를 누적하므로 **인스턴스를 재사용하며 순서대로 넣어야** 합니다. (`DetectHumanBodyPoseRequest`는 `struct`인 것과 대조적입니다.)
+
+actor로 만들면 `await` 지점에서 다른 호출이 끼어들 수 있어(재진입) 순서 보장이 코드에 드러나지 않습니다.
 
 단일 Task가 스트림을 소비하면 **순차성이 구조로 보장**되고 의도도 명확합니다.
 
 ```swift
-// VisionKit/Ball/TrajectoryAnalyzer.swift
+// TeniVision/Ball/TrajectoryAnalyzer.swift
 func run(_ frames: AsyncStream<ReadyFrame>) -> AsyncStream<TrajectoryEvent> {
     AsyncStream { continuation in
         let task = Task(priority: .userInitiated) {
-            var request = DetectTrajectoriesRequest(
+            // class이므로 let. 인스턴스를 루프 밖에서 만들어 재사용한다 —
+            // StatefulRequest라 프레임마다 새로 만들면 상태가 초기화된다.
+            let request = DetectTrajectoriesRequest(
                 trajectoryLength: 5,
                 frameAnalysisSpacing: .zero
             )

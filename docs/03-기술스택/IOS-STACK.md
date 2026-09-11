@@ -116,7 +116,7 @@ iOS 18이 아니라 26을 택한 이유는 **레거시 분기를 아예 만들�
 | 스윙 검출, 세션 상태, 발열, 녹화 완료 | 초당 수 회 이하 | Reducer 액션 |
 
 ```
-VisionKit (TCA 바깥)
+TeniVision (TCA 바깥)
   프레임 → 포즈/궤적 → 스무딩 → 오버레이 상태
     ↓ AsyncStream, 60fps
   CaptureView 오버레이 레이어가 직접 구독
@@ -154,13 +154,13 @@ ios/
     ├── Domain/                        # Entity, UseCase, Repository 프로토콜 — 의존성 0
     ├── Data/                          # Repository 구현, SwiftData 영속화, 파일 저장소
     ├── Network/                       # Moya TargetType, DTO, 인증 인터셉터
-    ├── VisionKit/                     # 분석·렌더 엔진 (UI 의존 없음 → macOS CLI 공유)
+    ├── TeniVision/                    # 분석·렌더 엔진 (UI 의존 없음 → macOS CLI 공유)
     ├── MLModels/                      # .mlpackage + 로더 (Git LFS)
     ├── DesignSystem/                  # 컬러, 타이포, 공용 컴포넌트
     └── Core/                          # Logger, Extensions, 공용 유틸
 ```
 
-**모듈 도입은 한 번에 하지 않습니다.** 각 모듈이 필요해지는 시점이 다릅니다 — [작업 순서 9.6](../04-계획/WORK-PLAN.md#96-tuist-모듈-구성) 참고. `VisionKit`이 0-C에서 가장 먼저 분리되는데, **macOS CLI 분석 도구와 코드를 공유해야 하기 때문**입니다.
+**모듈 도입은 한 번에 하지 않습니다.** 각 모듈이 필요해지는 시점이 다릅니다 — [작업 순서 9.6](../04-계획/WORK-PLAN.md#96-tuist-모듈-구성) 참고. `TeniVision`이 0-C에서 가장 먼저 분리되는데, **macOS CLI 분석 도구와 코드를 공유해야 하기 때문**입니다.
 
 ### 의존성 방향
 
@@ -172,17 +172,19 @@ Presentation  Data ──→ Network
     │  │       │           │
     │  └──→ Domain ←───────┘
     │          ▲
-    │      VisionKit
+    │      TeniVision
     │          │
 DesignSystem   │
     └────→ Core ←───┘
 ```
 
 - `Domain`은 아무것도 import하지 않습니다 (Foundation 제외)
-- `VisionKit`은 `Domain` 엔티티와 `Core`만 압니다. **UI를 모르므로 macOS CLI에서 재사용됩니다**
+- `TeniVision`은 `Domain` 엔티티와 `Core`만 압니다. **UI를 모르므로 macOS CLI에서 재사용됩니다**
+
+> **`VisionKit`이라는 이름을 쓰지 않습니다.** Apple이 같은 이름의 프레임워크(문서 스캐너·`DataScannerViewController`)를 제공하므로 `import VisionKit`이 모호해집니다.
 - `Network`는 `Domain`을 모릅니다. DTO만 다루고 매핑은 `Data`가 합니다
 - `Presentation` 내 Feature 간 직접 의존은 금지. `Application` 코디네이터를 경유합니다
-- 프레임 스트림은 `Presentation`이 `VisionKit`을 직접 씁니다 (TCA 바깥 경로)
+- 프레임 스트림은 `Presentation`이 `TeniVision`을 직접 씁니다 (TCA 바깥 경로)
 
 ## 5.5 전체 파일 구조
 
@@ -280,7 +282,7 @@ ios/
 │   │       │   └── FileStore.swift    # 영상 파일 관리
 │   │       └── Repositories/          # 프로토콜 구현체
 │   │
-│   ├── VisionKit/
+│   ├── TeniVision/
 │   │   ├── Project.swift
 │   │   ├── Sources/
 │   │   │   ├── Pipeline/
@@ -340,7 +342,7 @@ ios/
 
 | 종류 | 대상 | 도구 |
 |---|---|---|
-| **골든 테스트** | VisionKit — 고정 샘플 영상 입력 → 검출 결과 검증 | Swift Testing |
+| **골든 테스트** | TeniVision — 고정 샘플 영상 입력 → 검출 결과 검증 | Swift Testing |
 | 단위 테스트 | Domain UseCase, RuleEngine, DTW, OneEuroFilter | Swift Testing |
 | 스냅샷 테스트 | 오버레이 렌더링 결과 | `OffscreenRenderer` 출력 비교 (⬜ 검토) |
 | 통합 테스트 | Data 레이어 (mock 서버) | XCTest |

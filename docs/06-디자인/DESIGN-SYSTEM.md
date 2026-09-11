@@ -197,7 +197,7 @@ DesignSystem/Sources/
     └── StatusBorder.swift     // 촬영 중 테두리
 ```
 
-**오버레이 색은 `DesignSystem`이 아니라 `VisionKit`에 둡니다.** `SkeletonStyle`이 이미 그 자리이고, 렌더 패스가 참조하므로 UI 모듈에 의존시키면 안 됩니다 ([WORK-PLAN 9.6](../04-계획/WORK-PLAN.md)의 의존성 방향). 값은 이 문서를 기준으로 동기화합니다.
+**오버레이 색은 `DesignSystem`이 아니라 `TeniVision`에 둡니다.** `SkeletonStyle`이 이미 그 자리이고, 렌더 패스가 참조하므로 UI 모듈에 의존시키면 안 됩니다 ([WORK-PLAN 9.6](../04-계획/WORK-PLAN.md)의 의존성 방향). 값은 이 문서를 기준으로 동기화합니다.
 
 ## 11.8 하지 않는 것
 
