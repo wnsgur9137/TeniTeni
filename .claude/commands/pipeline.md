@@ -44,7 +44,7 @@ Example: /pipeline
   -h, --help     이 도움말
 
 -- 정지 조건 --
-  게이트 실패 · 반복 20회 초과 · 리뷰 CRITICAL 미해소 · merge conflict
+  게이트 실패 · 수정 20회 초과 · 리뷰 CRITICAL 미해소 · merge conflict
   → 그 단계에서 멈추고 원인을 보고한다.
 ========================
 ```
@@ -156,24 +156,15 @@ git add docs/07-기획/SPEC-*.md
 
 ## 8단계: 개발·검증 (조건부)
 
-**코드가 바뀌면 항상 반복 개발 모드를 사용한다** (type이 `📃Docs`인 작업만 제외).
+**직접 구현하고 게이트가 통과할 때까지 고친다.** 종료 조건은 하나 — 게이트 통과, 경고 0.
 
-```
-Skill(skill="oh-my-claudecode:ralph", args="<이슈 제목> — 종료 조건: <게이트 스크립트> 통과, 경고 0")
-```
-
-**상한을 직접 감시한다.** 매 반복마다:
-
-```bash
-ITER=$(python3 -c "import json;print(json.load(open('.omc/state/ralph-state.json'))['iteration'])" 2>/dev/null || echo 0)
-```
-
-`ITER >= 20`이면 즉시 `/oh-my-claudecode:cancel`을 호출하고 중단 보고한다.
-훅의 자체 카운터(최대 100)는 지정 상한을 반영하지 않으므로 이 감시가 없으면 20회가 지켜지지 않는다.
+**반복 개발 모드(`ralph`)를 쓰지 마라.** 키워드 오발동으로 무관한 작업에 모드가 따라붙고, 훅 카운터가 지정 상한을 반영하지 않는다. 근거는 규약 12.7의 표.
 
 **게이트**는 area 라벨로 고른다 (규약 12.7의 표). 없는 영역은 경고 후 통과하되 PR 본문에 명시한다.
 
-게이트 통과 후 `/oh-my-claudecode:cancel`로 모드를 정리한다.
+게이트가 20회를 고쳐도 통과하지 않으면 **거기서 멈추고 원인을 보고한다.** 우회하려고 테스트를 지우거나 약화시키지 않는다.
+
+> 이 문서와 대화에서 그 모드를 **언급**할 때는 백틱으로 감싼다 — `` `ralph` ``. 평문은 `keyword-detector.mjs`에 걸려 모드를 켠다.
 
 ## 9~10단계: /ship 위임
 
@@ -210,7 +201,7 @@ ITER=$(python3 -c "import json;print(json.load(open('.omc/state/ralph-state.json
 - 레퍼런스  : 갱신 | 재사용(researched: YYYY-MM-DD) | 생략
 - 기획서    : docs/07-기획/SPEC-NNNN-*.md | 생략
 - 디자인    : <URL> | 생략
-- 개발      : 반복 N회 · 게이트 통과 | 게이트 없음(경고)
+- 개발      : 게이트 통과 | 게이트 없음(경고)
 - PR        : #NN <URL> (병합됨 | Ready | Draft)
 - 병합      : <sha> | 미수행(사유)
 
