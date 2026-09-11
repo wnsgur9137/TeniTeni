@@ -1,0 +1,8 @@
+공통 스타일 (모든 아트보드에 인라인으로 반복)
+bg/base #0B0D0F  bg/surface #16191D  bg/elevated #1F2429
+text/primary #F2F4F6  secondary #9BA3AB  tertiary #6B737B
+accent #C6F24E  success #3DDC84  warning #FF8A3D  error #FF4D4D
+overlay: bone rgba(255,255,255,.72) racket #4DD8E6 issue #FF4D4D trail #FFD84D
+font: -apple-system, "SF Pro Text", system-ui
+tabular: font-variant-numeric: tabular-nums
+phone frame: 390x844
