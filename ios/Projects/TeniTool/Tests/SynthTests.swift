@@ -364,6 +364,49 @@ struct RenderMeasurementTests {
         }
     }
 
+    /// **프레임을 누적하지 않는지 고정한다.** 배열로 쌓으면 1080p에서
+    /// 1.5GB가 되어 스윕이 메모리 부족으로 죽었다 (이슈 #31).
+    ///
+    /// 스트리밍 경로는 콜백이 받은 프레임을 즉시 버려도 동작해야 한다.
+    /// 누적 구현이면 이 테스트도 통과하므로, **같은 입력에서 두 경로가
+    /// 같은 결과를 내는지**까지 본다.
+    @Test("스트리밍 렌더가 누적 렌더와 같은 프레임을 낸다")
+    func 스트리밍_동등성() throws {
+        let p = try makePlan(["--exposure", "1/1000", "--fps", "120", "--noise", "0.02"])
+
+        var streamed: [Int: [UInt8]] = [:]
+        let streamedTruth = p.render { index, frame in streamed[index] = frame }
+
+        let batched = p.render()
+
+        #expect(streamed.count == batched.frames.count)
+        for (index, frame) in streamed {
+            #expect(frame == batched.frames[index], "프레임 \(index)가 다르다")
+        }
+        #expect(
+            streamedTruth.groundTruth.impactFrames
+                == batched.groundTruth.groundTruth.impactFrames
+        )
+        #expect(
+            streamedTruth.groundTruth.ballCenters.count
+                == batched.groundTruth.groundTruth.ballCenters.count
+        )
+    }
+
+    /// 콜백이 프레임을 버려도 정답은 온전해야 한다 —
+    /// 생산 경로가 그렇게 쓴다.
+    @Test("프레임을 버려도 정답이 나온다")
+    func 프레임_폐기() throws {
+        let p = try makePlan(["--exposure", "1/1000", "--fps", "120", "--noise", "0"])
+        var count = 0
+        let truth = p.render { _, _ in count += 1 }
+
+        #expect(count == p.frameCount)
+        #expect(!truth.groundTruth.impactFrames.isEmpty)
+        #expect(!truth.groundTruth.ballCenters.isEmpty)
+        #expect(truth.synthetic.ballDiameterPx == p.camera.ballDiameterPx)
+    }
+
     @Test("같은 시드는 같은 결과를 낸다")
     func 재현성() throws {
         let args = ["--exposure", "1/1000", "--fps", "120", "--seed", "42"]
