@@ -37,6 +37,9 @@ ios/Projects/*/*.xcodeproj
 .swiftpm/
 .build/
 Package.resolved
+# Package.resolved는 커밋한다 — mise.toml로 툴체인을 고정하는 것과 같은
+# 이유다. 로컬과 CI가 같은 의존성 버전을 써야 한다.
+!ios/Tuist/Package.resolved
 
 # ---- Python ----
 __pycache__/
