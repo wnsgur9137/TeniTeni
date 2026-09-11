@@ -150,7 +150,7 @@ status: active
 | 멤버 | 쓰임 |
 |---|---|
 | `detectedPoints` · `projectedPoints` | 검출점과 이상적 궤적 |
-| `movingAverageRadius` | 추적 물체의 실측 반지름 — 화각 실측을 거친 간접 계산보다 직접적이다 |
+| `movingAverageRadius` | **공 크기가 아니다.** 블러를 포함한 바운딩 원의 반지름 — 1/1000s에서 공 15.3px인데 27.7px이 나온다 |
 | `timeRange` | **시작 시각과 지속 시간.** `VisionObservation` 프로토콜에서 온다 |
 | `uuid` | **같은 궤적의 중복 보고를 식별한다** |
 

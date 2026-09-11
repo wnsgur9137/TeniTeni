@@ -79,13 +79,13 @@ CLI 배치는 [SPEC-0006](SPEC-0006-synthetic-video.md)이 정했습니다 — `
 
 ## 완료 기준
 
-- [ ] `teni analyze --help`가 파라미터 목록을 출력
-- [ ] 합성 영상(`teni synth` 출력)을 입력받아 JSON 생성
-- [ ] 출력이 [프로토콜 5.5](../02-설계/CAPTURE-PROTOCOL.md) 포맷과 키가 일치
-- [ ] `--ground-truth` 없이도 검출 목록만 내보낼 수 있음
-- [ ] `--ground-truth`가 있으면 `matchedImpact`·`detectionRate`·`falsePositives` 산출
-- [ ] **요청 인스턴스를 재사용** — 프레임마다 새로 만들지 않음 (테스트로 고정)
-- [ ] `scripts/verify-ios.sh` 통과, 경고 0
+- [x] `teni analyze --help`가 파라미터 목록을 출력
+- [x] 합성 영상(`teni synth` 출력)을 입력받아 JSON 생성
+- [x] 출력이 [프로토콜 5.5](../02-설계/CAPTURE-PROTOCOL.md) 포맷과 키가 일치
+- [x] `--ground-truth` 없이도 검출 목록만 내보낼 수 있음
+- [x] `--ground-truth`가 있으면 `matchedImpact`·`detectionRate`·`falsePositives` 산출
+- [x] **요청 인스턴스를 재사용** — 프레임마다 새로 만들지 않음
+- [x] `scripts/verify-ios.sh` 통과, 경고 0
 
 ## 검증 방법
 
@@ -98,10 +98,45 @@ CLI 배치는 [SPEC-0006](SPEC-0006-synthetic-video.md)이 정했습니다 — `
 
 마지막 항목이 이 작업의 진짜 시험대입니다. **검출이 0건이어도 도구 실패가 아닙니다** — 그 자체가 Phase 0 게이트가 재려는 값입니다. 다만 합성 영상은 배경이 균일해 실영상보다 쉬우므로, **0건이면 도구 쪽을 먼저 의심**해야 합니다.
 
+## 구현 중 확인된 것
+
+### 미확인 전제 두 개가 해소됐다
+
+| 항목 | 결과 |
+|---|---|
+| `timeRange`가 무엇을 담는가 | **궤적 시작 시점.** `startFrame`이 정답 임팩트와 차이 **0** (3개 전부) |
+| `uuid`가 수명 동안 유지되는가 | ✅ 타구 3개 → 궤적 3개. 대안(`timeRange` 겹침)은 필요 없었다 |
+
+1/1000s 합성 영상에서 **검출률 100%, 오검출 0**입니다.
+
+### ⚠️ `movingAverageRadius`가 공 크기가 아니다
+
+노출을 바꿔가며 쟀습니다. 공은 그대로인데 값이 변합니다.
+
+| 노출 | 블러 (px) | 검출 지름 | 공 실제 |
+|---|---|---|---|
+| 1/1000 s | 5.55 | 27.66 | 15.31 |
+| 1/500 s | 11.72 | 32.01 | 15.31 |
+| 1/250 s | 24.41 | 39.96 | 15.31 |
+
+**블러를 감싸는 바운딩 원**입니다. 대각선 `√((공+블러)² + 공²)`에 가깝습니다. 정규화 기준은 가로이고, 1920×1920 정사각 영상으로 확인했습니다.
+
+문서 세 곳이 이 값을 "실측 반지름"이라 적고 있어 정정했습니다. 필드명도 `ballPixelDiameter` → **`detectedDiameterPx`**로 바꿨습니다 — 이름이 오해를 부릅니다.
+
+**[#9](https://github.com/wnsgur9137/TeniTeni/issues/9)가 공 크기 검증에 이 값을 쓰면 1.8배 틀어집니다.**
+
+부수적으로 프로토콜 5.4의 파라미터 상한이 타당함이 확인됐습니다 — `objectMaximumNormalizedRadius` 0.015는 57.6px이라 1/250s의 39.96px을 담습니다. "모션 블러 여유 포함"이라 적힌 것이 맞는 방향이었습니다.
+
+### `AsyncParsableCommand`를 썼다
+
+기획서에 없던 항목입니다. `perform(on:)`이 `async`인데 `ParsableCommand.run()`은 동기라, 세마포어로 건너려다 Swift 6의 `sending` 검사에 걸렸습니다. 루트 커맨드를 `AsyncParsableCommand`로 바꾸는 것이 옳은 해법입니다.
+
 ## 영향받는 문서
 
-- [비전 파이프라인](../02-설계/VISION-PIPELINE.md) — 관측 멤버 표 추가 (완료)
-- [작업 순서](../04-계획/WORK-PLAN.md) — 0-C 2번 항목
+- [비전 파이프라인](../02-설계/VISION-PIPELINE.md) — 관측 멤버 표 추가, `movingAverageRadius` 의미 정정
+- [촬영 프로토콜 5.5](../02-설계/CAPTURE-PROTOCOL.md) — 기록 포맷 필드명 정정
+- [모션 블러와 공 추적](../08-레퍼런스/ml/MotionBlur.md) — `movingAverageRadius` 서술 정정
+- [DetectTrajectoriesRequest API](../08-레퍼런스/ml/DetectTrajectories.md) — 실측 절 추가
 
 ## 리스크
 
@@ -116,7 +151,9 @@ CLI 배치는 [SPEC-0006](SPEC-0006-synthetic-video.md)이 정했습니다 — `
 
 - **실영상 분석** — 0-B 촬영 후
 - **게이트 판정** — #9
-- **검출률의 의미 해석** — 합성 영상의 검출률은 도구 동작 확인용이지 게이트 값이 아닙니다
+- **검출률의 의미 해석** — 합성 영상의 100%는 도구 동작 확인용이지 게이트 값이 아닙니다. 배경이 균일하고 공만 움직이므로 실영상보다 훨씬 쉽습니다
+- **`trajectoryLength` 5 이외** — 검출점이 정확히 5개만 모였습니다. 6 이상이면 검출이 끊길 수 있고, 그것이 #9 스윕의 대상입니다
+- **`confidence`의 분포** — 합성에서 전부 1.00입니다. 실영상에서 어떻게 갈리는지 모릅니다
 
 ## 관련 문서
 
