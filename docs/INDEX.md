@@ -77,6 +77,7 @@ status: active
 | [SPEC-0005 TeniVision 모듈 분리](./07-기획/SPEC-0005-tenivision-module.md) | #5 | 단일 타깃 iOS+macOS, 공 크기 계산식 단일화 |
 | [SPEC-0006 합성 영상 생성기](./07-기획/SPEC-0006-synthetic-video.md) | #6 | `teni synth`, 블러 하위 프레임 누적, 정답 JSON |
 | [SPEC-0007 macOS CLI 궤적 분석 도구](./07-기획/SPEC-0007-analyze-cli.md) | #7 | `teni analyze`, uuid 중복 제거, 임팩트 ±3 매칭 |
+| [SPEC-0008 임팩트 프레임 라벨링 도구](./07-기획/SPEC-0008-label-tool.md) | #8 | `teni label`, 컨택트 시트, 자기 일치도 측정 |
 | [SPEC-0022 촬영 화면 6m 가독성](./07-기획/SPEC-0022-capture-6m-readability.md) | #22 | 디자인 토큰 적용, 녹화 중 설정 숨김, 테두리 상태 |
 
 ## 08-레퍼런스
