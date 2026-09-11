@@ -5,7 +5,7 @@ tags:
   - 문서유형/설계
   - 영역/iOS
 created: 2026-09-10
-updated: 2026-09-10
+updated: 2026-09-11
 status: active
 ---
 
@@ -154,13 +154,33 @@ ios/
     ├── Domain/                        # Entity, UseCase, Repository 프로토콜 — 의존성 0
     ├── Data/                          # Repository 구현, SwiftData 영속화, 파일 저장소
     ├── Network/                       # Moya TargetType, DTO, 인증 인터셉터
-    ├── TeniVision/                    # 분석·렌더 엔진 (UI 의존 없음 → macOS CLI 공유)
+    ├── TeniVision/                    # 분석·렌더 엔진 — destinations: [.iPhone, .mac]
     ├── MLModels/                      # .mlpackage + 로더 (Git LFS)
     ├── DesignSystem/                  # 컬러, 타이포, 공용 컴포넌트
     └── Core/                          # Logger, Extensions, 공용 유틸
 ```
 
 **모듈 도입은 한 번에 하지 않습니다.** 각 모듈이 필요해지는 시점이 다릅니다 — [작업 순서 9.6](../04-계획/WORK-PLAN.md#96-tuist-모듈-구성) 참고. `TeniVision`이 0-C에서 가장 먼저 분리되는데, **macOS CLI 분석 도구와 코드를 공유해야 하기 때문**입니다.
+
+### 멀티플랫폼 모듈 규약
+
+`TeniVision`은 iOS 앱과 macOS CLI가 함께 씁니다. 단일 타깃으로 양쪽을 만듭니다 — 소스를 공유하는 별도 타깃 2개는 필요하지 않습니다 ([SPEC-0005](../07-기획/SPEC-0005-tenivision-module.md)에서 검증).
+
+```swift
+destinations: [.iPhone, .mac],
+deploymentTargets: .multiplatform(iOS: "26.0", macOS: "15.0")
+```
+
+macOS 하한이 15.0인 것은 `DetectTrajectoriesRequest`가 macOS 15+이기 때문입니다.
+
+**지켜야 할 것:**
+
+- **UIKit·SwiftUI·AppKit을 import하지 않습니다.** 플랫폼 중립 API를 먼저 찾습니다 (`UIDevice` → `ProcessInfo`)
+- 플랫폼 전용 API가 불가피하면 `#if os(iOS)`로 **그 함수만** 감쌉니다. 파일 전체를 감싸면 macOS에서 타입이 사라져 CLI가 못 씁니다
+- 살아있는 `AVCaptureDevice`를 다루는 코드는 iOS 전용입니다. `AVCaptureDevice.Format`의 `isVideoBinned`·`videoFieldOfView`·`minISO`·`videoMaxZoomFactor` 등이 macOS에 없습니다
+- 반대로 **Codable 데이터 모델과 계산식은 반드시 양 플랫폼 공용**으로 둡니다. CLI가 앱이 내보낸 JSON을 읽는 경로이기 때문입니다
+
+`scripts/verify-ios.sh`가 `Projects/*/Project.swift`에서 `.mac`을 선언한 모듈을 찾아 macOS로도 빌드하므로, 이 규약 위반은 게이트에서 걸립니다.
 
 ### 의존성 방향
 
