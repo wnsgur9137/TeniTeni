@@ -84,12 +84,15 @@ LOGS=()
 
 step "iOS 빌드 ($SCHEME)"
 IOS_LOG=/tmp/teniteni-build-ios.log
+# CLEAN_BUILD=1이면 clean을 먼저 넣어 전체 재컴파일한다 (경고 사각 제거)
+BUILD_ACTION="build"
+[ "${CLEAN_BUILD:-0}" = "1" ] && BUILD_ACTION="clean build"
 set +e
 xcodebuild $CONTAINER_FLAG -scheme "$SCHEME" \
   -destination "id=$DEST_ID" \
   -configuration Debug \
   CODE_SIGNING_ALLOWED=NO \
-  build 2>&1 | tee "$IOS_LOG" | tail -30
+  $BUILD_ACTION 2>&1 | tee "$IOS_LOG" | tail -30
 STATUS=${PIPESTATUS[0]}
 set -e
 [ "$STATUS" -eq 0 ] || fail "iOS 빌드 실패 — 전체 로그: $IOS_LOG"
@@ -107,11 +110,13 @@ for mac_scheme in ${MAC_SCHEMES[@]+"${MAC_SCHEMES[@]}"}; do
   step "macOS $ACTION ($mac_scheme)"
   MAC_LOG="/tmp/teniteni-build-macos-$mac_scheme.log"
   set +e
+  MAC_ACTION="$ACTION"
+  [ "${CLEAN_BUILD:-0}" = "1" ] && MAC_ACTION="clean $ACTION"
   xcodebuild $CONTAINER_FLAG -scheme "$mac_scheme" \
     -destination "platform=macOS,arch=$(uname -m)" \
     -configuration Debug \
     CODE_SIGNING_ALLOWED=NO \
-    "$ACTION" 2>&1 | tee "$MAC_LOG" | tail -30
+    $MAC_ACTION 2>&1 | tee "$MAC_LOG" | tail -30
   STATUS=${PIPESTATUS[0]}
   set -e
   [ "$STATUS" -eq 0 ] || fail "macOS $ACTION 실패 ($mac_scheme) — 전체 로그: $MAC_LOG"
@@ -133,6 +138,16 @@ for mac_scheme in ${MAC_SCHEMES[@]+"${MAC_SCHEMES[@]}"}; do
 done
 
 step "동시성 경고 집계"
+# ⚠️ 증분 빌드는 경고를 가린다. 바뀌지 않은 파일은 재컴파일되지 않으므로
+# 그 파일의 경고가 로그에 남지 않는다. 실제로 var/let 경고 하나가 며칠간
+# "경고 0"으로 보고되다가 그 파일을 건드린 순간 드러났다.
+#
+# CI는 매번 새 러너라 항상 전체 빌드다. 로컬만 이 사각이 있다.
+# CLEAN_BUILD=1로 전체 빌드를 강제할 수 있다 — 느리므로 기본은 아니다.
+if [ "${CLEAN_BUILD:-0}" = "1" ]; then
+  printf "CLEAN_BUILD=1 — 전체 빌드로 경고를 전부 봅니다\n"
+fi
+
 # 컴파일러 경고만 센다. appintentsmetadataprocessor 같은 툴이 내는
 # "warning:" 줄은 소스 품질과 무관하므로 파일:행:열 형태로 한정한다.
 WARN_PATTERN='^/.*:[0-9]+:[0-9]+: warning: '
