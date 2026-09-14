@@ -22,6 +22,17 @@ let project = Project(
             bundleId: "com.wnsgur9137.TeniTeni.TeniVision",
             deploymentTargets: .multiplatform(iOS: "26.0", macOS: "15.0"),
             sources: ["Sources/**"]
+        ),
+        // 테스트 타깃이 있으면 scripts/verify-ios.sh가 build 대신 test를 돈다.
+        // 빌드만 보면 "테스트는 있는데 한 번도 실행되지 않는" 상태를 못 잡는다.
+        .target(
+            name: "TeniVisionTests",
+            destinations: [.iPhone, .mac],
+            product: .unitTests,
+            bundleId: "com.wnsgur9137.TeniTeni.TeniVisionTests",
+            deploymentTargets: .multiplatform(iOS: "26.0", macOS: "15.0"),
+            sources: ["Tests/**"],
+            dependencies: [.target(name: "TeniVision")]
         )
     ]
 )
