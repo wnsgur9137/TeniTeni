@@ -122,6 +122,9 @@ struct ContactSheetTests {
     /// `render`가 던지기 전에 `teni label`이 먼저 막는다. 두 겹이 필요한 이유는
     /// CLI가 "총 N프레임"이라는 맥락을 붙여 설명할 수 있기 때문이다 —
     /// 라이브러리는 그 숫자를 모른다.
+    ///
+    /// **종료 코드가 0이 아니어야 한다.** 0이면
+    /// `teni label ... && open sheet.png` 같은 연결이 그냥 통과한다.
     @Test("범위 밖 --around는 CLI가 막는다")
     func CLI_가드() async throws {
         let movie = try await clip()
@@ -131,7 +134,9 @@ struct ContactSheetTests {
             movie.path, "--sheet", "--around", "999999", "--span", "5",
             "--out", output.path,
         ])
-        try await command.run()
+        await #expect(throws: (any Error).self) {
+            try await command.run()
+        }
 
         #expect(
             !FileManager.default.fileExists(atPath: output.path),
