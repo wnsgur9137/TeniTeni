@@ -90,7 +90,18 @@ struct RenderTransform: Sendable {
     init(bufferSize: CGSize, viewSize: CGSize,
          rotationAngle: CGFloat, isMirrored: Bool) {
         // 1. aspect-fill 스케일 — 짧은 축을 채우고 긴 축을 넘치게
-        let bufferAspect = Float(bufferSize.width / bufferSize.height)
+        //
+        // ★ 종횡비는 **회전 후** 버퍼로 계산한다. 회전을 나중에 곱하면
+        //   비균등 스케일이 축과 함께 돌아가므로, 회전 전 종횡비로 구한
+        //   값을 그대로 쓰면 배율이 어긋난다 — 센서 1920×1080, 뷰 390×844,
+        //   90°에서 1.217배가 나와야 하는데 3.847배가 나온다(3.16배 과확대).
+        //   관절에도 같은 행렬이 곱해져 스켈레톤은 어긋나지 않으므로
+        //   "화면이 너무 확대돼 보인다"로만 드러난다. 근거: SPEC-0040
+        let rotated = isQuarterTurn(rotationAngle)
+        let effective = rotated
+            ? CGSize(width: bufferSize.height, height: bufferSize.width)
+            : bufferSize
+        let bufferAspect = Float(effective.width / effective.height)
         let viewAspect = Float(viewSize.width / viewSize.height)
         var sx: Float = 1, sy: Float = 1
         if bufferAspect > viewAspect {
@@ -100,8 +111,10 @@ struct RenderTransform: Sendable {
         }
 
         // 2. 0~1 → -1~1, y축 뒤집기 (이미지는 y-down, NDC는 y-up)
-        var m = simd_float4x4(diagonal: .init(2 * sx, -2 * sy, 1, 1))
-        m.columns.3 = .init(-sx, sy, 0, 1)
+        //    회전으로 축이 바뀌므로 스케일도 함께 바꿔 곱한다.
+        let (px, py) = rotated ? (sy, sx) : (sx, sy)
+        var m = simd_float4x4(diagonal: .init(2 * px, -2 * py, 1, 1))
+        m.columns.3 = .init(-px, py, 0, 1)
 
         // 3. 회전
         let r = simd_float4x4(rotationZ: Float(rotationAngle * .pi / 180))
@@ -124,6 +137,8 @@ struct RenderTransform: Sendable {
 ```
 
 `AVCaptureDevice.RotationCoordinator`(iOS 17+)로 `videoRotationAngle`을 추종합니다. [D-01](../05-결정/stack/D-01-deployment-target.md)에서 iOS 26을 확정했으므로 제약 없이 사용합니다.
+
+> **구현됨** — [`TeniVision/Sources/Render/RenderTransform.swift`](../../ios/Projects/TeniVision/Sources/Render/RenderTransform.swift). 위 코드의 aspect-fill 산술은 [SPEC-0040](../07-기획/SPEC-0040-render-transform.md)에서 정정됐습니다. 확정 대상이었던 **"단일 행렬을 텍스처와 관절에 함께 쓴다"는 구조는 그대로**입니다.
 
 > **주의**: 관절 좌표를 CPU에서 NDC로 변환해 정점 버퍼에 넣어도 되고, 정규화 좌표를 그대로 넣고 셰이더에서 행렬을 곱해도 됩니다. 관절이 19개뿐이라 어느 쪽이든 비용 차이는 없습니다. **행렬을 uniform으로 넘겨 셰이더에서 적용하는 쪽**이 텍스처와 확실히 같은 변환을 쓰게 되므로 권장합니다.
 
@@ -363,7 +378,7 @@ Projects/
 | One Euro `beta` 튜닝 — 임팩트 순간 손목이 잘리지 않는가 | 4 | 필요 |
 | 프레임 예산 내에 렌더가 끝나는가 (목표 1~2ms) | 7 | 필요 |
 
-- [ ] `RenderTransform`이 세로/가로, 전면/후면에서 모두 정확한가
+- [x] `RenderTransform`이 세로/가로, 전면/후면에서 모두 정확한가 — [#40](https://github.com/wnsgur9137/TeniTeni/issues/40), 테스트 13건
 - [ ] `MTKView` + `CVMetalTextureCache`로 카메라 영상이 60fps로 표시되는가
 - [ ] 스켈레톤이 몸과 어긋나지 않는가 (빠른 스윙에서)
 - [ ] One Euro `beta` 튜닝 — 임팩트 순간 손목이 잘리지 않는가
