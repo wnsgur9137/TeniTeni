@@ -65,7 +65,7 @@ status: active
 
 | 문서 | 설명 |
 |------|------|
-| [정보 구조와 화면 흐름](./06-디자인/IA-FLOW.md) | 촬영 모드 3종, 화면 6개, 6m 가독성 원칙, 피드백 톤 |
+| [정보 구조와 화면 흐름](./06-디자인/IA-FLOW.md) | 탭바 3개, 촬영 상황 5종, 6m 2층 원칙, 예외 경로, 설정, 피드백 톤 |
 | [디자인 시스템](./06-디자인/DESIGN-SYSTEM.md) | 컬러·타이포·간격 토큰, 오버레이/UI 팔레트 분리, SwiftUI 매핑 |
 
 ## 07-기획
@@ -108,7 +108,7 @@ status: active
 | ↳ [ADR-0001](./05-결정/adr/ADR-0001-hybrid-inference.md) | 온디바이스/서버 하이브리드 추론 구조 (Accepted) |
 | ↳ [ADR-0002](./05-결정/adr/ADR-0002-monorepo.md) | 모노레포 채택 (Accepted) |
 | ↳ [ADR-0003](./05-결정/adr/ADR-0003-rule-based-evaluation.md) | 자세 평가는 룰 엔진 우선 (Accepted) |
-| ↳ [ADR-0004](./05-결정/adr/ADR-0004-line-call-mode.md) | 촬영 모드 분리와 실시간 라인 판정 (Accepted) |
+| ↳ [ADR-0004](./05-결정/adr/ADR-0004-line-call-mode.md) | 관찰 대상 분리와 실시간 라인 판정 (Accepted) |
 
 ---
 
