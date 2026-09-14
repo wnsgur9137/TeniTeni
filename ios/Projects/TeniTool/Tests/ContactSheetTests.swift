@@ -104,6 +104,21 @@ struct ContactSheetTests {
         }
     }
 
+    @Test("빈 프레임 목록은 던진다")
+    func 빈_목록() async throws {
+        let movie = try await clip()
+        let output = await scratch("empty.png")
+        let sheet = ContactSheet(columns: 4, thumbnailWidth: 320)
+
+        await #expect(throws: ContactSheet.Failure.noFrames) {
+            _ = try await sheet.render(videoURL: movie, frames: [], to: output)
+        }
+        #expect(
+            !FileManager.default.fileExists(atPath: output.path),
+            "빈 목록에 파일을 쓰면 호출부가 실수를 모른 채 지나간다"
+        )
+    }
+
     @Test("영상 트랙이 없으면 던진다")
     func 잘못된_영상() async throws {
         let fake = await scratch("fake-sheet.mov")
