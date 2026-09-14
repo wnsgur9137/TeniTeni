@@ -255,6 +255,48 @@ struct RenderTransformTests {
         #expect(p.x.isFinite && p.y.isFinite, "NaN이 나오면 렌더가 통째로 사라진다")
     }
 
+    /// 계약: 90의 배수만 지원한다. 임의 각도는 뷰를 덮되 확대율이 틀린다.
+    /// 지금 `videoRotationAngle`이 0·90·180·270만 내므로 도달하지 않지만,
+    /// **구멍이 생기지 않는다는 것**은 못박아 둔다 — 화면이 깨지는 것과
+    /// 확대율이 틀린 것은 심각도가 다르다.
+    @Test("90의 배수가 아니어도 뷰에 구멍이 생기지 않는다")
+    func 임의_각도_덮음() {
+        for angle in [CGFloat(30), 45, 46, 60, 120, 135] {
+            let t = RenderTransform(
+                bufferSize: .init(width: 1920, height: 1080),
+                viewSize: .init(width: 390, height: 844),
+                rotationAngle: angle, isMirrored: false
+            )
+            let pts = corners(t)
+            let spanX = pts.map(\.x).max()! - pts.map(\.x).min()!
+            let spanY = pts.map(\.y).max()! - pts.map(\.y).min()!
+            #expect(
+                min(spanX, spanY) >= 2 - tolerance,
+                "\(angle)° — 짧은 축이 2 미만이면 뷰에 빈 곳이 생긴다 (실제 \(min(spanX, spanY)))"
+            )
+        }
+    }
+
+    @Test("scale은 화면 축 기준이다")
+    func scale_축_기준() {
+        func make(_ angle: CGFloat) -> RenderTransform {
+            RenderTransform(
+                bufferSize: .init(width: 1920, height: 1080),
+                viewSize: .init(width: 390, height: 844),
+                rotationAngle: angle, isMirrored: false
+            )
+        }
+        for angle in [CGFloat(0), 90, 180, 270] {
+            let t = make(angle)
+            let pts = corners(t)
+            let spanX = pts.map(\.x).max()! - pts.map(\.x).min()!
+            #expect(
+                t.scale.x ~= spanX / 2,
+                "\(angle)° — scale.x는 화면 가로 초과분이어야 한다 (scale \(t.scale.x), 실제 \(spanX / 2))"
+            )
+        }
+    }
+
     @Test("음수·초과 각도를 정규화한다")
     func 각도_정규화() {
         #expect(RenderTransform.isQuarterTurn(90))
