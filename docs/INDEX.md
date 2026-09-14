@@ -108,6 +108,7 @@ status: active
 | ↳ [ADR-0001](./05-결정/adr/ADR-0001-hybrid-inference.md) | 온디바이스/서버 하이브리드 추론 구조 (Accepted) |
 | ↳ [ADR-0002](./05-결정/adr/ADR-0002-monorepo.md) | 모노레포 채택 (Accepted) |
 | ↳ [ADR-0003](./05-결정/adr/ADR-0003-rule-based-evaluation.md) | 자세 평가는 룰 엔진 우선 (Accepted) |
+| ↳ [ADR-0004](./05-결정/adr/ADR-0004-line-call-mode.md) | 촬영 모드 분리와 실시간 라인 판정 (Accepted) |
 
 ---
 

@@ -17,6 +17,10 @@ status: active
 
 실시간 처리는 전부 기기에서, 정밀 분석은 서버에서 비동기로 수행합니다.
 
+> **라인 판정 경로는 라인 판정 모드에서만 동작합니다.** 스윙 분석 모드와 카메라 배치가 다르므로 동시에 켜지지 않습니다 — [ADR-0004](../05-결정/adr/ADR-0004-line-call-mode.md).
+>
+> 서버 레인의 코트 검출은 **업로드된 클립 재분석용**이며, 실시간 판정을 대체하지 않습니다.
+
 ```mermaid
 flowchart TB
     subgraph device["실시간 레인 — 온디바이스"]
@@ -30,6 +34,13 @@ flowchart TB
         BALL --> OVL
         CAM --> REC[AVAssetWriter<br/>스윙 구간만 저장]
         CLS --> REC
+
+        CAL[4점 탭 캘리브레이션<br/>세션 1회] --> HOM[호모그래피 행렬]
+        BALL --> BNC[바운스 추정<br/>포물선 끊김]
+        HOM --> PRJ[코트 평면 투영<br/>3x3 행렬 곱]
+        BNC --> PRJ
+        PRJ --> CALL[인 / 아웃 / 판정 불가]
+        CALL --> OVL
     end
 
     subgraph cloud["정밀 레인 — 서버 비동기"]
@@ -37,7 +48,7 @@ flowchart TB
         Q --> W[분석 워커 GPU]
         W --> HP[고정밀 포즈 / 3D 리프팅]
         W --> HB[고정밀 공 추적]
-        W --> CD[코트 검출 / 호모그래피]
+        W --> CD[코트 검출 / 호모그래피<br/>재분석용]
         HP --> MET[메트릭 산출]
         HB --> MET
         CD --> MET
