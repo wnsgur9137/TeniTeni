@@ -34,7 +34,7 @@ status: active
 
 ## 10.2 화면 목록
 
-[WORK-PLAN 9.6](../04-계획/WORK-PLAN.md)의 `Presentation` 모듈 6개에 대응합니다.
+[WORK-PLAN 9.6](../04-계획/WORK-PLAN.md)의 `Presentation` 모듈에 대응합니다. 아래 6개에 **설정**(10.7)이 더해져 `Settings`까지 7개입니다 — 설정은 탭이 아니므로 이 표에 넣지 않습니다.
 
 | # | 화면 | 모듈 | 역할 | 사용 시점 |
 |---|---|---|---|---|
