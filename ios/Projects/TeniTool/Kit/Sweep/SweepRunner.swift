@@ -52,22 +52,20 @@ public struct SweepRunner: Sendable {
         label: String,
         videoCache: inout [String: (video: URL, truth: URL)]
     ) async throws -> SweepReport.Entry {
+        // 여기서 던지는 예외는 run()이 잡아 이 조건만 건너뛴다.
         let sources: [(video: URL, truth: URL)]
-
-        do {
-            if let clipsDirectory {
-                sources = try realClips(in: clipsDirectory)
-                guard !sources.isEmpty else {
-                    throw Failure.noClips(clipsDirectory.path)
-                }
-            } else {
-                let key = condition.videoKey
-                if videoCache[key] == nil {
-                    print("\(label) 합성 중 — \(key)")
-                    videoCache[key] = try await synthesize(condition, key: key)
-                }
-                sources = [videoCache[key]!]
+        if let clipsDirectory {
+            sources = try realClips(in: clipsDirectory)
+            guard !sources.isEmpty else {
+                throw Failure.noClips(clipsDirectory.path)
             }
+        } else {
+            let key = condition.videoKey
+            if videoCache[key] == nil {
+                print("\(label) 합성 중 — \(key)")
+                videoCache[key] = try await synthesize(condition, key: key)
+            }
+            sources = [videoCache[key]!]
         }
 
         var total = DetectionMetrics(truePositives: 0, falsePositives: 0, falseNegatives: 0)
@@ -87,16 +85,8 @@ public struct SweepRunner: Sendable {
 
         // 검출이 0이면 검출기 문제인지 영상 문제인지 구분할 수 없다.
         // 공이 화면에 얼마나 있었는지 보여주고 사람이 판단하게 한다.
-        if total.truePositives == 0, clipsDirectory == nil,
-           let truth = try? loadTruth(sources[0].truth) {
-            let counts = Self.visibleFrameCounts(
-                truth, width: truth.capture.widthPx, height: truth.capture.heightPx
-            )
-            let summary = counts.sorted { $0.key < $1.key }
-                .map { "타구\($0.key + 1) \($0.value)프레임" }
-                .joined(separator: " · ")
-            print("      검출 0 — 공이 화면 안에 있던 프레임: \(summary)")
-            print("      (검출에 최소 \(condition.trajectoryLength)프레임이 필요합니다)")
+        if total.truePositives == 0, clipsDirectory == nil {
+            printDiagnostic(truthURL: sources[0].truth, condition: condition)
         }
 
         return .init(condition: .init(condition), metrics: total, clipCount: sources.count)
@@ -191,6 +181,44 @@ public struct SweepRunner: Sendable {
             falsePositives: outcome.falsePositives,
             falseNegatives: impacts.count - outcome.hits
         )
+    }
+
+    /// 검출이 0이면 검출기 문제인지 영상 문제인지 구분할 수 없다.
+    /// 공이 화면에 얼마나 있었는지 보여주고 사람이 판단하게 한다.
+    ///
+    /// **틀린 숫자를 내느니 못 낸다고 말한다.** 해상도를 읽지 못하면
+    /// 모든 프레임이 화면 밖으로 계산되어 "0프레임"이라는 거짓 진단이
+    /// 나온다 — 사용자는 해상도를 키우려 하는데 원인은 다른 데 있다.
+    private func printDiagnostic(truthURL: URL, condition: SweepPlan.Condition) {
+        let truth: GroundTruth
+        do {
+            truth = try loadTruth(truthURL)
+        } catch {
+            print("      검출 0 — 정답을 읽지 못해 진단할 수 없습니다: \(error)")
+            return
+        }
+
+        let width = truth.capture.widthPx
+        let height = truth.capture.heightPx
+        guard width > 0, height > 0 else {
+            print("""
+                      검출 0 — 정답의 해상도가 "\(truth.capture.resolution)"이라 \
+                프레이밍을 계산할 수 없습니다
+                """)
+            return
+        }
+
+        let counts = Self.visibleFrameCounts(truth, width: width, height: height)
+        guard !counts.isEmpty else {
+            print("      검출 0 — 정답에 공 좌표가 없습니다")
+            return
+        }
+
+        let summary = counts.sorted { $0.key < $1.key }
+            .map { "타구\($0.key + 1) \($0.value)프레임" }
+            .joined(separator: " · ")
+        print("      검출 0 — 공이 화면 안에 있던 프레임: \(summary)")
+        print("      (검출에 최소 \(condition.trajectoryLength)프레임이 필요합니다)")
     }
 
     private func loadTruth(_ url: URL) throws -> GroundTruth {
