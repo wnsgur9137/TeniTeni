@@ -204,13 +204,13 @@ Mac ──→ TeniVision (공유) ──→ 검출 결과 JSON ──→ 집계 
 
 ---
 
-### 1-F. 라인 판정 모드 (1~2주)
+### 1-F. 라인 판정 (1~2주)
 
 **Phase 1 후반.** 0-D 실시간 궤적 렌더와 1-B 스윙 검출이 선행입니다.
 
 | # | 작업 | 선행 |
 |---|---|---|
-| 1 | 촬영 모드 분리 (스윙 분석 / 라인 판정) + 모드별 프레이밍 가이드 | — |
+| 1 | 관찰 대상 분리 (내 스윙 / 라인 판정) + 대상별 프레이밍 가이드 | — |
 | 2 | 정지 프레임 4점 탭 캘리브레이션 UI | 1 |
 | 3 | 호모그래피 산출 + 코트 격자 검증 화면 | 2 |
 | 4 | 바운스 지점 추정 (포물선 끊김) | 0-D 6 |
@@ -254,7 +254,7 @@ Phase 2 말에 **서버 정밀 분석이 온디바이스 대비 유의미한지 
 
 ```
 Application     앱 진입점, DI Composition Root, 라우팅
-Presentation    화면 단위 TCA Feature (Capture, Analysis, Session, Library, Progress, Onboarding)
+Presentation    화면 단위 TCA Feature (Capture, Analysis, Session, Library, Progress, Onboarding, Settings)
 Domain          Entity, UseCase, Repository 프로토콜 — 의존성 0
 Data            Repository 구현, SwiftData 영속화, 파일 저장소
 Network         Moya TargetType, DTO, 인증 인터셉터
