@@ -17,6 +17,10 @@ public struct GroundTruth: Codable, Sendable {
     }
 
     public struct Capture: Codable, Sendable {
+        /// `"1920x1080"`에서 가로를 뽑는다
+        public var widthPx: Int { Int(resolution.split(separator: "x").first ?? "0") ?? 0 }
+        public var heightPx: Int { Int(resolution.split(separator: "x").last ?? "0") ?? 0 }
+
         public let fps: Double
         public let resolution: String
         public let exposureDuration: String

@@ -192,6 +192,91 @@ struct SweepReportTests {
     }
 }
 
+// MARK: - 프레이밍 진단
+
+/// 검출 0이 검출기 문제인지 영상 문제인지 구분하는 정보다.
+///
+/// **경고로 만들려다 두 번 실패했다.** 이탈 비율 30% 기준은 오탐했고
+/// (공이 프레임을 가로지르는 것은 정상), 화면 안 프레임 ≥ trajectoryLength
+/// 기준은 놓쳤다 (360p에서 22프레임이 남는데 검출은 0). 기계적 판단을
+/// 포기하고 숫자만 보여준다.
+@Suite("프레이밍 진단")
+struct FramingDiagnosticTests {
+
+    private func truth(centers: [(hit: Int, x: Double, y: Double)]) -> GroundTruth {
+        GroundTruth(
+            clipId: "t",
+            condition: .init(location: "synthetic", light: "uniform", background: "simple"),
+            capture: .init(
+                fps: 120, resolution: "1920x1080", exposureDuration: "1/1000",
+                distanceM: 6, heightM: 1.1, videoFieldOfView: 70
+            ),
+            groundTruth: .init(
+                impactFrames: [0],
+                ballCenters: centers.enumerated().map { index, c in
+                    .init(
+                        frame: index, hitIndex: c.hit, x: c.x, y: c.y,
+                        blurLengthPx: 0, speedMetersPerSecond: 0
+                    )
+                }
+            ),
+            synthetic: .init(
+                generator: "test", ballDiameterPx: 16, pixelsPerMeter: 228.5,
+                blurSamplesPerFrame: 8, noiseSigma: 0, seed: 1, rollingShutter: false
+            )
+        )
+    }
+
+    @Test("화면 안 프레임을 타구별로 센다")
+    func 타구별_집계() {
+        let counts = SweepRunner.visibleFrameCounts(
+            truth(centers: [
+                (0, 100, 500), (0, 200, 500), (0, 300, 500),   // 타구1: 3장 안
+                (1, 100, 500), (1, -500, 500),                  // 타구2: 1장 안, 1장 밖
+            ]),
+            width: 1920, height: 1080
+        )
+        #expect(counts[0] == 3)
+        #expect(counts[1] == 1)
+    }
+
+    @Test("가로로 벗어난 것을 센다")
+    func 가로_이탈() {
+        let counts = SweepRunner.visibleFrameCounts(
+            truth(centers: [(0, -100, 500), (0, 2100, 500), (0, 960, 500)]),
+            width: 1920, height: 1080
+        )
+        // 공 반지름 8px이므로 -100과 2100은 완전히 밖이다
+        #expect(counts[0] == 1)
+    }
+
+    /// 360p에서 공이 위로 벗어나 검출이 0이었던 경우다.
+    @Test("세로로 벗어난 것을 센다")
+    func 세로_이탈() {
+        let counts = SweepRunner.visibleFrameCounts(
+            truth(centers: [(0, 960, 100), (0, 960, -200), (0, 960, 500)]),
+            width: 1920, height: 360
+        )
+        #expect(counts[0] == 1, "y=500은 360 밖, y=-200도 밖")
+    }
+
+    @Test("경계에 걸친 공은 보이는 것으로 센다")
+    func 경계() {
+        // 반지름 8px이므로 x=-4면 오른쪽 절반이 화면 안이다
+        let counts = SweepRunner.visibleFrameCounts(
+            truth(centers: [(0, -4, 500)]), width: 1920, height: 1080
+        )
+        #expect(counts[0] == 1)
+    }
+
+    @Test("좌표가 없으면 빈 결과")
+    func 빈_입력() {
+        #expect(SweepRunner.visibleFrameCounts(
+            truth(centers: []), width: 1920, height: 1080
+        ).isEmpty)
+    }
+}
+
 // MARK: - 인자
 
 @Suite("sweep 인자")
