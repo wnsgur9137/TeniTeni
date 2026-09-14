@@ -45,7 +45,10 @@ public struct ContactSheet: Sendable {
         public let fps: Double
     }
 
-    /// - Parameter frames: 뽑을 프레임 번호. 비어 있으면 아무것도 하지 않는다.
+    /// - Parameter frames: 뽑을 프레임 번호.
+    ///   **비어 있으면 1px 높이의 빈 PNG를 쓰고 성공으로 반환한다.**
+    ///   호출부가 빈 목록을 거르는 것을 전제로 한다 — 이 동작이 맞는지는
+    ///   이슈 #37에서 다룬다.
     public func render(
         videoURL: URL,
         frames: [Int],

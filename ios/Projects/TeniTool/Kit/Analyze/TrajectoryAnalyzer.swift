@@ -91,7 +91,8 @@ public struct TrajectoryAnalyzer: Sendable {
         }
 
         // ★ 인스턴스를 하나만 만들어 모든 프레임에 재사용한다.
-        var request = DetectTrajectoriesRequest(trajectoryLength: trajectoryLength)
+        // final class이므로 let으로도 프로퍼티를 설정한다.
+        let request = DetectTrajectoriesRequest(trajectoryLength: trajectoryLength)
         request.objectMinimumNormalizedRadius = minimumRadius
         request.objectMaximumNormalizedRadius = maximumRadius
 
