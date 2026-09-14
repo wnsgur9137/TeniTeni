@@ -80,6 +80,7 @@ status: active
 | [SPEC-0008 임팩트 프레임 라벨링 도구](./07-기획/SPEC-0008-label-tool.md) | #8 | `teni label`, 컨택트 시트, 자기 일치도 측정 |
 | [SPEC-0009 파라미터 스윕 및 검출률 집계](./07-기획/SPEC-0009-parameter-sweep.md) | #9 | `teni sweep`, precision·recall·F1, 게이트 판정 |
 | [SPEC-0022 촬영 화면 6m 가독성](./07-기획/SPEC-0022-capture-6m-readability.md) | #22 | 디자인 토큰 적용, 녹화 중 설정 숨김, 테두리 상태 |
+| [SPEC-0040 RenderTransform 단일 변환 행렬](./07-기획/SPEC-0040-render-transform.md) | #40 | aspect-fill·회전·미러링을 한 행렬로, 실기기 없이 검증 |
 
 ## 08-레퍼런스
 
