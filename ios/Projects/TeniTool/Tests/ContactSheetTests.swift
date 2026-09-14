@@ -119,6 +119,26 @@ struct ContactSheetTests {
         )
     }
 
+    /// `render`가 던지기 전에 `teni label`이 먼저 막는다. 두 겹이 필요한 이유는
+    /// CLI가 "총 N프레임"이라는 맥락을 붙여 설명할 수 있기 때문이다 —
+    /// 라이브러리는 그 숫자를 모른다.
+    @Test("범위 밖 --around는 CLI가 막는다")
+    func CLI_가드() async throws {
+        let movie = try await clip()
+        let output = await scratch("cli-guard.png")
+
+        let command = try Label.parse([
+            movie.path, "--sheet", "--around", "999999", "--span", "5",
+            "--out", output.path,
+        ])
+        try await command.run()
+
+        #expect(
+            !FileManager.default.fileExists(atPath: output.path),
+            "프레임이 하나도 안 잡히는데 시트를 만들면 안 된다"
+        )
+    }
+
     @Test("영상 트랙이 없으면 던진다")
     func 잘못된_영상() async throws {
         let fake = await scratch("fake-sheet.mov")
