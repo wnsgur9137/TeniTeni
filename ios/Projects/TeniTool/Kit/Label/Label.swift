@@ -151,9 +151,14 @@ public struct Label: AsyncParsableCommand {
         let frames = ContactSheet.frameNumbers(
             totalFrames: totalFrames, around: around, span: span, stride: stride
         )
+        // 종료 코드를 0으로 두면 `teni label ... && open sheet.png` 같은
+        // 연결이 그냥 통과한다. 할 일을 못 했으면 그렇게 말해야 한다.
         guard !frames.isEmpty else {
-            print("뽑을 프레임이 없습니다 (총 \(totalFrames)프레임)")
-            return
+            throw ValidationError(
+                around.map {
+                    "프레임 \($0) 주변에서 뽑을 프레임이 없습니다 — 영상은 총 \(totalFrames)프레임입니다"
+                } ?? "뽑을 프레임이 없습니다 (총 \(totalFrames)프레임)"
+            )
         }
 
         let suffix = around.map { "around\($0)" } ?? "overview"

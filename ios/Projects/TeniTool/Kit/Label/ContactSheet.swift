@@ -14,14 +14,16 @@ import UniformTypeIdentifiers
 /// 근거: docs/07-기획/SPEC-0008-label-tool.md 구현 선택지 1
 public struct ContactSheet: Sendable {
 
-    public enum Failure: Error, CustomStringConvertible {
+    public enum Failure: Error, Equatable, CustomStringConvertible {
         case noVideoTrack
+        case noFrames
         case cannotGenerateImage(String)
         case cannotWritePNG
 
         public var description: String {
             switch self {
             case .noVideoTrack: "영상 트랙이 없습니다"
+            case .noFrames: "뽑을 프레임이 없습니다 — 빈 시트는 만들지 않습니다"
             case .cannotGenerateImage(let reason): "프레임을 추출할 수 없습니다: \(reason)"
             case .cannotWritePNG: "PNG를 쓸 수 없습니다"
             }
@@ -45,15 +47,19 @@ public struct ContactSheet: Sendable {
         public let fps: Double
     }
 
-    /// - Parameter frames: 뽑을 프레임 번호.
-    ///   **비어 있으면 1px 높이의 빈 PNG를 쓰고 성공으로 반환한다.**
-    ///   호출부가 빈 목록을 거르는 것을 전제로 한다 — 이 동작이 맞는지는
-    ///   이슈 #37에서 다룬다.
+    /// - Parameter frames: 뽑을 프레임 번호. **비어 있으면 `Failure.noFrames`를 던진다.**
+    ///
+    /// 빈 시트를 원해서 부르는 경우가 없으므로 빈 목록은 호출부의 실수다.
+    /// 예전에는 `sheetHeight = max(1, 0) = 1`이 되어 1px 높이의 빈 PNG를
+    /// 쓰고 성공으로 반환했다 — 호출부는 실수를 모른 채 지나갔다.
+    /// 근거: 이슈 #37
     public func render(
         videoURL: URL,
         frames: [Int],
         to output: URL
     ) async throws -> Result {
+        guard !frames.isEmpty else { throw Failure.noFrames }
+
         let asset = AVURLAsset(url: videoURL)
         guard let track = try await asset.loadTracks(withMediaType: .video).first else {
             throw Failure.noVideoTrack
