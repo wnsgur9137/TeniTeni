@@ -22,6 +22,10 @@ actor ClipCache {
     private var clips: [String: (movie: URL, truth: GroundTruth)] = [:]
     private let directory: URL
 
+    /// 임시 디렉터리는 **일부러 지우지 않는다.** 테스트가 실패했을 때
+    /// 문제의 합성 클립을 직접 열어보려면 남아 있어야 한다.
+    /// 실행마다 UUID로 새 디렉터리를 만들므로 서로 간섭하지 않고,
+    /// 정리는 OS의 임시 디렉터리 회수에 맡긴다.
     init() {
         directory = FileManager.default.temporaryDirectory
             .appending(path: "teni-test-clips-\(UUID().uuidString)")
