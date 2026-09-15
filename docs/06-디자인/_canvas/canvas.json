@@ -9,9 +9,17 @@
       "h": 844
     },
     {
+      "file": "OnboardingHand.dc.html",
+      "title": "온보딩 · 주 사용 손",
+      "x": 500,
+      "y": 0,
+      "w": 390,
+      "h": 844
+    },
+    {
       "file": "CaptureHome.dc.html",
       "title": "촬영 탭 — 상황 선택",
-      "x": 500,
+      "x": 1000,
       "y": 0,
       "w": 390,
       "h": 844
@@ -19,7 +27,7 @@
     {
       "file": "Settings.dc.html",
       "title": "설정",
-      "x": 1000,
+      "x": 1500,
       "y": 0,
       "w": 390,
       "h": 844
@@ -27,15 +35,15 @@
     {
       "file": "CourtPreset.dc.html",
       "title": "코트 프리셋 · 격자 검증",
-      "x": 1500,
-      "y": 0,
+      "x": 0,
+      "y": 1004,
       "w": 844,
       "h": 390
     },
     {
       "file": "CaptureContinuous.dc.html",
       "title": "촬영 중 · 볼머신",
-      "x": 0,
+      "x": 954,
       "y": 1004,
       "w": 844,
       "h": 390
@@ -43,7 +51,7 @@
     {
       "file": "CaptureWarning.dc.html",
       "title": "촬영 중 · 흔들림 경고",
-      "x": 954,
+      "x": 1908,
       "y": 1004,
       "w": 844,
       "h": 390
@@ -51,7 +59,7 @@
     {
       "file": "ThermalWarning.dc.html",
       "title": "촬영 중 · 발열 경고",
-      "x": 1908,
+      "x": 2862,
       "y": 1004,
       "w": 844,
       "h": 390
@@ -59,15 +67,15 @@
     {
       "file": "CaptureLineCall.dc.html",
       "title": "촬영 중 · 라인 판정",
-      "x": 2862,
-      "y": 1004,
+      "x": 0,
+      "y": 1554,
       "w": 844,
       "h": 390
     },
     {
       "file": "QuickCheck.dc.html",
       "title": "중간 확인 · 랠리",
-      "x": 0,
+      "x": 954,
       "y": 1554,
       "w": 390,
       "h": 844
@@ -75,7 +83,7 @@
     {
       "file": "SessionSummary.dc.html",
       "title": "세션 요약 · 스윙 탭",
-      "x": 500,
+      "x": 1454,
       "y": 1554,
       "w": 390,
       "h": 844
@@ -83,7 +91,7 @@
     {
       "file": "SessionSummaryCall.dc.html",
       "title": "세션 요약 · 판정 탭",
-      "x": 1000,
+      "x": 1954,
       "y": 1554,
       "w": 390,
       "h": 844
@@ -91,15 +99,15 @@
     {
       "file": "EmptySession.dc.html",
       "title": "스윙 0개 · 진단",
-      "x": 1500,
-      "y": 1554,
+      "x": 0,
+      "y": 2558,
       "w": 390,
       "h": 844
     },
     {
       "file": "ReplayDirective.dc.html",
       "title": "리플레이 · 지시형",
-      "x": 0,
+      "x": 500,
       "y": 2558,
       "w": 390,
       "h": 844
@@ -107,7 +115,7 @@
     {
       "file": "ReplaySuggestive.dc.html",
       "title": "리플레이 · 제시형",
-      "x": 500,
+      "x": 1000,
       "y": 2558,
       "w": 390,
       "h": 844
@@ -115,7 +123,7 @@
     {
       "file": "Library.dc.html",
       "title": "보관함",
-      "x": 1000,
+      "x": 1500,
       "y": 2558,
       "w": 390,
       "h": 844
@@ -123,8 +131,8 @@
     {
       "file": "Progress.dc.html",
       "title": "진척도",
-      "x": 1500,
-      "y": 2558,
+      "x": 0,
+      "y": 3562,
       "w": 390,
       "h": 844
     }
