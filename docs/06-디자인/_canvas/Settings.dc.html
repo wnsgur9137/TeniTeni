@@ -1,0 +1,82 @@
+<!doctype html>
+<html>
+<head><meta charset="utf-8"><script src="./support.js"></script></head>
+<body>
+<x-dc>
+<helmet><style>
+body{margin:0;font-family:-apple-system,"SF Pro Text",system-ui,sans-serif}
+.row{display:flex;align-items:center;justify-content:space-between;padding:14px 16px}
+.grp{background:#16191D;border-radius:12px;overflow:hidden}
+.sep{height:1px;background:#1F2429;margin-left:16px}
+.lbl{font-size:15px;color:#F2F4F6}
+.val{font-size:14px;color:#9BA3AB}
+.cap{font-size:11px;color:#6B737B;padding:0 4px 7px;text-transform:uppercase;letter-spacing:.6px}
+</style></helmet>
+<div style="width:390px;height:844px;background:#0B0D0F;color:#F2F4F6;display:flex;flex-direction:column;overflow:hidden">
+
+  <div style="padding:22px 20px 16px;display:flex;align-items:center;gap:12px">
+    <svg width="22" height="22" viewBox="0 0 22 22" fill="none"><path d="M14 4l-7 7 7 7" stroke="#F2F4F6" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    <div style="font-size:24px;font-weight:700">설정</div>
+  </div>
+
+  <div style="padding:0 20px;display:flex;flex-direction:column;gap:18px;flex:1">
+
+    <div>
+      <div class="cap">프로필</div>
+      <div class="grp">
+        <div class="row"><div class="lbl">주 사용 손</div><div class="val">오른손 ›</div></div>
+        <div class="sep"></div>
+        <div class="row"><div class="lbl">이름</div><div class="val">준혁 ›</div></div>
+      </div>
+      <div style="font-size:11px;color:#FF8A3D;padding:7px 4px 0;line-height:1.5">주 사용 손은 <b>분석의 전제</b>입니다. 라켓 팔 강조·포핸드 분류·배치 안내가 이 값에 달려 있습니다.</div>
+    </div>
+
+    <div>
+      <div class="cap">소리</div>
+      <div class="grp">
+        <div class="row"><div class="lbl">스윙 감지음</div>
+          <div style="width:46px;height:27px;border-radius:999px;background:#C6F24E;position:relative"><div style="position:absolute;right:3px;top:3px;width:21px;height:21px;border-radius:999px;background:#0B0D0F"></div></div>
+        </div>
+        <div class="sep"></div>
+        <div class="row"><div class="lbl">라인 판정음</div>
+          <div style="width:46px;height:27px;border-radius:999px;background:#C6F24E;position:relative"><div style="position:absolute;right:3px;top:3px;width:21px;height:21px;border-radius:999px;background:#0B0D0F"></div></div>
+        </div>
+        <div class="sep"></div>
+        <div class="row"><div class="lbl">볼륨</div><div class="val">높음 ›</div></div>
+      </div>
+    </div>
+
+    <div>
+      <div class="cap">촬영</div>
+      <div class="grp">
+        <div class="row"><div class="lbl">기본 정밀도</div><div class="val" style="font-variant-numeric:tabular-nums">120fps ›</div></div>
+        <div class="sep"></div>
+        <div class="row"><div class="lbl">기본 촬영 상황</div><div class="val">볼머신 ›</div></div>
+      </div>
+    </div>
+
+    <div>
+      <div class="cap">라인 판정</div>
+      <div class="grp">
+        <div class="row"><div class="lbl">코트 프리셋</div><div class="val">2개 ›</div></div>
+      </div>
+      <div style="font-size:11px;color:#6B737B;padding:7px 4px 0">같은 코트·같은 거치 위치면 4점을 다시 찍지 않습니다</div>
+    </div>
+
+    <div>
+      <div class="cap">데이터</div>
+      <div class="grp">
+        <div class="row"><div class="lbl">저장공간</div><div class="val" style="font-variant-numeric:tabular-nums">4.2GB ›</div></div>
+        <div class="sep"></div>
+        <div class="row"><div class="lbl" style="color:#FF4D4D">전체 삭제</div><div class="val">›</div></div>
+      </div>
+    </div>
+
+  </div>
+
+  <div style="padding:0 20px 30px"><div style="font-size:11px;color:#6B737B;text-align:center">TeniTeni 1.0 · 오픈소스 라이선스</div></div>
+
+</div>
+</x-dc>
+</body>
+</html>

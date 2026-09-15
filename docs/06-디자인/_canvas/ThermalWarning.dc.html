@@ -1,0 +1,53 @@
+<!doctype html>
+<html>
+<head><meta charset="utf-8"><script src="./support.js"></script></head>
+<body>
+<x-dc>
+<helmet><style>
+body{margin:0;font-family:-apple-system,"SF Pro Text",system-ui,sans-serif}
+</style></helmet>
+<div style="width:844px;height:390px;background:#0B0D0F;position:relative;overflow:hidden">
+
+  <div style="position:absolute;inset:0;background:linear-gradient(160deg,#1b1f24 0%,#101316 60%,#0B0D0F 100%)"></div>
+
+  <svg style="position:absolute;left:250px;top:70px" width="300" height="250" viewBox="0 0 300 250">
+    <g stroke="rgba(255,255,255,0.72)" stroke-width="3.5" stroke-linecap="round" fill="none">
+      <path d="M150 60 L150 130"/><path d="M150 85 L112 118"/><path d="M150 85 L196 112"/>
+      <path d="M150 130 L124 190"/><path d="M150 130 L176 190"/>
+    </g>
+    <path d="M150 85 L196 112" stroke="#4DD8E6" stroke-width="3.5" stroke-linecap="round"/>
+    <circle cx="150" cy="44" r="15" stroke="rgba(255,255,255,0.72)" stroke-width="3.5" fill="none"/>
+    <g fill="#FFFFFF"><circle cx="150" cy="85" r="4.5"/><circle cx="112" cy="118" r="4.5"/><circle cx="196" cy="112" r="4.5"/><circle cx="150" cy="130" r="4.5"/></g>
+  </svg>
+
+  <div style="position:absolute;inset:0;border:3px solid #FF8A3D;pointer-events:none"></div>
+
+  <div style="position:absolute;left:20px;top:18px;display:flex;flex-direction:column;gap:3px">
+    <div style="font-size:12px;color:#9BA3AB;font-variant-numeric:tabular-nums">14:22</div>
+    <div style="font-size:11px;color:#6B737B">볼머신 · 내 스윙 · 120fps</div>
+  </div>
+
+  <div style="position:absolute;left:20px;bottom:20px;display:flex;align-items:baseline;gap:9px">
+    <div style="font-size:72px;font-weight:700;color:#F2F4F6;line-height:1;font-variant-numeric:tabular-nums">47</div>
+    <div style="font-size:15px;color:#9BA3AB">스윙</div>
+  </div>
+
+  <div style="position:absolute;right:20px;bottom:20px;width:392px;background:rgba(11,13,15,0.72);border-radius:11px;padding:16px;border-left:3px solid #FF8A3D">
+    <div style="display:flex;align-items:center;gap:9px;margin-bottom:8px">
+      <svg width="19" height="19" viewBox="0 0 20 20" fill="none">
+        <path d="M10 2.5v10" stroke="#FF8A3D" stroke-width="1.8" stroke-linecap="round"/>
+        <circle cx="10" cy="15.5" r="3" stroke="#FF8A3D" stroke-width="1.8"/>
+      </svg>
+      <div style="font-size:17px;font-weight:600;color:#F2F4F6">기기가 뜨거워지고 있습니다</div>
+    </div>
+    <div style="font-size:13px;color:#9BA3AB;line-height:1.55">이대로 두면 기록이 빠질 수 있습니다.<br>60fps로 낮추면 계속 찍을 수 있습니다.</div>
+    <div style="display:flex;gap:9px;margin-top:13px">
+      <button style="flex:1;height:42px;border:none;border-radius:9px;background:#C6F24E;color:#0B0D0F;font-size:15px;font-weight:600;font-family:inherit;cursor:pointer">60fps로 낮추기</button>
+      <button style="flex:1;height:42px;border:1px solid #1F2429;border-radius:9px;background:transparent;color:#9BA3AB;font-size:15px;font-weight:500;font-family:inherit;cursor:pointer">이대로 계속</button>
+    </div>
+  </div>
+
+</div>
+</x-dc>
+</body>
+</html>
