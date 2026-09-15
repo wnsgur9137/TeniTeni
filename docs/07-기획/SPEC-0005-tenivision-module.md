@@ -49,7 +49,7 @@ status: active
 - **Pose / Ball / Render / Swing / Metrics 실제 구현** — 0-D 이후 작업. 지금은 빈 디렉터리도 만들지 않는다
 - **`Core` 모듈** — [작업 순서 9.6](../04-계획/WORK-PLAN.md)에서 0-D 도입으로 잡혀 있다
 - **macOS CLI 도구 자체** — 이슈 [#7](https://github.com/wnsgur9137/TeniTeni/issues/7)
-- **Domain / Data / Presentation 분리** — 1-A 작업
+- **Domain / Data / Presentation / Application / DesignSystem 분리** — 1-A 작업
 - 촬영 화면·인스펙터 화면의 UI 코드 이동 (SwiftUI 의존이므로 앱에 남는다)
 
 ## 구현 선택지
