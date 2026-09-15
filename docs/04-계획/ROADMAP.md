@@ -60,7 +60,7 @@ status: active
 | **1-B 스윙 검출** | 룰 트리거, 링 버퍼, 구간 저장, 중간 확인 | [#6](https://github.com/wnsgur9137/TeniTeni/milestone/6) |
 | **1-C 학습 데이터** | 유형별 200회+ 촬영, 증강 | [#7](https://github.com/wnsgur9137/TeniTeni/milestone/7) |
 | **1-D 분류·메트릭** | Create ML, 페이즈 분할, 룰 엔진, proto 확정 | [#8](https://github.com/wnsgur9137/TeniTeni/milestone/8) |
-| **1-E 리플레이** | SwiftData, 슬로우 모션, 세션 요약, 진척도, 골든 테스트 | [#9](https://github.com/wnsgur9137/TeniTeni/milestone/9) |
+| **1-E 리플레이** | SwiftData, 슬로우 모션, 세션 요약, 골든 테스트 | [#9](https://github.com/wnsgur9137/TeniTeni/milestone/9) |
 | **1-F 라인 판정** | 관찰 대상 분리, 4점 캘리브레이션, 실시간 인/아웃 3분류 | [#10](https://github.com/wnsgur9137/TeniTeni/milestone/10) |
 
 이 시점에 **앱은 이미 혼자서 유용합니다.** 백엔드 없이 TestFlight 배포가 가능한 상태여야 합니다.
