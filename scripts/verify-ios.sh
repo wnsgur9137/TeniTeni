@@ -33,16 +33,23 @@ else
 fi
 
 # Tuist는 "Generate Project" 같은 헬퍼 스킴도 만든다. 앱 스킴을 골라야 한다.
+#
+# ⚠️ 예전에는 필터 후 첫 번째를 집었다. 모듈이 하나일 때는 맞았지만 1-A에서
+# 여섯 개로 늘자 알파벳 순으로 "Application"(정적 프레임워크)이 잡혔고,
+# **앱 타깃이 빌드되지 않은 채 게이트가 통과했다.** 진입점도 Info.plist도
+# 검증되지 않는다. 워크스페이스 이름과 같은 스킴을 먼저 찾는다.
 SCHEME="$(xcodebuild $CONTAINER_FLAG -list -json 2>/dev/null \
   | python3 -c '
 import sys, json
 d = json.load(sys.stdin)
 c = d.get("workspace") or d.get("project")
 schemes = c["schemes"]
+name = c.get("name")
 skip = {"Generate Project"}
-# -Workspace 접미사가 붙은 통합 스킴보다 앱 스킴을 우선한다
-app = [s for s in schemes if s not in skip and not s.endswith("-Workspace")]
-print((app or [s for s in schemes if s not in skip] or schemes)[0])' 2>/dev/null || true)"
+candidates = [s for s in schemes if s not in skip and not s.endswith("-Workspace")]
+# 1순위: 컨테이너 이름과 같은 스킴 (= 앱 타깃)
+exact = [s for s in candidates if s == name]
+print((exact or candidates or [s for s in schemes if s not in skip] or schemes)[0])' 2>/dev/null || true)"
 [ -n "$SCHEME" ] || fail "스킴을 찾을 수 없습니다"
 ok "컨테이너: ${CONTAINER_FLAG#* } / 스킴: $SCHEME"
 

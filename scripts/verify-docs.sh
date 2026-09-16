@@ -120,7 +120,9 @@ fi
 step "디자인 토큰 일치"
 # DESIGN-SYSTEM.md가 정본이고 Tokens.swift가 그것을 코드로 옮긴 것이다.
 # 갈라지면 목업과 구현이 어긋난다.
-TOKENS_SWIFT="ios/TeniTeni/Sources/DesignSystem/Tokens.swift"
+# 1-A에서 DesignSystem 모듈로 옮겼다. 경로를 안 고치면 아래 else 가지로
+# 빠져 "건너뜁니다"가 되고, 목업과 구현이 갈라져도 게이트가 통과한다.
+TOKENS_SWIFT="ios/Projects/DesignSystem/Sources/Tokens.swift"
 DESIGN_DOC="docs/06-디자인/DESIGN-SYSTEM.md"
 if [ -f "$TOKENS_SWIFT" ]; then
   MISMATCH=$(python3 - "$TOKENS_SWIFT" "$DESIGN_DOC" <<'PY2'
