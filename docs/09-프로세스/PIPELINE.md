@@ -256,6 +256,10 @@ area 라벨로 스크립트를 고릅니다.
 | **한글 경로가 판정에서 빠진다** | `docs/`를 12개 바꿨는데 `docs: skipped` | git의 `core.quotePath` 기본값이 비ASCII 경로를 `"docs/05-\352\262\260.../x.md"`로 이스케이프. `^docs/` 앵커가 빗나감 | `git -c core.quotePath=false` 고정 |
 | **경고 0일 때 스크립트가 죽는다** | 통과 메시지가 안 찍히고 끝남 | `grep`이 0건에 종료코드 1. `set -euo pipefail`이 스크립트를 종료 | 카운트하는 `grep`에 `\|\| true` |
 | **툴 경고가 경고 수에 섞인다** | 소스가 깨끗한데 경고 n건 | `appintentsmetadataprocessor` 등이 `warning:`을 출력 | `^/…:행:열: warning:` 형태만 집계 |
+| **절 번호 참조가 조용히 어긋난다** | 링크는 멀쩡한데 엉뚱한 절을 가리킨다 | 상대경로 검사는 **파일 존재만** 본다. 절이 밀려도 링크는 유효 | `verify-docs.sh`의 **절 번호 참조** 검사 |
+| **타임라인이 단계 절과 갈라진다** | 9.2는 옛 구성, 9.3~9.5는 새 구성 | 9.2가 요약이라 손으로 맞춰야 한다 | `verify-docs.sh`의 **타임라인 정합** 검사 |
+
+> 뒤의 둘은 **이번에 여섯 번 겪고 나서** 넣었습니다 — 타임라인 누락 4회([#39](https://github.com/wnsgur9137/TeniTeni/issues/39)·[#44](https://github.com/wnsgur9137/TeniTeni/issues/44)·[#56](https://github.com/wnsgur9137/TeniTeni/issues/56)·[#57](https://github.com/wnsgur9137/TeniTeni/issues/57)), 절 번호 깨짐 2회([#46](https://github.com/wnsgur9137/TeniTeni/issues/46)·[#49](https://github.com/wnsgur9137/TeniTeni/issues/49)). **매번 손으로 잡았고 매번 다시 잊었습니다.**
 | **대상 탐지가 오탐한다** | 해당 없는 모듈을 빌드하려다 실패 | `grep -q "\.mac"`이 주석의 `.mac`에도 걸림 | 선언 줄로 한정 (`^\s*destinations:.*\.mac`) |
 
 **판정 결과를 눈으로 확인합니다.** 게이트가 초록이어도 어떤 잡이 실제로 돌았는지 봐야 합니다.
