@@ -139,6 +139,26 @@ struct AppFeatureTests {
 
     // MARK: 설정
 
+    @Test("설정에서 감지음을 끄면 저장된다")
+    func 설정_소리() async {
+        let repo = InMemoryRepository(UserPreferences(handedness: .right))
+        let store = TestStore(initialState: AppFeature.State(
+            preferences: UserPreferences(handedness: .right)
+        )) { AppFeature(repository: repo) }
+
+        await store.send(.home(.settingsTapped))
+        await store.receive(.home(.delegate(.openSettings))) {
+            $0.settings = SettingsFeature.State(handedness: .right, soundEnabled: true)
+        }
+        await store.send(.settings(.presented(.soundToggled(false)))) {
+            $0.settings?.soundEnabled = false
+        }
+        await store.receive(.settings(.presented(.delegate(.soundToggled(false))))) {
+            $0.preferences.soundEnabled = false
+        }
+        #expect(repo.load().soundEnabled == false, "끈 채로 재실행하면 꺼져 있어야 한다")
+    }
+
     @Test("설정에서 주 사용 손을 바꾸면 저장된다")
     func 설정_손_변경() async {
         let repo = InMemoryRepository(UserPreferences(handedness: .right))
@@ -148,7 +168,7 @@ struct AppFeatureTests {
 
         await store.send(.home(.settingsTapped))
         await store.receive(.home(.delegate(.openSettings))) {
-            $0.settings = SettingsFeature.State(handedness: .right)
+            $0.settings = SettingsFeature.State(handedness: .right, soundEnabled: true)
         }
         await store.send(.settings(.presented(.handednessChanged(.left)))) {
             $0.settings?.handedness = .left

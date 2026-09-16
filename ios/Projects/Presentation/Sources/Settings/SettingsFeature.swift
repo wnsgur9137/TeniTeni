@@ -27,6 +27,7 @@ public struct SettingsFeature {
 
         public enum Delegate: Equatable {
             case handednessChanged(Handedness)
+            case soundToggled(Bool)
             case close
         }
     }
@@ -42,7 +43,7 @@ public struct SettingsFeature {
 
             case .soundToggled(let on):
                 state.soundEnabled = on
-                return .none
+                return .send(.delegate(.soundToggled(on)))
 
             case .closeTapped:
                 return .send(.delegate(.close))

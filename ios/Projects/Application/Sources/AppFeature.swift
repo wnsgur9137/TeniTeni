@@ -110,7 +110,10 @@ public struct AppFeature {
                 // 주 사용 손이 없으면 설정을 열 수 없다 — 온보딩 전에는
                 // 도달할 수 없는 경로지만 상태로도 막는다.
                 guard let hand = state.preferences.handedness else { return .none }
-                state.settings = SettingsFeature.State(handedness: hand)
+                state.settings = SettingsFeature.State(
+                    handedness: hand,
+                    soundEnabled: state.preferences.soundEnabled
+                )
                 return .none
 
             case .home(.delegate(.start)):
@@ -119,6 +122,11 @@ public struct AppFeature {
 
             case .settings(.presented(.delegate(.handednessChanged(let hand)))):
                 state.preferences.handedness = hand
+                repository.save(state.preferences)
+                return .none
+
+            case .settings(.presented(.delegate(.soundToggled(let on)))):
+                state.preferences.soundEnabled = on
                 repository.save(state.preferences)
                 return .none
 

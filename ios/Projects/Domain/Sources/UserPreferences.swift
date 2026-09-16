@@ -12,17 +12,23 @@ public struct UserPreferences: Equatable, Sendable, Codable {
     public var lastSituation: CaptureSituation
     public var lastObservable: ObservationTarget
 
+    /// 스윙 감지음. IA-FLOW 10.5가 "소리가 화면보다 중요하다"고 정했으므로
+    /// 기본값은 켜짐이다. 레슨에서는 코치를 방해할 수 있어 끄게 둔다.
+    public var soundEnabled: Bool
+
     /// 주 사용 손이 있어야 촬영에 들어갈 수 있다.
     public var hasCompletedOnboarding: Bool { handedness != nil }
 
     public init(
         handedness: Handedness? = nil,
         lastSituation: CaptureSituation = .ballMachine,
-        lastObservable: ObservationTarget = .swing
+        lastObservable: ObservationTarget = .swing,
+        soundEnabled: Bool = true
     ) {
         self.handedness = handedness
         self.lastSituation = lastSituation
         self.lastObservable = lastObservable
+        self.soundEnabled = soundEnabled
     }
 }
 
