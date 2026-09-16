@@ -174,7 +174,19 @@ ALIAS = {
     "제품 개요": "PRODUCT-OVERVIEW.md",
     "디자인 시스템": "DESIGN-SYSTEM.md",
     "DESIGN-SYSTEM": "DESIGN-SYSTEM.md",
+    "규약": "PIPELINE.md",
+    "PIPELINE": "PIPELINE.md",
+    "시스템 아키텍처": "ARCHITECTURE.md",
+    "ARCHITECTURE": "ARCHITECTURE.md",
+    "동시성": "CONCURRENCY.md",
+    "CONCURRENCY": "CONCURRENCY.md",
+    "ROADMAP": "ROADMAP.md",
+    "REPOSITORY": "REPOSITORY.md",
+    "IOS-STACK": "IOS-STACK.md",
+    "BACKEND-STACK": "BACKEND-STACK.md",
 }
+# 흔한 낱말(저장소·로드맵·아키텍처 단독)은 넣지 않습니다 — "저장소 4.2GB"처럼
+# 절 번호가 아닌 숫자를 잡아 오탐이 납니다. 대문자 파일명은 그 위험이 없습니다.
 
 files = sorted(pathlib.Path("docs").rglob("*.md"))
 secs = {}
