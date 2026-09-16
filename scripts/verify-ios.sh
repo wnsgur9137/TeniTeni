@@ -89,6 +89,18 @@ fi
 
 LOGS=()
 
+# 빌드가 깨졌을 때 왜 깨졌는지 보여준다.
+#
+# ⚠️ tee | tail -30 은 진행 상황을 줄이려는 것인데, 실패하면 꼬리 30줄이
+# 컴파일 명령줄로 가득 차 정작 error: 가 화면 밖으로 밀린다. 로컬에서는
+# 전체 로그를 열면 되지만 CI에서는 러너가 사라져 영영 못 본다.
+# 실제로 1-A에서 CI 실패 원인을 못 찾아 한 바퀴 돌았다.
+show_errors() {
+  local log="$1"
+  printf '\n\033[1m▸ 오류\033[0m\n'
+  grep -E '(error|Error):' "$log" | grep -vE '^\s' | sed 's|.*/TeniTeni/||' | sort -u | head -20 | sed 's/^/    /'
+}
+
 step "iOS 빌드 ($SCHEME)"
 IOS_LOG=/tmp/teniteni-build-ios.log
 # CLEAN_BUILD=1이면 clean을 먼저 넣어 전체 재컴파일한다 (경고 사각 제거)
@@ -102,7 +114,7 @@ xcodebuild $CONTAINER_FLAG -scheme "$SCHEME" \
   $BUILD_ACTION 2>&1 | tee "$IOS_LOG" | tail -30
 STATUS=${PIPESTATUS[0]}
 set -e
-[ "$STATUS" -eq 0 ] || fail "iOS 빌드 실패 — 전체 로그: $IOS_LOG"
+[ "$STATUS" -eq 0 ] || { show_errors "$IOS_LOG"; fail "iOS 빌드 실패 — 전체 로그: $IOS_LOG"; }
 LOGS+=("$IOS_LOG")
 ok "iOS 빌드 성공"
 
@@ -126,7 +138,7 @@ for mac_scheme in ${MAC_SCHEMES[@]+"${MAC_SCHEMES[@]}"}; do
     $MAC_ACTION 2>&1 | tee "$MAC_LOG" | tail -30
   STATUS=${PIPESTATUS[0]}
   set -e
-  [ "$STATUS" -eq 0 ] || fail "macOS $ACTION 실패 ($mac_scheme) — 전체 로그: $MAC_LOG"
+  [ "$STATUS" -eq 0 ] || { show_errors "$MAC_LOG"; fail "macOS $ACTION 실패 ($mac_scheme) — 전체 로그: $MAC_LOG"; }
   LOGS+=("$MAC_LOG")
 
   if [ "$ACTION" = test ]; then
