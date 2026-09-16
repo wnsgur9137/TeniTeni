@@ -7,11 +7,22 @@ import Foundation
 public struct UserPreferences: Equatable, Sendable, Codable {
     public var handedness: Handedness?
 
+    /// 홈이 "지난 선택을 미리 골라둔다"는 규칙을 지키려면 어딘가 남아야 한다
+    /// (IA-FLOW 10.4). 세션 메타는 1-B에 생기므로 그때까지 여기 둔다.
+    public var lastSituation: CaptureSituation
+    public var lastObservable: ObservationTarget
+
     /// 주 사용 손이 있어야 촬영에 들어갈 수 있다.
     public var hasCompletedOnboarding: Bool { handedness != nil }
 
-    public init(handedness: Handedness? = nil) {
+    public init(
+        handedness: Handedness? = nil,
+        lastSituation: CaptureSituation = .ballMachine,
+        lastObservable: ObservationTarget = .swing
+    ) {
         self.handedness = handedness
+        self.lastSituation = lastSituation
+        self.lastObservable = lastObservable
     }
 }
 
