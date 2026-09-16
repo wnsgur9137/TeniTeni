@@ -16,15 +16,15 @@ public struct AppView: View {
             if store.hasCompletedOnboarding {
                 tabs
             } else {
-            // 1-A′가 온보딩 → 주 사용 손 흐름으로 채운다.
-                TabPlaceholderView(
-                    title: "TeniTeni",
-                    message: "시작하기 전에 몇 가지를 묻습니다",
-                    detail: "온보딩은 1-A′에서 만듭니다"
+                OnboardingView(
+                    store: store.scope(state: \.onboarding, action: \.onboarding)
                 )
             }
         }
         .onAppear { store.send(.appeared) }
+        .sheet(item: $store.scope(state: \.settings, action: \.settings)) { settingsStore in
+            SettingsView(store: settingsStore)
+        }
     }
 
     private var tabs: some View {
@@ -41,9 +41,9 @@ public struct AppView: View {
     @ViewBuilder
     private func content(for tab: AppFeature.Tab) -> some View {
         switch tab {
-        // 촬영 탭만 진짜 화면이다. 0-A 회귀를 막으려고 그대로 붙였다 —
-        // SPEC-0061 구현 선택지 2.
-        case .capture: CaptureView()
+        // 촬영 탭 루트는 홈(상황 선택)이다. CaptureView는 1-B가
+        // "시작"에 연결한다 — 지금은 선택만 저장된다.
+        case .capture: HomeView(store: store.scope(state: \.home, action: \.home))
         case .library: LibraryPlaceholderView()
         case .progress: ProgressPlaceholderView()
         }
