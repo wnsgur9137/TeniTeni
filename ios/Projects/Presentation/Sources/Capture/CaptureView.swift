@@ -1,3 +1,4 @@
+import DesignSystem
 import SwiftUI
 import TeniVision
 
@@ -9,14 +10,17 @@ import TeniVision
 /// 다가오면 촬영이 끊긴다.
 ///
 /// 목업: docs/06-디자인/_canvas/CaptureContinuous.dc.html · CaptureWarning.dc.html
-struct CaptureView: View {
+public struct CaptureView: View {
+
+    public init() {}
+
     @Environment(\.scenePhase) private var scenePhase
     @State private var controller = CameraController()
     @State private var showInspector = false
 
     private var isRecording: Bool { controller.status == .recording }
 
-    var body: some View {
+    public var body: some View {
         ZStack {
             Token.Background.base.ignoresSafeArea()
 
@@ -325,4 +329,13 @@ struct CaptureView: View {
             Text(reason)
         }
     }
+}
+
+// MARK: - 방향
+
+/// 촬영은 가로 고정이다. 앱 전체는 1-A에서 전 방향으로 풀렸으므로
+/// (세로 화면이 12종이다) 이 화면이 스스로 잠근다.
+/// 근거: docs/07-기획/SPEC-0061-module-shell.md 구현 선택지 3
+extension CaptureView {
+    static var supportedOrientations: UIInterfaceOrientationMask { .landscape }
 }

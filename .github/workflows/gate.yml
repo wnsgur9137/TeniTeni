@@ -116,7 +116,10 @@ jobs:
   ios:
     needs: detect
     if: needs.detect.outputs.ios == 'true'
-    runs-on: macos-15
+    # ⚠️ macos-15는 Xcode 16.4(Swift 6.1)이고 iOS 26 SDK가 없다.
+    # 우리 타깃은 iOS 26이므로 게이트가 표현할 수 없는 플랫폼을 검증해 왔다.
+    # 1-A에서 로컬(Xcode 26.6)은 통과하는데 CI만 깨지며 드러났다.
+    runs-on: macos-26
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
@@ -134,7 +137,13 @@ jobs:
           mise install
 
       - name: Xcode 선택
-        run: sudo xcode-select -s /Applications/Xcode.app
+        run: |
+          # 러너에 여러 Xcode가 깔려 있으면 가장 높은 것을 고른다.
+          # /Applications/Xcode.app 심링크는 이미지 기본값이라 우리가
+          # 요구하는 SDK가 없을 수 있다.
+          latest="$(ls -d /Applications/Xcode*.app | sort -V | tail -1)"
+          echo "선택: $latest"
+          sudo xcode-select -s "$latest"
 
       - name: 게이트 실행
         run: mise exec -- ./scripts/verify-ios.sh

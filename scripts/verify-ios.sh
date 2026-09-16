@@ -22,6 +22,14 @@ else
   fail "Workspace.swift / Project.swift 를 찾을 수 없습니다"
 fi
 
+# 로컬과 CI의 툴체인이 다르면 같은 코드가 한쪽에서만 깨진다. 실제로 1-A에서
+# UIKitNavigation의 가용성 검사가 로컬(Xcode 26.6)에서는 통과하고 CI에서는
+# 실패했다. 버전을 찍어두면 다음에 갈릴 때 바로 보인다.
+step "툴체인"
+printf "  %s\n" "$(xcodebuild -version | tr '\n' ' ')"
+printf "  %s\n" "$(swift --version 2>&1 | head -1)"
+ok "툴체인 확인"
+
 step "빌드 대상 탐색"
 CONTAINER_FLAG=""
 if compgen -G "*.xcworkspace" >/dev/null; then
@@ -33,16 +41,23 @@ else
 fi
 
 # Tuist는 "Generate Project" 같은 헬퍼 스킴도 만든다. 앱 스킴을 골라야 한다.
+#
+# ⚠️ 예전에는 필터 후 첫 번째를 집었다. 모듈이 하나일 때는 맞았지만 1-A에서
+# 여섯 개로 늘자 알파벳 순으로 "Application"(정적 프레임워크)이 잡혔고,
+# **앱 타깃이 빌드되지 않은 채 게이트가 통과했다.** 진입점도 Info.plist도
+# 검증되지 않는다. 워크스페이스 이름과 같은 스킴을 먼저 찾는다.
 SCHEME="$(xcodebuild $CONTAINER_FLAG -list -json 2>/dev/null \
   | python3 -c '
 import sys, json
 d = json.load(sys.stdin)
 c = d.get("workspace") or d.get("project")
 schemes = c["schemes"]
+name = c.get("name")
 skip = {"Generate Project"}
-# -Workspace 접미사가 붙은 통합 스킴보다 앱 스킴을 우선한다
-app = [s for s in schemes if s not in skip and not s.endswith("-Workspace")]
-print((app or [s for s in schemes if s not in skip] or schemes)[0])' 2>/dev/null || true)"
+candidates = [s for s in schemes if s not in skip and not s.endswith("-Workspace")]
+# 1순위: 컨테이너 이름과 같은 스킴 (= 앱 타깃)
+exact = [s for s in candidates if s == name]
+print((exact or candidates or [s for s in schemes if s not in skip] or schemes)[0])' 2>/dev/null || true)"
 [ -n "$SCHEME" ] || fail "스킴을 찾을 수 없습니다"
 ok "컨테이너: ${CONTAINER_FLAG#* } / 스킴: $SCHEME"
 
@@ -82,6 +97,18 @@ fi
 
 LOGS=()
 
+# 빌드가 깨졌을 때 왜 깨졌는지 보여준다.
+#
+# ⚠️ tee | tail -30 은 진행 상황을 줄이려는 것인데, 실패하면 꼬리 30줄이
+# 컴파일 명령줄로 가득 차 정작 error: 가 화면 밖으로 밀린다. 로컬에서는
+# 전체 로그를 열면 되지만 CI에서는 러너가 사라져 영영 못 본다.
+# 실제로 1-A에서 CI 실패 원인을 못 찾아 한 바퀴 돌았다.
+show_errors() {
+  local log="$1"
+  printf '\n\033[1m▸ 오류\033[0m\n'
+  grep -E '(error|Error):' "$log" | grep -vE '^\s' | sed 's|.*/TeniTeni/||' | sort -u | head -20 | sed 's/^/    /'
+}
+
 step "iOS 빌드 ($SCHEME)"
 IOS_LOG=/tmp/teniteni-build-ios.log
 # CLEAN_BUILD=1이면 clean을 먼저 넣어 전체 재컴파일한다 (경고 사각 제거)
@@ -95,7 +122,7 @@ xcodebuild $CONTAINER_FLAG -scheme "$SCHEME" \
   $BUILD_ACTION 2>&1 | tee "$IOS_LOG" | tail -30
 STATUS=${PIPESTATUS[0]}
 set -e
-[ "$STATUS" -eq 0 ] || fail "iOS 빌드 실패 — 전체 로그: $IOS_LOG"
+[ "$STATUS" -eq 0 ] || { show_errors "$IOS_LOG"; fail "iOS 빌드 실패 — 전체 로그: $IOS_LOG"; }
 LOGS+=("$IOS_LOG")
 ok "iOS 빌드 성공"
 
@@ -119,7 +146,7 @@ for mac_scheme in ${MAC_SCHEMES[@]+"${MAC_SCHEMES[@]}"}; do
     $MAC_ACTION 2>&1 | tee "$MAC_LOG" | tail -30
   STATUS=${PIPESTATUS[0]}
   set -e
-  [ "$STATUS" -eq 0 ] || fail "macOS $ACTION 실패 ($mac_scheme) — 전체 로그: $MAC_LOG"
+  [ "$STATUS" -eq 0 ] || { show_errors "$MAC_LOG"; fail "macOS $ACTION 실패 ($mac_scheme) — 전체 로그: $MAC_LOG"; }
   LOGS+=("$MAC_LOG")
 
   if [ "$ACTION" = test ]; then

@@ -39,8 +39,11 @@
     </dict>
     <!-- 가로 고정. 공이 프레임 폭을 가로질러야 궤적이 포물선으로 잡힌다.
          세로로 촬영하면 0-B 영상을 쓸 수 없다. (CAPTURE-PROTOCOL 5.1) -->
+    <!-- 세로 화면이 12종이라 앱 전체를 가로로 묶을 수 없다.
+         촬영 화면만 자기 코드에서 가로로 잠근다 — SPEC-0061 구현 선택지 3. -->
     <key>UISupportedInterfaceOrientations</key>
     <array>
+        <string>UIInterfaceOrientationPortrait</string>
         <string>UIInterfaceOrientationLandscapeLeft</string>
         <string>UIInterfaceOrientationLandscapeRight</string>
     </array>
