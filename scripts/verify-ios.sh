@@ -123,6 +123,36 @@ xcodebuild $CONTAINER_FLAG -scheme "$SCHEME" \
 STATUS=${PIPESTATUS[0]}
 set -e
 [ "$STATUS" -eq 0 ] || { show_errors "$IOS_LOG"; fail "iOS 빌드 실패 — 전체 로그: $IOS_LOG"; }
+
+# ⚠️ 앱 스킴에는 테스트가 들어오지 않는다. Tuist는 모듈별 프로젝트의
+# 스킴에 그 모듈의 테스트를 넣는다. 앱만 빌드하면 iOS 테스트를 써도
+# 한 번도 실행되지 않은 채 "게이트 통과"가 찍힌다 — 규약 12.7이 경고하는
+# "돌지 않고 통과하는" 실패 양식이다.
+IOS_TEST_SCHEMES=()
+for manifest in Projects/*/Project.swift; do
+  grep -q 'product: \.unitTests' "$manifest" || continue
+  # macOS 루프가 따로 도는 멀티플랫폼 모듈은 여기서 제외한다
+  grep -qE 'destinations:.*\.mac' "$manifest" && continue
+  IOS_TEST_SCHEMES+=("$(basename "$(dirname "$manifest")")")
+done
+
+for scheme in ${IOS_TEST_SCHEMES[@]+"${IOS_TEST_SCHEMES[@]}"}; do
+  step "iOS 테스트 ($scheme)"
+  TEST_LOG="/tmp/teniteni-test-ios-$scheme.log"
+  set +e
+  xcodebuild $CONTAINER_FLAG -scheme "$scheme" \
+    -destination "id=$DEST_ID" \
+    -configuration Debug \
+    CODE_SIGNING_ALLOWED=NO \
+    test 2>&1 | tee "$TEST_LOG" | tail -30
+  STATUS=${PIPESTATUS[0]}
+  set -e
+  [ "$STATUS" -eq 0 ] || { show_errors "$TEST_LOG"; fail "iOS 테스트 실패 ($scheme) — 전체 로그: $TEST_LOG"; }
+  SUMMARY="$(grep -oE 'Test run with [0-9]+ tests?[^.]*' "$TEST_LOG" | tail -1 || true)"
+  [ -n "$SUMMARY" ] || fail "iOS 테스트가 한 건도 수집되지 않았습니다 ($scheme)"
+  ok "iOS 테스트 성공 ($scheme) — $SUMMARY"
+  LOGS+=("$TEST_LOG")
+done
 LOGS+=("$IOS_LOG")
 ok "iOS 빌드 성공"
 
