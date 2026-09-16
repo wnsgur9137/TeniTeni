@@ -82,6 +82,7 @@ status: active
 | [SPEC-0022 촬영 화면 6m 가독성](./07-기획/SPEC-0022-capture-6m-readability.md) | #22 | 디자인 토큰 적용, 녹화 중 설정 숨김, 테두리 상태 |
 | [SPEC-0040 RenderTransform 단일 변환 행렬](./07-기획/SPEC-0040-render-transform.md) | #40 | aspect-fill·회전·미러링을 한 행렬로, 실기기 없이 검증 |
 | [SPEC-0061 모듈 재편 + 앱 셸](./07-기획/SPEC-0061-module-shell.md) | #61 | 계층 5개, 코디네이터, 탭바, 방향 정리, TCA 도입 시점 |
+| [SPEC-0064 진입 화면](./07-기획/SPEC-0064-entry-screens.md) | #64 | 온보딩·주 사용 손·홈·설정, Feature 분할, 온보딩 2단계 |
 
 ## 08-레퍼런스
 
