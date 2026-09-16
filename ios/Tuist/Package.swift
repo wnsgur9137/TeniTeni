@@ -59,9 +59,5 @@ let package = Package(
     dependencies: [
         .package(url: "https://github.com/apple/swift-argument-parser", exact: "1.5.0"),
         .package(url: "https://github.com/pointfreeco/swift-composable-architecture", exact: "1.26.2"),
-        // TCA가 `@_exported import Clocks`를 하는데, 전이 의존성만으로는
-        // Tuist가 swift-clocks의 프로젝트를 생성하지 않아 모듈 해석이 깨진다.
-        // 체크아웃은 되는데 워크스페이스에 안 들어간다. 직접 선언해 해결한다.
-        .package(url: "https://github.com/pointfreeco/swift-clocks", exact: "1.1.1"),
     ]
 )

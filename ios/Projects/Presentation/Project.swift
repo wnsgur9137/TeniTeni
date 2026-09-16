@@ -23,9 +23,6 @@ let project = Project(
                 // 그래서 Presentation이 TeniVision을 직접 안다.
                 .project(target: "TeniVision", path: "../TeniVision"),
                 .external(name: "ComposableArchitecture"),
-                // TCA가 `@_exported import Clocks`를 하는데 Tuist가 전이로는
-                // swift-clocks 프로젝트를 만들지 않는다. 직접 걸어 강제한다.
-                .external(name: "Clocks"),
             ]
         )
     ]
