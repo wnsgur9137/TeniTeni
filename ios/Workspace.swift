@@ -7,7 +7,12 @@ let workspace = Workspace(
     name: "TeniTeni",
     projects: [
         ".",
+        "Projects/Domain",
+        "Projects/Data",
+        "Projects/DesignSystem",
         "Projects/TeniVision",
+        "Projects/Presentation",
+        "Projects/Application",
         "Projects/TeniTool",
     ]
 )

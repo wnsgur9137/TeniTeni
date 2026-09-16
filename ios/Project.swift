@@ -1,7 +1,7 @@
 import ProjectDescription
 
-// Phase 0-A: 단일 타깃. 모듈 분리는 Phase 1-A에서 수행한다.
-// 근거: docs/04-계획/WORK-PLAN.md 9.6절 "도입 순서 — 필요할 때 만든다"
+// 1-A에서 계층을 분리했다. 앱 타깃은 진입점만 갖고 Application에 위임한다.
+// 근거: docs/04-계획/WORK-PLAN.md 9.6절, docs/07-기획/SPEC-0061-module-shell.md
 let project = Project(
     name: "TeniTeni",
     options: .options(
@@ -34,7 +34,8 @@ let project = Project(
             sources: ["TeniTeni/Sources/**"],
             resources: [],
             dependencies: [
-                .project(target: "TeniVision", path: "Projects/TeniVision")
+                // 진입점은 Application만 안다. 나머지는 그 아래로 숨는다.
+                .project(target: "Application", path: "Projects/Application")
             ]
         )
     ]
