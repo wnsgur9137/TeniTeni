@@ -1,3 +1,4 @@
+import DesignSystem
 import AVFoundation
 import Observation
 import TeniVision
