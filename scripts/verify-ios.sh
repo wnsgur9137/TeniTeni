@@ -22,6 +22,14 @@ else
   fail "Workspace.swift / Project.swift 를 찾을 수 없습니다"
 fi
 
+# 로컬과 CI의 툴체인이 다르면 같은 코드가 한쪽에서만 깨진다. 실제로 1-A에서
+# UIKitNavigation의 가용성 검사가 로컬(Xcode 26.6)에서는 통과하고 CI에서는
+# 실패했다. 버전을 찍어두면 다음에 갈릴 때 바로 보인다.
+step "툴체인"
+printf "  %s\n" "$(xcodebuild -version | tr '\n' ' ')"
+printf "  %s\n" "$(swift --version 2>&1 | head -1)"
+ok "툴체인 확인"
+
 step "빌드 대상 탐색"
 CONTAINER_FLAG=""
 if compgen -G "*.xcworkspace" >/dev/null; then

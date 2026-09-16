@@ -44,6 +44,13 @@ let packageSettings = PackageSettings(
     // Perception 계열을 올리면 back-deploy 심이 스스로를 막는다.
     targetSettings: [
         "ComposableArchitecture": ["IPHONEOS_DEPLOYMENT_TARGET": "17.0"],
+        // UIKitNavigation도 iOS 17 API를 쓴다(_push(value:) 등). 로컬
+        // Xcode 26.6에서는 통과했지만 CI(macos-15)에서 깨졌다 — 컴파일러가
+        // 다르면 가용성 검사 결과가 달라진다.
+        //
+        // SwiftNavigation은 올리지 않는다. 17로 올리면 _UIBindingWrapper가
+        // 네이티브 @Observable과 중복 적합이 된다.
+        "UIKitNavigation": ["IPHONEOS_DEPLOYMENT_TARGET": "17.0"],
     ]
 )
 #endif
