@@ -22,7 +22,7 @@ status: active
 | Phase | 목표 | 백엔드 | 예상 기간 | 게이트 |
 |---|---|---|---|---|
 | **0** | 기술 검증 프로토타입 | ✗ | 4~5주 (게이트 판정은 1.5주) | **공 궤적 검출률 70%** |
-| **1** | 온디바이스 완결 제품 | ✗ | 8~10주 (TestFlight는 7~8주) | 스윙 검출 95%, 분류 90% |
+| **1** | 온디바이스 완결 제품 | ✗ | 9~11주 (TestFlight는 8~9주) | 스윙 검출 95%, 분류 90% |
 | **2** | 백엔드 연동 | ✓ | 4~6주 | 피드백 오지적률 10% 미만 |
 | **3** | 레퍼런스 비교 + 3D 포즈 | ✓ | 6주+ | — |
 
@@ -57,10 +57,10 @@ status: active
 |---|---|---|
 | **1-A 모듈 재편 + 앱 셸** | Tuist 전면 도입, 코디네이터, 탭바, 방향 정리 — **게이트 전 착수** | [#5](https://github.com/wnsgur9137/TeniTeni/milestone/5) |
 | **1-A′ 진입 화면** | 온보딩, 주 사용 손, 홈, 설정 — **게이트 전 착수** | [#5](https://github.com/wnsgur9137/TeniTeni/milestone/5) |
-| **1-B 스윙 검출** | 룰 트리거, 링 버퍼, 구간 저장, 중간 확인 | [#6](https://github.com/wnsgur9137/TeniTeni/milestone/6) |
+| **1-B 스윙 검출** | 룰 트리거, 링 버퍼, 구간 저장, SwiftData 영속화, 중간 확인 | [#6](https://github.com/wnsgur9137/TeniTeni/milestone/6) |
 | **1-C 학습 데이터** | 유형별 200회+ 촬영, 증강 | [#7](https://github.com/wnsgur9137/TeniTeni/milestone/7) |
 | **1-D 분류·메트릭** | Create ML, 페이즈 분할, 룰 엔진, proto 확정 | [#8](https://github.com/wnsgur9137/TeniTeni/milestone/8) |
-| **1-E 리플레이** | SwiftData, 슬로우 모션, 세션 요약, 골든 테스트 | [#9](https://github.com/wnsgur9137/TeniTeni/milestone/9) |
+| **1-E 리플레이** | 슬로우 모션, 세션 요약, 골든 테스트 | [#9](https://github.com/wnsgur9137/TeniTeni/milestone/9) |
 | **1-F 라인 판정** | 관찰 대상 분리, 4점 캘리브레이션, 실시간 인/아웃 3분류 | [#10](https://github.com/wnsgur9137/TeniTeni/milestone/10) |
 
 이 시점에 **앱은 이미 혼자서 유용합니다.** 백엔드 없이 TestFlight 배포가 가능한 상태여야 합니다.
