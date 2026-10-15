@@ -44,7 +44,18 @@ public struct TimedRingBuffer<Element>: Sendable where Element: Sendable {
     ///
     /// - Note: 타임스탬프가 뒤로 가는 입력(되감기)은 상정하지 않는다.
     ///   프레임은 단조 증가한다.
+    ///
+    ///   전제가 깨지면 **조용히 틀린 구간이 나온다.** 전화 수신 등으로
+    ///   `AVCaptureSession`이 중단됐다 재개되며 클럭이 리셋되면
+    ///   `evict`의 `cutoff`가 과거로 돌아가 아무것도 버려지지 않고,
+    ///   `latest`가 최댓값이 아니라 작은 값을 가리켜 `suffix(seconds:)`가
+    ///   버퍼 전체를 돌려준다. 그런 경로를 만들면 `removeAll()` 후 다시
+    ///   채워야 한다. 릴리스 비용이 0인 `assert`로 표시해 둔다.
     public mutating func append(_ value: Element, at timestamp: TimeInterval) {
+        assert(
+            timestamp >= (entries.last?.timestamp ?? -.infinity),
+            "타임스탬프가 역행했다 (\(entries.last?.timestamp ?? 0) → \(timestamp))"
+        )
         entries.append(Entry(timestamp: timestamp, value: value))
         evict(now: timestamp)
     }
@@ -69,11 +80,11 @@ public struct TimedRingBuffer<Element>: Sendable where Element: Sendable {
 
     private mutating func evict(now: TimeInterval) {
         let cutoff = now - window
-        guard let firstKept = entries.firstIndex(where: { $0.timestamp > cutoff }) else {
-            // 전부 창 밖이다. 방금 넣은 것까지 버리면 안 되므로 마지막만 남긴다.
-            entries = entries.suffix(1)
-            return
-        }
+        // 유일한 호출자인 append가 **먼저 넣고** 부르므로 마지막 원소의
+        // 타임스탬프는 now와 같고, window > 0이라 now > cutoff가 항상
+        // 성립한다. 즉 최소 한 개는 남으며 nil이 될 수 없다 — "전부 창
+        // 밖이라 마지막만 남긴다"는 분기는 도달하지 않는 코드였다.
+        guard let firstKept = entries.firstIndex(where: { $0.timestamp > cutoff }) else { return }
         if firstKept > 0 { entries.removeFirst(firstKept) }
     }
 }
