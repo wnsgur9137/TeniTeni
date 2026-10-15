@@ -22,7 +22,7 @@ status: active
 |---|---|
 | Xcode | 26.6 (17F113) |
 | Swift | 6.3.3 |
-| Tuist | 4.110.0 (mise 관리) |
+| Tuist | 4.208.0 (mise 관리) |
 | XcodeGen | 설치됨 |
 | Node | 24.9.0 |
 | Python | 3.9.6 (시스템) — 프로젝트용 3.12 별도 필요 |

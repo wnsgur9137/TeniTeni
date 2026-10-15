@@ -16,6 +16,21 @@ step "Tuist 프로젝트 생성"
 cd "$IOS_DIR"
 if [ -f "Workspace.swift" ] || [ -f "Project.swift" ]; then
   tuist install >/dev/null 2>&1 || true
+
+  # ⚠️ Tuist 4.203+는 checkouts/를 공유 캐시로 가는 심링크로 만든다.
+  # 매크로 패키지들은 swift-syntax의 모듈맵을 `checkouts/<pkg>/../swift-syntax/…`
+  # 로 가리키는데, 심링크를 타고 `..`를 풀면 캐시 디렉터리로 나가버려
+  # "module map file … not found"로 빌드가 통째로 깨진다.
+  # APFS 클론(cp -Rc)이라 복사는 사실상 공짜다.
+  if [ -d "Tuist/.build/checkouts" ]; then
+    for link in Tuist/.build/checkouts/*; do
+      [ -L "$link" ] || continue
+      target="$(readlink "$link")"
+      rm "$link"
+      cp -Rc "$target" "$link" 2>/dev/null || cp -R "$target" "$link"
+    done
+  fi
+
   tuist generate --no-open || fail "tuist generate 실패"
   ok "생성 완료"
 else
@@ -28,7 +43,19 @@ fi
 step "툴체인"
 printf "  %s\n" "$(xcodebuild -version | tr '\n' ' ')"
 printf "  %s\n" "$(swift --version 2>&1 | head -1)"
-ok "툴체인 확인"
+
+# ⚠️ 최소 버전을 여기서 끊는다. 낮은 Xcode에서는 외부 패키지 안쪽이
+# 깨지면서 터져 원인이 전혀 보이지 않는다 — 26.0.1(Swift 6.2)에서는
+# "'_StoreBindable_Perception' is unavailable in iOS"가, SWIFT_VERSION을
+# 묶어 두면 "invalid redeclaration of 'IsolationCheck'"가 나온다.
+# 둘 다 우리 코드와 무관한데 우리 코드를 의심하게 만든다.
+MIN_XCODE="26.6"
+XCODE_VERSION="$(xcodebuild -version | head -1 | awk '{print $2}')"
+if [ "$(printf '%s\n%s\n' "$MIN_XCODE" "$XCODE_VERSION" | sort -V | head -1)" != "$MIN_XCODE" ]; then
+  fail "Xcode $MIN_XCODE 이상이 필요합니다 (현재 $XCODE_VERSION, $(xcode-select -p)).
+    DEVELOPER_DIR을 지정하거나 xcode-select로 바꾸세요."
+fi
+ok "툴체인 확인 (Xcode $XCODE_VERSION)"
 
 step "빌드 대상 탐색"
 CONTAINER_FLAG=""
