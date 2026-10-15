@@ -4,53 +4,138 @@ import PackageDescription
 #if TUIST
 import struct ProjectDescription.PackageSettings
 
+// 외부 패키지의 빌드 설정. 두 가지를 맞춘다.
+//
+// 1. 배포 타깃 — Tuist는 패키지 자체 매니페스트의 최소값을 그대로 쓴다.
+//    SPM은 소비자 기준으로 올려주지만 Tuist는 안 올린다. Xcode 27의
+//    시뮬레이터 SDK는 iOS 15 미만을 아예 거부하므로(13.0으로 두면
+//    "range of supported deployment target versions is 15.0 to 27.1.x")
+//    전부 15로 올린다.
+//
+//    ComposableArchitecture와 UIKitNavigation만 17이다. 그 둘이
+//    NavigationStackController·_push(value:) 같은 iOS 17 API를 쓴다.
+//    SwiftNavigation·Perception 계열은 17로 올리면 각각 다른 곳이 깨진다 —
+//    _UIBindingWrapper의 @Observable 중복 적합, back-deploy 심의
+//    "Bindable is unavailable". 15에 둔다.
+//
+// 2. 제품 형태 — TCA는 정적 프레임워크로 둔다.
+//
+// ⚠️ 언어 모드(`SWIFT_VERSION`)는 **지정하지 않는다.** 각 패키지의
+//    swift-tools-version이 정한 것을 그대로 쓴다. 패키지들이 서로 다른
+//    모드를 전제하므로 한 값으로 묶으면 반드시 어느 한쪽이 깨진다 —
+//    5로 묶으면 DependenciesMacros가 `@MainActor` 클로저 오버로드를
+//    구분하지 못해 "invalid redeclaration of 'IsolationCheck'",
+//    6으로 묶으면 PerceptionCore의 Bindable이 "sending '$input_value'
+//    risks causing data races"로 깨진다.
+//
+//    우리 모듈은 각 Project.swift에서 6 + strict concurrency를
+//    유지한다 (D-04). 여기서 빼는 것은 외부 패키지에만 해당한다.
+//
+// 근거: docs/07-기획/SPEC-0061-module-shell.md
 let packageSettings = PackageSettings(
     productTypes: [
         "ArgumentParser": .staticFramework,
         "ComposableArchitecture": .staticFramework,
     ],
-    // Tuist는 패키지의 자체 최소 배포 타깃(TCA는 iOS 13)을 그대로 쓴다.
-    // SPM은 소비자 기준으로 올려주는데 Tuist는 안 올린다 — 그래서 TCA의
-    // UIKit 내비게이션(iOS 17+)이 컴파일되지 않는다.
-    //
-    // 17로 올린다. 26으로 올리면 swift-navigation의 Perception 심이
-    // 네이티브 @Observable과 충돌한다(redundant conformance).
     baseSettings: .settings(base: [
-        "IPHONEOS_DEPLOYMENT_TARGET": "17.0",
-        // 외부 패키지는 Swift 5 언어 모드로 둔다. Tuist가 툴체인 기본값(6)을
-        // 씌우는데, TCA는 자기 매니페스트에서 5 모드를 전제로 한 코드가 있어
-        // `_SendableWritableKeyPath` 같은 곳에서 깨진다.
-        // 우리 모듈은 각 Project.swift에서 6으로 유지한다 — D-04.
-        "SWIFT_VERSION": "5.0",
+        "IPHONEOS_DEPLOYMENT_TARGET": "15.0",
+        "MACOSX_DEPLOYMENT_TARGET": "12.0",
     ]),
     // baseSettings는 프로젝트 수준이라 패키지 매니페스트가 만든 타깃 설정에
     // 덮인다. 타깃별로 직접 지정해야 실제로 올라간다.
-    //
-    // 26이 아니라 17인 이유: 26으로 올리면 swift-navigation의 Perception 심이
-    // 네이티브 @Observable과 충돌한다(redundant conformance). 17이면 TCA의
-    // UIKit 내비게이션 요구를 만족하면서 그 충돌을 피한다.
-    //
-    // Perception·PerceptionCore는 빼 둔다. 그 둘은 iOS 17 미만에 @Observable을
-    // back-deploy하는 심이라, 17로 올리면 "Bindable is unavailable in iOS"로
-    // 스스로를 막는다. 자기 매니페스트의 13을 그대로 쓰게 둔다.
-    // TCA 하나만 올린다.
-    //
-    // TCA의 NavigationStackControllerUIKit.swift가 iOS 17 API를 쓰는데
-    // Tuist는 패키지 자체 최소값(13)을 그대로 쓴다 — SPM은 소비자 기준으로
-    // 올려주지만 Tuist는 안 올린다.
-    //
-    // 내비게이션 계열은 올리지 않는다. SwiftNavigation을 17로 올리면
-    // _UIBindingWrapper가 네이티브 @Observable과 중복 적합이 되고,
-    // Perception 계열을 올리면 back-deploy 심이 스스로를 막는다.
     targetSettings: [
-        "ComposableArchitecture": ["IPHONEOS_DEPLOYMENT_TARGET": "17.0"],
-        // UIKitNavigation도 iOS 17 API를 쓴다(_push(value:) 등). 로컬
-        // Xcode 26.6에서는 통과했지만 CI(macos-15)에서 깨졌다 — 컴파일러가
-        // 다르면 가용성 검사 결과가 달라진다.
-        //
-        // SwiftNavigation은 올리지 않는다. 17로 올리면 _UIBindingWrapper가
-        // 네이티브 @Observable과 중복 적합이 된다.
-        "UIKitNavigation": ["IPHONEOS_DEPLOYMENT_TARGET": "17.0"],
+        "AppKitNavigation": ["IPHONEOS_DEPLOYMENT_TARGET": "15.0", "MACOSX_DEPLOYMENT_TARGET": "12.0"],
+        "ArgumentParser": ["IPHONEOS_DEPLOYMENT_TARGET": "15.0", "MACOSX_DEPLOYMENT_TARGET": "12.0"],
+        "ArgumentParserToolInfo": ["IPHONEOS_DEPLOYMENT_TARGET": "15.0", "MACOSX_DEPLOYMENT_TARGET": "12.0"],
+        "BasicContainers": ["IPHONEOS_DEPLOYMENT_TARGET": "15.0", "MACOSX_DEPLOYMENT_TARGET": "12.0"],
+        "BitCollections": ["IPHONEOS_DEPLOYMENT_TARGET": "15.0", "MACOSX_DEPLOYMENT_TARGET": "12.0"],
+        "CasePaths": ["IPHONEOS_DEPLOYMENT_TARGET": "15.0", "MACOSX_DEPLOYMENT_TARGET": "12.0"],
+        "CasePathsCore": ["IPHONEOS_DEPLOYMENT_TARGET": "15.0", "MACOSX_DEPLOYMENT_TARGET": "12.0"],
+        "CasePathsMacros": ["IPHONEOS_DEPLOYMENT_TARGET": "15.0", "MACOSX_DEPLOYMENT_TARGET": "12.0"],
+        "CasePathsMacrosSupport": ["IPHONEOS_DEPLOYMENT_TARGET": "15.0", "MACOSX_DEPLOYMENT_TARGET": "12.0"],
+        "Clocks": ["IPHONEOS_DEPLOYMENT_TARGET": "15.0", "MACOSX_DEPLOYMENT_TARGET": "12.0"],
+        "Collections": ["IPHONEOS_DEPLOYMENT_TARGET": "15.0", "MACOSX_DEPLOYMENT_TARGET": "12.0"],
+        "CombineSchedulers": ["IPHONEOS_DEPLOYMENT_TARGET": "15.0", "MACOSX_DEPLOYMENT_TARGET": "12.0"],
+        "ComposableArchitecture": ["IPHONEOS_DEPLOYMENT_TARGET": "17.0", "MACOSX_DEPLOYMENT_TARGET": "12.0"],
+        "ComposableArchitectureMacros": ["IPHONEOS_DEPLOYMENT_TARGET": "15.0", "MACOSX_DEPLOYMENT_TARGET": "12.0"],
+        "ConcurrencyExtras": ["IPHONEOS_DEPLOYMENT_TARGET": "15.0", "MACOSX_DEPLOYMENT_TARGET": "12.0"],
+        "ConcurrencyExtrasTestSupport": ["IPHONEOS_DEPLOYMENT_TARGET": "15.0", "MACOSX_DEPLOYMENT_TARGET": "12.0"],
+        "ContainersPreview": ["IPHONEOS_DEPLOYMENT_TARGET": "15.0", "MACOSX_DEPLOYMENT_TARGET": "12.0"],
+        "CustomDump": ["IPHONEOS_DEPLOYMENT_TARGET": "15.0", "MACOSX_DEPLOYMENT_TARGET": "12.0"],
+        "Dependencies": ["IPHONEOS_DEPLOYMENT_TARGET": "15.0", "MACOSX_DEPLOYMENT_TARGET": "12.0"],
+        "DependenciesMacros": ["IPHONEOS_DEPLOYMENT_TARGET": "15.0", "MACOSX_DEPLOYMENT_TARGET": "12.0"],
+        "DependenciesMacrosPlugin": ["IPHONEOS_DEPLOYMENT_TARGET": "15.0", "MACOSX_DEPLOYMENT_TARGET": "12.0"],
+        "DependenciesTestSupport": ["IPHONEOS_DEPLOYMENT_TARGET": "15.0", "MACOSX_DEPLOYMENT_TARGET": "12.0"],
+        "DequeModule": ["IPHONEOS_DEPLOYMENT_TARGET": "15.0", "MACOSX_DEPLOYMENT_TARGET": "12.0"],
+        "HashTreeCollections": ["IPHONEOS_DEPLOYMENT_TARGET": "15.0", "MACOSX_DEPLOYMENT_TARGET": "12.0"],
+        "HeapModule": ["IPHONEOS_DEPLOYMENT_TARGET": "15.0", "MACOSX_DEPLOYMENT_TARGET": "12.0"],
+        "IdentifiedCollections": ["IPHONEOS_DEPLOYMENT_TARGET": "15.0", "MACOSX_DEPLOYMENT_TARGET": "12.0"],
+        "InternalCollectionsUtilities": ["IPHONEOS_DEPLOYMENT_TARGET": "15.0", "MACOSX_DEPLOYMENT_TARGET": "12.0"],
+        "IssueReporting": ["IPHONEOS_DEPLOYMENT_TARGET": "15.0", "MACOSX_DEPLOYMENT_TARGET": "12.0"],
+        "IssueReportingTestSupport": ["IPHONEOS_DEPLOYMENT_TARGET": "15.0", "MACOSX_DEPLOYMENT_TARGET": "12.0"],
+        "OrderedCollections": ["IPHONEOS_DEPLOYMENT_TARGET": "15.0", "MACOSX_DEPLOYMENT_TARGET": "12.0"],
+        "Perception": ["IPHONEOS_DEPLOYMENT_TARGET": "15.0", "MACOSX_DEPLOYMENT_TARGET": "12.0"],
+        "PerceptionCore": ["IPHONEOS_DEPLOYMENT_TARGET": "15.0", "MACOSX_DEPLOYMENT_TARGET": "12.0"],
+        "PerceptionMacros": ["IPHONEOS_DEPLOYMENT_TARGET": "15.0", "MACOSX_DEPLOYMENT_TARGET": "12.0"],
+        "Sharing": ["IPHONEOS_DEPLOYMENT_TARGET": "15.0", "MACOSX_DEPLOYMENT_TARGET": "12.0"],
+        "Sharing1": ["IPHONEOS_DEPLOYMENT_TARGET": "15.0", "MACOSX_DEPLOYMENT_TARGET": "12.0"],
+        "Sharing2": ["IPHONEOS_DEPLOYMENT_TARGET": "15.0", "MACOSX_DEPLOYMENT_TARGET": "12.0"],
+        "SortedCollections": ["IPHONEOS_DEPLOYMENT_TARGET": "15.0", "MACOSX_DEPLOYMENT_TARGET": "12.0"],
+        "SwiftBasicFormat": ["IPHONEOS_DEPLOYMENT_TARGET": "15.0", "MACOSX_DEPLOYMENT_TARGET": "12.0"],
+        "SwiftCompilerPlugin": ["IPHONEOS_DEPLOYMENT_TARGET": "15.0", "MACOSX_DEPLOYMENT_TARGET": "12.0"],
+        "SwiftCompilerPluginMessageHandling": ["IPHONEOS_DEPLOYMENT_TARGET": "15.0", "MACOSX_DEPLOYMENT_TARGET": "12.0"],
+        "SwiftDiagnostics": ["IPHONEOS_DEPLOYMENT_TARGET": "15.0", "MACOSX_DEPLOYMENT_TARGET": "12.0"],
+        "SwiftIDEUtils": ["IPHONEOS_DEPLOYMENT_TARGET": "15.0", "MACOSX_DEPLOYMENT_TARGET": "12.0"],
+        "SwiftIfConfig": ["IPHONEOS_DEPLOYMENT_TARGET": "15.0", "MACOSX_DEPLOYMENT_TARGET": "12.0"],
+        "SwiftLexicalLookup": ["IPHONEOS_DEPLOYMENT_TARGET": "15.0", "MACOSX_DEPLOYMENT_TARGET": "12.0"],
+        "SwiftLibraryPluginProvider": ["IPHONEOS_DEPLOYMENT_TARGET": "15.0", "MACOSX_DEPLOYMENT_TARGET": "12.0"],
+        "SwiftNavigation": ["IPHONEOS_DEPLOYMENT_TARGET": "15.0", "MACOSX_DEPLOYMENT_TARGET": "12.0"],
+        "SwiftNavigationMacros": ["IPHONEOS_DEPLOYMENT_TARGET": "15.0", "MACOSX_DEPLOYMENT_TARGET": "12.0"],
+        "SwiftOperators": ["IPHONEOS_DEPLOYMENT_TARGET": "15.0", "MACOSX_DEPLOYMENT_TARGET": "12.0"],
+        "SwiftParser": ["IPHONEOS_DEPLOYMENT_TARGET": "15.0", "MACOSX_DEPLOYMENT_TARGET": "12.0"],
+        "SwiftParserDiagnostics": ["IPHONEOS_DEPLOYMENT_TARGET": "15.0", "MACOSX_DEPLOYMENT_TARGET": "12.0"],
+        "SwiftRefactor": ["IPHONEOS_DEPLOYMENT_TARGET": "15.0", "MACOSX_DEPLOYMENT_TARGET": "12.0"],
+        "SwiftSyntax": ["IPHONEOS_DEPLOYMENT_TARGET": "15.0", "MACOSX_DEPLOYMENT_TARGET": "12.0"],
+        "SwiftSyntax509": ["IPHONEOS_DEPLOYMENT_TARGET": "15.0", "MACOSX_DEPLOYMENT_TARGET": "12.0"],
+        "SwiftSyntax510": ["IPHONEOS_DEPLOYMENT_TARGET": "15.0", "MACOSX_DEPLOYMENT_TARGET": "12.0"],
+        "SwiftSyntax600": ["IPHONEOS_DEPLOYMENT_TARGET": "15.0", "MACOSX_DEPLOYMENT_TARGET": "12.0"],
+        "SwiftSyntax601": ["IPHONEOS_DEPLOYMENT_TARGET": "15.0", "MACOSX_DEPLOYMENT_TARGET": "12.0"],
+        "SwiftSyntax602": ["IPHONEOS_DEPLOYMENT_TARGET": "15.0", "MACOSX_DEPLOYMENT_TARGET": "12.0"],
+        "SwiftSyntax603": ["IPHONEOS_DEPLOYMENT_TARGET": "15.0", "MACOSX_DEPLOYMENT_TARGET": "12.0"],
+        "SwiftSyntax604": ["IPHONEOS_DEPLOYMENT_TARGET": "15.0", "MACOSX_DEPLOYMENT_TARGET": "12.0"],
+        "SwiftSyntaxBuilder": ["IPHONEOS_DEPLOYMENT_TARGET": "15.0", "MACOSX_DEPLOYMENT_TARGET": "12.0"],
+        "SwiftSyntaxMacroExpansion": ["IPHONEOS_DEPLOYMENT_TARGET": "15.0", "MACOSX_DEPLOYMENT_TARGET": "12.0"],
+        "SwiftSyntaxMacros": ["IPHONEOS_DEPLOYMENT_TARGET": "15.0", "MACOSX_DEPLOYMENT_TARGET": "12.0"],
+        "SwiftSyntaxMacrosGenericTestSupport": ["IPHONEOS_DEPLOYMENT_TARGET": "15.0", "MACOSX_DEPLOYMENT_TARGET": "12.0"],
+        "SwiftSyntaxMacrosTestSupport": ["IPHONEOS_DEPLOYMENT_TARGET": "15.0", "MACOSX_DEPLOYMENT_TARGET": "12.0"],
+        "SwiftUINavigation": ["IPHONEOS_DEPLOYMENT_TARGET": "15.0", "MACOSX_DEPLOYMENT_TARGET": "12.0"],
+        "SwiftWarningControl": ["IPHONEOS_DEPLOYMENT_TARGET": "15.0", "MACOSX_DEPLOYMENT_TARGET": "12.0"],
+        "TrailingElementsModule": ["IPHONEOS_DEPLOYMENT_TARGET": "15.0", "MACOSX_DEPLOYMENT_TARGET": "12.0"],
+        "UIKitNavigation": ["IPHONEOS_DEPLOYMENT_TARGET": "17.0", "MACOSX_DEPLOYMENT_TARGET": "12.0"],
+        "UIKitNavigationShim": ["IPHONEOS_DEPLOYMENT_TARGET": "15.0", "MACOSX_DEPLOYMENT_TARGET": "12.0"],
+        "XCTestDynamicOverlay": ["IPHONEOS_DEPLOYMENT_TARGET": "15.0", "MACOSX_DEPLOYMENT_TARGET": "12.0"],
+        "_RopeModule": ["IPHONEOS_DEPLOYMENT_TARGET": "15.0", "MACOSX_DEPLOYMENT_TARGET": "12.0"],
+        "_SwiftLibraryPluginProviderCShims": ["IPHONEOS_DEPLOYMENT_TARGET": "15.0", "MACOSX_DEPLOYMENT_TARGET": "12.0"],
+        "_SwiftSyntaxCShims": ["IPHONEOS_DEPLOYMENT_TARGET": "15.0", "MACOSX_DEPLOYMENT_TARGET": "12.0"],
+        "_SwiftSyntaxGenericTestSupport": ["IPHONEOS_DEPLOYMENT_TARGET": "15.0", "MACOSX_DEPLOYMENT_TARGET": "12.0"],
+        "combine-schedulers": ["IPHONEOS_DEPLOYMENT_TARGET": "15.0", "MACOSX_DEPLOYMENT_TARGET": "12.0"],
+        "swift-argument-parser": ["IPHONEOS_DEPLOYMENT_TARGET": "15.0", "MACOSX_DEPLOYMENT_TARGET": "12.0"],
+        "swift-case-paths": ["IPHONEOS_DEPLOYMENT_TARGET": "15.0", "MACOSX_DEPLOYMENT_TARGET": "12.0"],
+        "swift-clocks": ["IPHONEOS_DEPLOYMENT_TARGET": "15.0", "MACOSX_DEPLOYMENT_TARGET": "12.0"],
+        "swift-collections": ["IPHONEOS_DEPLOYMENT_TARGET": "15.0", "MACOSX_DEPLOYMENT_TARGET": "12.0"],
+        "swift-composable-architecture": ["IPHONEOS_DEPLOYMENT_TARGET": "15.0", "MACOSX_DEPLOYMENT_TARGET": "12.0"],
+        "swift-composable-architecture_ComposableArchitecture": ["IPHONEOS_DEPLOYMENT_TARGET": "15.0", "MACOSX_DEPLOYMENT_TARGET": "12.0"],
+        "swift-concurrency-extras": ["IPHONEOS_DEPLOYMENT_TARGET": "15.0", "MACOSX_DEPLOYMENT_TARGET": "12.0"],
+        "swift-custom-dump": ["IPHONEOS_DEPLOYMENT_TARGET": "15.0", "MACOSX_DEPLOYMENT_TARGET": "12.0"],
+        "swift-dependencies": ["IPHONEOS_DEPLOYMENT_TARGET": "15.0", "MACOSX_DEPLOYMENT_TARGET": "12.0"],
+        "swift-identified-collections": ["IPHONEOS_DEPLOYMENT_TARGET": "15.0", "MACOSX_DEPLOYMENT_TARGET": "12.0"],
+        "swift-issue-reporting": ["IPHONEOS_DEPLOYMENT_TARGET": "15.0", "MACOSX_DEPLOYMENT_TARGET": "12.0"],
+        "swift-navigation": ["IPHONEOS_DEPLOYMENT_TARGET": "15.0", "MACOSX_DEPLOYMENT_TARGET": "12.0"],
+        "swift-perception": ["IPHONEOS_DEPLOYMENT_TARGET": "15.0", "MACOSX_DEPLOYMENT_TARGET": "12.0"],
+        "swift-sharing": ["IPHONEOS_DEPLOYMENT_TARGET": "15.0", "MACOSX_DEPLOYMENT_TARGET": "12.0"],
+        "swift-sharing_Sharing": ["IPHONEOS_DEPLOYMENT_TARGET": "15.0", "MACOSX_DEPLOYMENT_TARGET": "12.0"],
+        "swift-syntax": ["IPHONEOS_DEPLOYMENT_TARGET": "15.0", "MACOSX_DEPLOYMENT_TARGET": "12.0"],
+        "xctest-dynamic-overlay": ["IPHONEOS_DEPLOYMENT_TARGET": "15.0", "MACOSX_DEPLOYMENT_TARGET": "12.0"],
     ]
 )
 #endif

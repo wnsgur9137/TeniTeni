@@ -12,23 +12,64 @@ ok()   { printf '\033[32m✓ %s\033[0m\n' "$1"; }
 
 [ -d "$IOS_DIR" ] || fail "ios/ 디렉터리가 없습니다"
 
+# 로컬과 CI의 툴체인이 다르면 같은 코드가 한쪽에서만 깨진다. 실제로 1-A에서
+# UIKitNavigation의 가용성 검사가 로컬(Xcode 26.6)에서는 통과하고 CI에서는
+# 실패했다. 버전을 찍어두면 다음에 갈릴 때 바로 보인다.
+#
+# ⚠️ 이 검사는 **프로젝트 생성보다 먼저** 한다. 뒤에 두면 지원하지 않는
+# Xcode에서도 install·checkouts 치환·generate를 다 치르고 수 분 뒤에야
+# 끊긴다. checkouts 치환은 로컬 캐시 상태를 바꾸는 일이라 더 그렇다.
+step "툴체인"
+printf "  %s\n" "$(xcodebuild -version | tr '\n' ' ')"
+printf "  %s\n" "$(swift --version 2>&1 | head -1)"
+
+# ⚠️ 최소 버전을 여기서 끊는다. 낮은 Xcode에서는 외부 패키지 안쪽이
+# 깨지면서 터져 원인이 전혀 보이지 않는다 — 26.0.1(Swift 6.2)에서는
+# "'_StoreBindable_Perception' is unavailable in iOS"가, SWIFT_VERSION을
+# 묶어 두면 "invalid redeclaration of 'IsolationCheck'"가 나온다.
+# 둘 다 우리 코드와 무관한데 우리 코드를 의심하게 만든다.
+MIN_XCODE="26.6"
+XCODE_VERSION="$(xcodebuild -version 2>/dev/null | head -1 | awk '{print $2}')"
+[ -n "$XCODE_VERSION" ] || fail "xcodebuild를 찾을 수 없습니다 ($(xcode-select -p)).
+    Xcode가 설치돼 있는지, DEVELOPER_DIR이 올바른지 확인하세요."
+if [ "$(printf '%s\n%s\n' "$MIN_XCODE" "$XCODE_VERSION" | sort -V | head -1)" != "$MIN_XCODE" ]; then
+  fail "Xcode $MIN_XCODE 이상이 필요합니다 (현재 $XCODE_VERSION, $(xcode-select -p)).
+    DEVELOPER_DIR을 지정하거나 xcode-select로 바꾸세요."
+fi
+ok "툴체인 확인 (Xcode $XCODE_VERSION)"
+
 step "Tuist 프로젝트 생성"
 cd "$IOS_DIR"
 if [ -f "Workspace.swift" ] || [ -f "Project.swift" ]; then
   tuist install >/dev/null 2>&1 || true
+
+  # ⚠️ Tuist 4.203+는 checkouts/를 공유 캐시로 가는 심링크로 만든다.
+  # 매크로 패키지들은 swift-syntax의 모듈맵을 `checkouts/<pkg>/../swift-syntax/…`
+  # 로 가리키는데, 심링크를 타고 `..`를 풀면 캐시 디렉터리로 나가버려
+  # "module map file … not found"로 빌드가 통째로 깨진다.
+  # APFS 클론(cp -Rc)이라 복사는 사실상 공짜다.
+  #
+  # readlink -f로 실경로를 받는다. 그냥 readlink는 심링크에 적힌 값을
+  # 그대로 주므로, Tuist가 상대 경로로 걸어두면 cp의 소스가 현재 디렉터리
+  # 기준으로 해석돼 엉뚱한 곳을 가리킨다.
+  #
+  # TODO(#70): Tuist가 이 레이아웃을 바꾸면 이 블록은 불필요해진다.
+  #   checkouts/가 더 이상 심링크가 아니면 루프가 통째로 건너뛴다.
+  if [ -d "Tuist/.build/checkouts" ]; then
+    for link in Tuist/.build/checkouts/*; do
+      [ -L "$link" ] || continue
+      target="$(readlink -f "$link")"
+      [ -d "$target" ] || fail "checkouts 심링크가 가리키는 곳이 없습니다: $link → $target"
+      rm "$link"
+      cp -Rc "$target" "$link" 2>/dev/null || cp -R "$target" "$link"
+    done
+  fi
+
   tuist generate --no-open || fail "tuist generate 실패"
   ok "생성 완료"
 else
   fail "Workspace.swift / Project.swift 를 찾을 수 없습니다"
 fi
-
-# 로컬과 CI의 툴체인이 다르면 같은 코드가 한쪽에서만 깨진다. 실제로 1-A에서
-# UIKitNavigation의 가용성 검사가 로컬(Xcode 26.6)에서는 통과하고 CI에서는
-# 실패했다. 버전을 찍어두면 다음에 갈릴 때 바로 보인다.
-step "툴체인"
-printf "  %s\n" "$(xcodebuild -version | tr '\n' ' ')"
-printf "  %s\n" "$(swift --version 2>&1 | head -1)"
-ok "툴체인 확인"
 
 step "빌드 대상 탐색"
 CONTAINER_FLAG=""
@@ -148,8 +189,16 @@ for scheme in ${IOS_TEST_SCHEMES[@]+"${IOS_TEST_SCHEMES[@]}"}; do
   STATUS=${PIPESTATUS[0]}
   set -e
   [ "$STATUS" -eq 0 ] || { show_errors "$TEST_LOG"; fail "iOS 테스트 실패 ($scheme) — 전체 로그: $TEST_LOG"; }
+  # ⚠️ 요약 문자열이 비어 있지 않은지만 보면 안 된다. 수집에 실패하면
+  # xcodebuild는 "Test run with 0 tests in 0 suites passed"를 출력하고
+  # 종료 코드 0을 준다 — 비어 있지 않으므로 그대로 통과해버린다.
+  # 규약 12.7이 경고하는 "돌지 않고 통과하는" 실패 양식이다. 숫자를 본다.
+  # (아래 macOS 분기와 같은 검사다)
   SUMMARY="$(grep -oE 'Test run with [0-9]+ tests?[^.]*' "$TEST_LOG" | tail -1 || true)"
-  [ -n "$SUMMARY" ] || fail "iOS 테스트가 한 건도 수집되지 않았습니다 ($scheme)"
+  COUNT=$(printf '%s' "$SUMMARY" | grep -oE '[0-9]+' | head -1 || true)
+  if [ -z "${COUNT:-}" ] || [ "$COUNT" -eq 0 ]; then
+    fail "iOS 테스트가 0건 실행됐습니다 ($scheme) — 수집 실패일 수 있습니다. 로그: $TEST_LOG"
+  fi
   ok "iOS 테스트 성공 ($scheme) — $SUMMARY"
   LOGS+=("$TEST_LOG")
 done
