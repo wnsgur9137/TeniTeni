@@ -47,6 +47,10 @@ public struct Session: Identifiable, Equatable, Sendable {
 /// fps를 클립에도 두는 이유는 세션 도중 바뀔 수 있기 때문이다 — 발열로
 /// 120fps에서 60fps로 낮추는 경로가 있다 (IA-FLOW 10.6).
 public struct Clip: Identifiable, Equatable, Sendable {
+    /// ⚠️ **다른 세션에 담을 때는 새 id를 준다.** 저장 계층에서 클립 id는
+    /// 전역 unique이고, SwiftData의 unique 제약은 충돌을 에러가 아니라
+    /// upsert로 해소한다. 같은 id의 클립을 다른 세션으로 저장하면 그 행의
+    /// 소속이 조용히 옮겨가 원래 세션에서 사라진다.
     public let id: UUID
     /// 영상 파일 경로. 파일 자체는 SwiftData에 넣지 않는다 — D-08이
     /// "메타데이터만"으로 확정했다.
