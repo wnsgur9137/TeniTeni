@@ -22,29 +22,33 @@ public struct HomeFeature {
 
         /// 카드 한 장이 보여줄 관찰 대상. 고르지 않은 카드는 자기 기본값(`.swing`)을 유지한다 —
         /// 시합에서 라인 판정을 골랐다고 볼머신 카드의 배치까지 바뀌면 안 된다.
-        public func cardObservable(for situation: CaptureSituation) -> ObservationTarget {
-            guard situation == self.situation, situation.allowsLineCall else { return .swing }
+        public func cardObservable(for candidate: CaptureSituation) -> ObservationTarget {
+            guard candidate == situation, candidate.allowsLineCall else { return .swing }
             return observable
         }
 
-        /// 카드 한 장이 그릴 값. 뷰가 전역 상태를 직접 읽지 않게 막는다 —
-        /// 한 카드의 선택이 다섯 장에 번지던 결함(#73)이 그렇게 들어왔다.
         public struct Card: Equatable, Identifiable {
             public let situation: CaptureSituation
             public let isSelected: Bool
-            public let showsObservablePicker: Bool
-            public let observable: ObservationTarget
+            /// 이 카드가 보여줄 배치 안내. 뷰는 받은 문자열을 그대로 그린다.
+            public let placement: String
+            /// 피커에 찍힐 관찰 대상. `nil`이면 피커를 그리지 않는다 —
+            /// 고르지 않았거나 판정할 라인이 없는 상황이다.
+            public let pickerSelection: ObservationTarget?
 
             public var id: CaptureSituation { situation }
         }
 
+        /// 다섯 장이 각자 자기 값을 들고 나온다. 뷰가 전역 상태에서 카드 내용을 계산할 통로를
+        /// 없애둔다 — 한 카드의 선택이 다섯 장에 번지던 결함(#73)이 그 통로로 들어왔다.
         public var cards: [Card] {
-            CaptureSituation.allCases.map { situation in
-                Card(
-                    situation: situation,
-                    isSelected: situation == self.situation,
-                    showsObservablePicker: situation == self.situation && situation.allowsLineCall,
-                    observable: cardObservable(for: situation)
+            CaptureSituation.allCases.map { candidate in
+                let isSelected = candidate == situation
+                return Card(
+                    situation: candidate,
+                    isSelected: isSelected,
+                    placement: cardObservable(for: candidate).placement,
+                    pickerSelection: isSelected && candidate.allowsLineCall ? observable : nil
                 )
             }
         }
