@@ -203,3 +203,51 @@ struct CaptureSituationTests {
         #expect(ObservationTarget.swing.placement != ObservationTarget.lineCall.placement)
     }
 }
+
+@Suite("촬영 홈 카드")
+struct HomeCardTests {
+
+    @Test("시합에서 라인 판정을 골라도 다른 카드의 배치는 그대로다")
+    func 카드별_배치() {
+        let state = HomeFeature.State(situation: .match, observable: .lineCall)
+
+        for situation in CaptureSituation.allCases {
+            let expected: ObservationTarget = situation == .match ? .lineCall : .swing
+            #expect(state.cardObservable(for: situation) == expected, "\(situation.label)")
+        }
+        #expect(state.cardObservable(for: .ballMachine).placement == "코트 옆 6m, 허리 높이")
+        #expect(state.cardObservable(for: .match).placement == "판정할 라인의 연장선")
+    }
+
+    @Test("고르지 않은 시합 카드는 라인 판정을 내세우지 않는다")
+    func 고르지_않은_시합() {
+        let state = HomeFeature.State(situation: .ballMachine, observable: .lineCall)
+
+        #expect(state.cardObservable(for: .match) == .swing, "선택되지 않은 카드다")
+        #expect(state.effectiveObservable == .swing)
+    }
+
+    @Test("다섯 장이 각자 자기 값을 들고 나온다 — 뷰가 전역값을 읽지 않는다")
+    func 카드_목록() {
+        let state = HomeFeature.State(situation: .match, observable: .lineCall)
+        let cards = state.cards
+
+        #expect(cards.map(\.situation) == CaptureSituation.allCases)
+        #expect(cards.filter(\.isSelected).map(\.situation) == [.match])
+        #expect(cards.filter(\.showsObservablePicker).map(\.situation) == [.match])
+        #expect(
+            cards.filter { $0.observable == .lineCall }.map(\.situation) == [.match],
+            "라인 판정 배치는 고른 시합 카드에만 찍혀야 한다"
+        )
+    }
+
+    @Test("선택된 카드의 값은 effectiveObservable과 같다")
+    func 선택된_카드() {
+        for situation in CaptureSituation.allCases {
+            for target in ObservationTarget.allCases {
+                let state = HomeFeature.State(situation: situation, observable: target)
+                #expect(state.cardObservable(for: situation) == state.effectiveObservable, "\(situation.label)/\(target.label)")
+            }
+        }
+    }
+}

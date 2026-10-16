@@ -17,7 +17,36 @@ public struct HomeFeature {
 
         /// 시합이 아니면 관찰 대상은 항상 `.swing`이다.
         public var effectiveObservable: ObservationTarget {
-            situation.allowsLineCall ? observable : .swing
+            cardObservable(for: situation)
+        }
+
+        /// 카드 한 장이 보여줄 관찰 대상. 고르지 않은 카드는 자기 기본값(`.swing`)을 유지한다 —
+        /// 시합에서 라인 판정을 골랐다고 볼머신 카드의 배치까지 바뀌면 안 된다.
+        public func cardObservable(for situation: CaptureSituation) -> ObservationTarget {
+            guard situation == self.situation, situation.allowsLineCall else { return .swing }
+            return observable
+        }
+
+        /// 카드 한 장이 그릴 값. 뷰가 전역 상태를 직접 읽지 않게 막는다 —
+        /// 한 카드의 선택이 다섯 장에 번지던 결함(#73)이 그렇게 들어왔다.
+        public struct Card: Equatable, Identifiable {
+            public let situation: CaptureSituation
+            public let isSelected: Bool
+            public let showsObservablePicker: Bool
+            public let observable: ObservationTarget
+
+            public var id: CaptureSituation { situation }
+        }
+
+        public var cards: [Card] {
+            CaptureSituation.allCases.map { situation in
+                Card(
+                    situation: situation,
+                    isSelected: situation == self.situation,
+                    showsObservablePicker: situation == self.situation && situation.allowsLineCall,
+                    observable: cardObservable(for: situation)
+                )
+            }
         }
 
         public init(

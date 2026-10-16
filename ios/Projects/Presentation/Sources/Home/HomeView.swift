@@ -17,7 +17,7 @@ public struct HomeView: View {
                 header
                 ScrollView {
                     VStack(spacing: 9) {
-                        ForEach(CaptureSituation.allCases, id: \.self) { card($0) }
+                        ForEach(store.state.cards) { card($0) }
                     }
                     .padding(.horizontal, 20)
                     .padding(.top, 8)
@@ -50,12 +50,12 @@ public struct HomeView: View {
         .padding(.bottom, 10)
     }
 
-    private func card(_ situation: CaptureSituation) -> some View {
-        let selected = store.situation == situation
-        return Button { store.send(.situationSelected(situation)) } label: {
+    private func card(_ card: HomeFeature.State.Card) -> some View {
+        let selected = card.isSelected
+        return Button { store.send(.situationSelected(card.situation)) } label: {
             VStack(alignment: .leading, spacing: 7) {
                 HStack(spacing: 9) {
-                    Text(situation.label)
+                    Text(card.situation.label)
                         .font(.system(size: 16, weight: .semibold))
                         .foregroundStyle(Token.Text.primary)
                     Spacer()
@@ -64,18 +64,15 @@ public struct HomeView: View {
                         .foregroundStyle(selected ? Token.Accent.primary : Token.Text.tertiary)
                 }
 
-                if selected, situation.allowsLineCall {
+                if card.showsObservablePicker {
                     observablePicker
                 }
 
-                Label(
-                    store.effectiveObservable.placement,
-                    systemImage: "mappin.and.ellipse"
-                )
-                .font(.system(size: 12))
-                .foregroundStyle(Token.Text.secondary)
+                Label(card.observable.placement, systemImage: "mappin.and.ellipse")
+                    .font(.system(size: 12))
+                    .foregroundStyle(Token.Text.secondary)
 
-                if !situation.disabledRules.isEmpty {
+                if !card.situation.disabledRules.isEmpty {
                     Text("팔로스루 피드백은 제외됩니다 — 벽이 가까워 구조적으로 짧습니다")
                         .font(.system(size: 11))
                         .foregroundStyle(Token.State.warning)
