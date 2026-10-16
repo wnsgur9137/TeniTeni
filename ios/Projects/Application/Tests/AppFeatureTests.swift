@@ -203,3 +203,67 @@ struct CaptureSituationTests {
         #expect(ObservationTarget.swing.placement != ObservationTarget.lineCall.placement)
     }
 }
+
+@Suite("촬영 홈 카드")
+struct HomeCardTests {
+
+    @Test("시합에서 라인 판정을 골라도 다른 카드의 배치는 그대로다")
+    func 카드별_배치() {
+        let state = HomeFeature.State(situation: .match, observable: .lineCall)
+
+        for situation in CaptureSituation.allCases {
+            let expected: ObservationTarget = situation == .match ? .lineCall : .swing
+            #expect(state.cardObservable(for: situation) == expected, "\(situation.label)")
+        }
+        #expect(state.cardObservable(for: .ballMachine).placement == "코트 옆 6m, 허리 높이")
+        #expect(state.cardObservable(for: .match).placement == "판정할 라인의 연장선")
+    }
+
+    @Test("고르지 않은 시합 카드는 라인 판정을 내세우지 않는다")
+    func 고르지_않은_시합() {
+        let state = HomeFeature.State(situation: .ballMachine, observable: .lineCall)
+
+        #expect(state.cardObservable(for: .match) == .swing, "선택되지 않은 카드다")
+        #expect(state.effectiveObservable == .swing)
+    }
+
+    @Test("다섯 장이 각자 자기 배치를 들고 나온다 — 뷰가 전역값을 읽지 않는다")
+    func 카드_목록() {
+        let state = HomeFeature.State(situation: .match, observable: .lineCall)
+        let cards = state.cards
+
+        #expect(cards.map(\.situation) == CaptureSituation.allCases)
+        #expect(cards.filter(\.isSelected).map(\.situation) == [.match])
+        #expect(
+            cards.filter { $0.placement == "판정할 라인의 연장선" }.map(\.situation) == [.match],
+            "라인 판정 배치는 고른 시합 카드에만 찍혀야 한다"
+        )
+        #expect(
+            cards.filter { $0.placement == "코트 옆 6m, 허리 높이" }.map(\.situation)
+                == [.ballMachine, .wall, .rally, .lesson]
+        )
+    }
+
+    @Test("피커는 고른 시합 카드에만 달린다")
+    func 피커_노출() {
+        let 시합 = HomeFeature.State(situation: .match, observable: .lineCall).cards
+        #expect(시합.filter { $0.pickerSelection != nil }.map(\.situation) == [.match])
+        #expect(시합.first { $0.situation == .match }?.pickerSelection == .lineCall)
+
+        let 랠리 = HomeFeature.State(situation: .rally, observable: .swing).cards
+        #expect(랠리.allSatisfy { $0.pickerSelection == nil }, "시합이 아니면 고를 라인이 없다")
+    }
+
+    @Test("고른 카드의 관찰 대상은 시합일 때만 라인 판정이 된다")
+    func 선택된_카드() {
+        for situation in CaptureSituation.allCases {
+            for target in ObservationTarget.allCases {
+                let state = HomeFeature.State(situation: situation, observable: target)
+                let expected: ObservationTarget = situation.allowsLineCall ? target : .swing
+
+                #expect(state.cardObservable(for: situation) == expected, "\(situation.label)/\(target.label)")
+                #expect(state.effectiveObservable == expected, "\(situation.label)/\(target.label)")
+            }
+        }
+    }
+}
