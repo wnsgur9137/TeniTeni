@@ -76,6 +76,8 @@ public struct HomeView: View {
                 Text(card.situation.label)
                     .font(.system(size: 16, weight: .semibold))
                     .foregroundStyle(Token.Text.primary)
+                    // 버튼으로 감싸지 않는 분기에서도 "선택됨"이 들리도록 제목이 직접 들고 있는다.
+                    .accessibilityAddTraits(card.isSelected ? .isSelected : [])
                 Spacer()
                 Image(systemName: card.isSelected ? "checkmark.circle.fill" : "circle")
                     .font(.system(size: 19))
