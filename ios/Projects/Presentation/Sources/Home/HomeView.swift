@@ -50,45 +50,63 @@ public struct HomeView: View {
         .padding(.bottom, 10)
     }
 
+    /// 고르지 않은 카드는 통째로 버튼이다. 고른 카드는 버튼으로 감싸지 않는다 —
+    /// 이미 고른 것을 또 고를 일이 없고, 감싸면 SwiftUI가 안쪽 피커 버튼을
+    /// 부모 요소로 합쳐 VoiceOver에서 관찰 대상을 바꿀 수 없게 된다(#76).
+    @ViewBuilder
     private func card(_ card: HomeFeature.State.Card) -> some View {
-        Button { store.send(.situationSelected(card.situation)) } label: {
-            VStack(alignment: .leading, spacing: 7) {
-                HStack(spacing: 9) {
-                    Text(card.situation.label)
-                        .font(.system(size: 16, weight: .semibold))
-                        .foregroundStyle(Token.Text.primary)
-                    Spacer()
-                    Image(systemName: card.isSelected ? "checkmark.circle.fill" : "circle")
-                        .font(.system(size: 19))
-                        .foregroundStyle(card.isSelected ? Token.Accent.primary : Token.Text.tertiary)
-                }
-
-                if let picked = card.pickerSelection {
-                    observablePicker(picked)
-                }
-
-                Label(card.placement, systemImage: "mappin.and.ellipse")
-                    .font(.system(size: 12))
-                    .foregroundStyle(Token.Text.secondary)
-
-                if !card.situation.disabledRules.isEmpty {
-                    Text("팔로스루 피드백은 제외됩니다 — 벽이 가까워 구조적으로 짧습니다")
-                        .font(.system(size: 11))
-                        .foregroundStyle(Token.State.warning)
-                }
+        if let picked = card.pickerSelection {
+            cardBody(card) { observablePicker(picked) }
+                .accessibilityElement(children: .contain)
+        } else {
+            Button { store.send(.situationSelected(card.situation)) } label: {
+                cardBody(card) { EmptyView() }
             }
-            .padding(15)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(Token.Background.surface, in: .rect(cornerRadius: 13))
-            .overlay {
-                RoundedRectangle(cornerRadius: 13)
-                    .strokeBorder(
-                        card.isSelected ? Token.Accent.primary : Token.Background.elevated,
-                        lineWidth: card.isSelected ? 2 : 1
-                    )
+            .buttonStyle(.plain)
+            .accessibilityAddTraits(card.isSelected ? .isSelected : [])
+        }
+    }
+
+    private func cardBody(
+        _ card: HomeFeature.State.Card,
+        @ViewBuilder picker: () -> some View
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 7) {
+            HStack(spacing: 9) {
+                Text(card.situation.label)
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundStyle(Token.Text.primary)
+                    // 버튼으로 감싸지 않는 분기에서도 "선택됨"이 들리도록 제목이 직접 들고 있는다.
+                    .accessibilityAddTraits(card.isSelected ? .isSelected : [])
+                Spacer()
+                Image(systemName: card.isSelected ? "checkmark.circle.fill" : "circle")
+                    .font(.system(size: 19))
+                    .foregroundStyle(card.isSelected ? Token.Accent.primary : Token.Text.tertiary)
+                    .accessibilityHidden(true)
+            }
+
+            picker()
+
+            Label(card.placement, systemImage: "mappin.and.ellipse")
+                .font(.system(size: 12))
+                .foregroundStyle(Token.Text.secondary)
+
+            if !card.situation.disabledRules.isEmpty {
+                Text("팔로스루 피드백은 제외됩니다 — 벽이 가까워 구조적으로 짧습니다")
+                    .font(.system(size: 11))
+                    .foregroundStyle(Token.State.warning)
             }
         }
-        .buttonStyle(.plain)
+        .padding(15)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Token.Background.surface, in: .rect(cornerRadius: 13))
+        .overlay {
+            RoundedRectangle(cornerRadius: 13)
+                .strokeBorder(
+                    card.isSelected ? Token.Accent.primary : Token.Background.elevated,
+                    lineWidth: card.isSelected ? 2 : 1
+                )
+        }
     }
 
     /// 시합에서만 나타난다. 다른 상황에는 판정할 라인이 없다.
@@ -105,6 +123,7 @@ public struct HomeView: View {
                             Image(systemName: on ? "largecircle.fill.circle" : "circle")
                                 .font(.system(size: 13))
                                 .foregroundStyle(on ? Token.Accent.primary : Token.Text.tertiary)
+                                .accessibilityHidden(true)
                             Text(target.label)
                                 .font(.system(size: 13, weight: on ? .medium : .regular))
                                 .foregroundStyle(on ? Token.Text.primary : Token.Text.secondary)
@@ -122,6 +141,7 @@ public struct HomeView: View {
                         }
                     }
                     .buttonStyle(.plain)
+                    .accessibilityAddTraits(on ? .isSelected : [])
                 }
             }
             if picked == .lineCall {
