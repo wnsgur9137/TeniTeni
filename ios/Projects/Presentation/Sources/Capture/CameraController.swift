@@ -95,7 +95,9 @@ final class CameraController: NSObject {
         applyFormat()
         startTrackingRotation(for: camera)
         status = .ready
-        if !recordsAudio {
+        // applyFormat이 이미 경고를 띄웠으면 덮지 않는다 — "120fps 포맷을 찾을 수 없습니다"가
+        // 무음 안내보다 중하다. 무음은 표시줄에 계속 남으므로 배너를 양보해도 사라지지 않는다.
+        if !recordsAudio, message == nil {
             message = "마이크 권한이 없어 무음으로 녹화합니다"
         }
     }
