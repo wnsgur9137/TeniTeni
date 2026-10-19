@@ -44,7 +44,7 @@ public struct CaptureView: View {
         .task { await controller.start() }
         .onChange(of: scenePhase) { _, phase in
             switch phase {
-            case .active: controller.resume()
+            case .active: Task { await controller.resume() }
             case .inactive, .background: controller.suspend()
             @unknown default: break
             }
@@ -119,7 +119,7 @@ public struct CaptureView: View {
                             Circle()
                                 .fill(Token.State.error)
                                 .frame(width: 10, height: 10)
-                            Text("녹화 중 · \(Int(controller.actualFPS))fps · \(controller.exposure.title)")
+                            Text(recordingSummary)
                                 .font(.system(size: 15, weight: .medium))
                                 .foregroundStyle(Token.Text.secondary)
                         }
@@ -131,6 +131,12 @@ public struct CaptureView: View {
             .padding(32)
             .allowsHitTesting(false)
         }
+    }
+
+    /// 무음이면 그 사실을 녹화 중에도 계속 보여준다. 배너는 다른 메시지에 덮인다.
+    private var recordingSummary: String {
+        let base = "녹화 중 · \(Int(controller.actualFPS))fps · \(controller.exposure.title)"
+        return controller.recordsAudio ? base : base + " · 무음"
     }
 
     private var formattedElapsed: String {
@@ -173,6 +179,11 @@ public struct CaptureView: View {
             label("화각", String(format: "%.1f°", controller.actualFieldOfView))
             if controller.isBinned {
                 Text("binned")
+                    .font(.caption2)
+                    .foregroundStyle(Token.State.warning)
+            }
+            if !controller.recordsAudio {
+                Label("무음", systemImage: "mic.slash.fill")
                     .font(.caption2)
                     .foregroundStyle(Token.State.warning)
             }
