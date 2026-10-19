@@ -40,6 +40,10 @@ final class CameraController: NSObject {
     private(set) var isBinned: Bool = false
 
     private(set) var supports120: Bool = false
+
+    /// 마이크 권한이 없으면 거짓. 무음으로 녹화하고 있다는 사실을 화면이 계속 보여줘야 한다 —
+    /// 배너는 다른 메시지에 덮이고, 끝난 뒤에 알면 다시 찍을 수 없다.
+    private(set) var recordsAudio: Bool = true
     private(set) var lastSavedURL: URL?
     private(set) var message: String?
 
@@ -63,10 +67,12 @@ final class CameraController: NSObject {
         guard status == .idle || status == .permissionDenied else { return }
         status = .configuring
 
-        guard await requestAccess() else {
+        let plan = await resolvePermissions()
+        guard plan.allowsCapture else {
             status = .permissionDenied
             return
         }
+        recordsAudio = plan.recordsAudio
 
         guard let camera = AVCaptureDevice.default(
             .builtInWideAngleCamera, for: .video, position: .back
@@ -79,7 +85,7 @@ final class CameraController: NSObject {
         if !supports120 { quality = .standard }
 
         do {
-            try configureSession(camera: camera)
+            try configureSession(camera: camera, withAudio: plan.recordsAudio)
         } catch {
             status = .failed(error.localizedDescription)
             return
@@ -89,17 +95,29 @@ final class CameraController: NSObject {
         applyFormat()
         startTrackingRotation(for: camera)
         status = .ready
-    }
-
-    private func requestAccess() async -> Bool {
-        switch AVCaptureDevice.authorizationStatus(for: .video) {
-        case .authorized: return true
-        case .notDetermined: return await AVCaptureDevice.requestAccess(for: .video)
-        default: return false
+        if !recordsAudio {
+            message = "마이크 권한이 없어 무음으로 녹화합니다"
         }
     }
 
-    private func configureSession(camera: AVCaptureDevice) throws {
+    /// 카메라를 먼저 해소한다. 카메라가 막히면 어차피 촬영이 없으므로 마이크는 묻지 않는다 —
+    /// 쓰지도 못할 권한으로 다이얼로그를 한 번 더 띄우면 다음 요청의 거부율만 올린다.
+    private func resolvePermissions() async -> CapturePermissionPlan {
+        let camera = await resolve(.video)
+        guard camera == .authorized else {
+            return .make(camera: camera, microphone: .denied)
+        }
+        return .make(camera: camera, microphone: await resolve(.audio))
+    }
+
+    /// `.notDetermined`면 묻고 그 결과를 돌려준다. 나머지는 그대로 통과시킨다.
+    private func resolve(_ media: AVMediaType) async -> AVAuthorizationStatus {
+        let current = AVCaptureDevice.authorizationStatus(for: media)
+        guard current == .notDetermined else { return current }
+        return await AVCaptureDevice.requestAccess(for: media) ? .authorized : .denied
+    }
+
+    private func configureSession(camera: AVCaptureDevice, withAudio: Bool) throws {
         session.beginConfiguration()
         defer { session.commitConfiguration() }
 
@@ -112,7 +130,8 @@ final class CameraController: NSObject {
         }
         session.addInput(input)
 
-        if let mic = AVCaptureDevice.default(for: .audio),
+        if withAudio,
+           let mic = AVCaptureDevice.default(for: .audio),
            let audioInput = try? AVCaptureDeviceInput(device: mic),
            session.canAddInput(audioInput) {
             session.addInput(audioInput)
@@ -251,8 +270,15 @@ final class CameraController: NSObject {
 
     /// 포그라운드 복귀. 세션을 재시작하고 포맷·노출을 다시 적용한다.
     /// 세션이 멈추면 커스텀 노출이 리셋되므로 applyFormat 재호출이 필수다.
-    func resume() {
-        guard device != nil, status != .permissionDenied else { return }
+    ///
+    /// 차단 화면에서 설정 앱으로 나갔다 돌아온 경우를 여기서 받는다. 다시 묻지 않으면
+    /// 허용하고 돌아와도 차단 화면에 머문다 — 사용자는 앱이 고장났다고 판단한다.
+    func resume() async {
+        if status == .permissionDenied {
+            await start()
+            return
+        }
+        guard device != nil else { return }
         if case .failed = status { return }
         if !session.isRunning {
             session.startRunning()

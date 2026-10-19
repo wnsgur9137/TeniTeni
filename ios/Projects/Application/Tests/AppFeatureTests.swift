@@ -1,3 +1,4 @@
+import AVFoundation
 import ComposableArchitecture
 import Domain
 import Foundation
@@ -265,5 +266,37 @@ struct HomeCardTests {
                 #expect(state.effectiveObservable == expected, "\(situation.label)/\(target.label)")
             }
         }
+    }
+}
+
+@Suite("촬영 권한")
+struct CapturePermissionPlanTests {
+
+    @Test("카메라가 허용되지 않으면 어떤 조합이든 막는다")
+    func 카메라가_먼저다() {
+        for camera in [AVAuthorizationStatus.denied, .restricted, .notDetermined] {
+            for mic in [AVAuthorizationStatus.authorized, .denied, .restricted, .notDetermined] {
+                let plan = CapturePermissionPlan.make(camera: camera, microphone: mic)
+                #expect(plan == .blocked, "\(camera.rawValue)/\(mic.rawValue)")
+            }
+        }
+    }
+
+    @Test("마이크가 없어도 촬영은 계속한다 — 무음으로")
+    func 마이크는_막지_않는다() {
+        for mic in [AVAuthorizationStatus.denied, .restricted, .notDetermined] {
+            let plan = CapturePermissionPlan.make(camera: .authorized, microphone: mic)
+            #expect(plan == .proceed(audio: false), "\(mic.rawValue)")
+            #expect(plan.allowsCapture, "마이크 때문에 스윙 기록 전체를 잃으면 안 된다")
+            #expect(plan.recordsAudio == false)
+        }
+    }
+
+    @Test("둘 다 허용되면 소리까지 녹음한다")
+    func 둘_다_허용() {
+        let plan = CapturePermissionPlan.make(camera: .authorized, microphone: .authorized)
+        #expect(plan == .proceed(audio: true))
+        #expect(plan.allowsCapture)
+        #expect(plan.recordsAudio)
     }
 }
