@@ -6,30 +6,22 @@ import SwiftUI
 /// 레퍼런스의 반복되는 불만이 이 지점이다 — 코트에 나가면 화면을 볼 수 없어
 /// 구도가 맞는지 모른다(docs/08-레퍼런스/SwingVision.md).
 ///
+/// 프리뷰는 `CaptureScreen`이 뒤에 깔아 둔다. 이 뷰는 그 위에 얹는 것만 그린다.
+///
 /// 목업: docs/06-디자인/_canvas/FramingGuide.dc.html
 /// 근거: docs/02-설계/CAPTURE-PROTOCOL.md 5.6
 struct FramingGuideView: View {
 
     let guidance: FramingGuidance
     let subject: String
-    let controller: CameraController
+    /// 프리뷰가 있어야 구도를 맞출 수 있다. 없으면 가이드도 시작도 의미가 없다.
+    let canStart: Bool
     let onStart: () -> Void
     let onBack: () -> Void
 
-    private var hasPreview: Bool {
-        controller.status == .ready || controller.status == .recording
-    }
-
     var body: some View {
         ZStack {
-            Token.Background.base.ignoresSafeArea()
-
-            if hasPreview {
-                CameraPreview(session: controller.session).ignoresSafeArea()
-                guideFrame
-            } else {
-                CapturePlaceholder(status: controller.status)
-            }
+            if canStart { guideFrame }
 
             VStack {
                 headline
@@ -47,38 +39,69 @@ struct FramingGuideView: View {
     // MARK: 구도 가이드
 
     /// 관찰 대상에 따라 모양이 다르다. 내 스윙은 선수를, 라인 판정은 라인을 담는다.
-    @ViewBuilder
     private var guideFrame: some View {
         GeometryReader { proxy in
             let size = proxy.size
-            switch guidance.frame {
-            case .body:
-                // 프레임 높이의 38% — 5.1절 권장 6m 배치에서 선수가 차지하는 비율
-                let height = size.height * 0.38
-                RoundedRectangle(cornerRadius: 4)
-                    .strokeBorder(
-                        Token.Accent.primary,
-                        style: StrokeStyle(lineWidth: 2, dash: [7, 5])
-                    )
-                    .frame(width: height * 0.9, height: height)
-                    .position(x: size.width / 2, y: size.height * 0.64)
-                    .overlay(alignment: .topLeading) { ratioTag(size: size) }
-            case .line:
-                // 라인은 화면을 가로지른다. 좌우 여유를 남긴다
-                RoundedRectangle(cornerRadius: 4)
-                    .strokeBorder(
-                        Token.Accent.primary,
-                        style: StrokeStyle(lineWidth: 2, dash: [7, 5])
-                    )
-                    .frame(width: size.width * 0.9, height: size.height * 0.18)
-                    .position(x: size.width / 2, y: size.height * 0.62)
+            let rect = frameRect(in: size)
+
+            RoundedRectangle(cornerRadius: 4)
+                .strokeBorder(
+                    Token.Accent.primary,
+                    style: StrokeStyle(lineWidth: 2, dash: [7, 5])
+                )
+                .frame(width: rect.width, height: rect.height)
+                .position(x: rect.midX, y: rect.midY)
+
+            if guidance.frame == .body {
+                // 측정 브래킷과 비율 라벨은 **프레임 왼쪽 모서리에** 붙는다.
+                // 좌표를 프레임에서 뽑아 쓴다 — 화면 비율이 바뀌어도 따라간다.
+                heightBracket(for: rect)
+                ratioTag(for: rect)
             }
         }
         .allowsHitTesting(false)
         .accessibilityHidden(true)
     }
 
-    private func ratioTag(size: CGSize) -> some View {
+    /// 내 스윙: 프레임 높이의 38%(5.1절 권장 6m 배치에서 선수가 차지하는 비율).
+    /// 라인 판정: 화면을 가로지르는 띠.
+    private func frameRect(in size: CGSize) -> CGRect {
+        switch guidance.frame {
+        case .body:
+            let height = size.height * 0.38
+            let width = height * 0.9
+            return CGRect(
+                x: (size.width - width) / 2,
+                y: size.height * 0.64 - height / 2,
+                width: width,
+                height: height
+            )
+        case .line:
+            let width = size.width * 0.9
+            let height = size.height * 0.18
+            return CGRect(
+                x: (size.width - width) / 2,
+                y: size.height * 0.62 - height / 2,
+                width: width,
+                height: height
+            )
+        }
+    }
+
+    private func heightBracket(for rect: CGRect) -> some View {
+        Path { path in
+            let x = rect.minX - 16
+            path.move(to: CGPoint(x: x, y: rect.minY))
+            path.addLine(to: CGPoint(x: x, y: rect.maxY))
+            path.move(to: CGPoint(x: x - 6, y: rect.minY))
+            path.addLine(to: CGPoint(x: x + 6, y: rect.minY))
+            path.move(to: CGPoint(x: x - 6, y: rect.maxY))
+            path.addLine(to: CGPoint(x: x + 6, y: rect.maxY))
+        }
+        .stroke(Token.Accent.primary, lineWidth: 1.5)
+    }
+
+    private func ratioTag(for rect: CGRect) -> some View {
         VStack(alignment: .leading, spacing: 1) {
             Text("35~45%")
                 .font(.system(size: 12, weight: .semibold))
@@ -91,7 +114,8 @@ struct FramingGuideView: View {
         .padding(.horizontal, 10)
         .padding(.vertical, 6)
         .background(Token.Background.scrim, in: .rect(cornerRadius: 7))
-        .position(x: size.width * 0.22, y: size.height * 0.6)
+        .fixedSize()
+        .position(x: rect.minX - 72, y: rect.midY)
     }
 
     // MARK: 안내
@@ -143,15 +167,20 @@ struct FramingGuideView: View {
             }
             .buttonStyle(.plain)
 
+            // 프리뷰가 없으면 촬영에 들어가봐야 닫기밖에 없는 화면이다.
             Button(action: onStart) {
                 Text("촬영 시작")
                     .font(.system(size: 16, weight: .semibold))
-                    .foregroundStyle(Token.Text.onAccent)
+                    .foregroundStyle(canStart ? Token.Text.onAccent : Token.Text.tertiary)
                     .padding(.horizontal, 26)
                     .frame(minHeight: 46)
-                    .background(Token.Accent.primary, in: .rect(cornerRadius: 9))
+                    .background(
+                        canStart ? Token.Accent.primary : Token.Background.surface,
+                        in: .rect(cornerRadius: 9)
+                    )
             }
             .buttonStyle(.plain)
+            .disabled(!canStart)
         }
     }
 }

@@ -401,16 +401,20 @@ struct OrientationLockTests {
         var applied: [UIInterfaceOrientationMask] = []
         let lock = OrientationLock { applied.append($0) }
 
-        #expect(lock.mask == .all, "기본은 기기 방향을 따른다")
+        #expect(lock.mask == OrientationLock.unlocked, "기본은 기기 방향을 따른다")
+        #expect(
+            !lock.mask.contains(.portraitUpsideDown),
+            "Info.plist가 뺀 거꾸로를 델리게이트가 되살리면 안 된다"
+        )
 
         lock.lock(to: .landscape)
         #expect(lock.mask == .landscape)
 
         lock.release()
-        #expect(lock.mask == .all, "풀지 않으면 세로 화면 12종이 가로로 남는다")
+        #expect(lock.mask == OrientationLock.unlocked, "풀지 않으면 세로 화면 12종이 가로로 남는다")
 
         // 마스크만 바꾸면 UIKit이 다시 묻지 않는다. 창에 갱신을 요청해야 한다.
-        #expect(applied == [.landscape, .all])
+        #expect(applied == [.landscape, OrientationLock.unlocked])
     }
 
     @Test("촬영 화면은 가로를 선언한다")

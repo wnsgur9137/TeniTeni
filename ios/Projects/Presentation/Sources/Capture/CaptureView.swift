@@ -10,7 +10,7 @@ import TeniVision
 /// 다가오면 촬영이 끊긴다.
 ///
 /// 목업: docs/06-디자인/_canvas/CaptureContinuous.dc.html · CaptureWarning.dc.html
-public struct CaptureView: View {
+struct CaptureView: View {
 
     /// 세션과 생명주기는 `CaptureScreen`이 소유한다. 이 화면은 그리고 보낼 뿐이다 —
     /// 가이드와 촬영이 세션을 공유해야 구도를 맞춘 화면이 꺼지지 않는다.
@@ -26,15 +26,11 @@ public struct CaptureView: View {
 
     private var isRecording: Bool { controller.status == .recording }
 
-    public var body: some View {
+    /// 배경·프리뷰·실패 화면은 `CaptureScreen`이 깐다. 이 뷰는 그 위에
+    /// 얹는 것만 그린다 — 단계가 바뀌어도 프리뷰 레이어가 다시 세워지지 않는다.
+    var body: some View {
         ZStack {
-            Token.Background.base.ignoresSafeArea()
-
-            switch controller.status {
-            case .idle, .configuring, .permissionDenied, .failed:
-                CapturePlaceholder(status: controller.status)
-            case .ready, .recording:
-                CameraPreview(session: controller.session).ignoresSafeArea()
+            if controller.status == .ready || controller.status == .recording {
                 bottomScrim
                 overlay
             }
