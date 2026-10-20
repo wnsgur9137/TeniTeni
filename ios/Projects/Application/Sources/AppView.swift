@@ -25,6 +25,10 @@ public struct AppView: View {
         .sheet(item: $store.scope(state: \.settings, action: \.settings)) { settingsStore in
             SettingsView(store: settingsStore)
         }
+        // 촬영은 탭바를 덮는다. 6m 밖에서는 탭을 잘못 눌러도 알아채지 못한다.
+        .fullScreenCover(item: $store.scope(state: \.capture, action: \.capture)) { captureStore in
+            CaptureScreen(store: captureStore)
+        }
     }
 
     private var tabs: some View {
@@ -41,8 +45,8 @@ public struct AppView: View {
     @ViewBuilder
     private func content(for tab: AppFeature.Tab) -> some View {
         switch tab {
-        // 촬영 탭 루트는 홈(상황 선택)이다. CaptureView는 1-B가
-        // "시작"에 연결한다 — 지금은 선택만 저장된다.
+        // 촬영 탭 루트는 홈(상황 선택)이다. '시작'을 누르면 촬영이
+        // 탭 위로 덮인다 — `fullScreenCover`.
         case .capture: HomeView(store: store.scope(state: \.home, action: \.home))
         case .library: LibraryPlaceholderView()
         case .progress: ProgressPlaceholderView()

@@ -1,0 +1,69 @@
+<!doctype html>
+<html>
+<head><meta charset="utf-8"><script src="./support.js"></script></head>
+<body>
+<x-dc>
+<helmet><style>
+body{margin:0;font-family:-apple-system,"SF Pro Text",system-ui,sans-serif}
+</style></helmet>
+<div style="width:844px;height:390px;background:#0B0D0F;position:relative;overflow:hidden">
+
+  <!-- 카메라 프리뷰 자리. 측면 6m에서 본 코트 -->
+  <div style="position:absolute;inset:0;background:linear-gradient(170deg,#18211d 0%,#111714 60%,#0B0D0F 100%)"></div>
+  <svg style="position:absolute;inset:0" width="844" height="390">
+    <path d="M0 318 L844 296" stroke="#2a3a30" stroke-width="2" fill="none"/>
+    <path d="M0 356 L844 330" stroke="#223029" stroke-width="2" fill="none"/>
+
+    <!-- 구도 가이드 — 프레임 높이의 35~45% 밴드 -->
+    <rect x="356" y="175" width="132" height="148" fill="none"
+          stroke="#C6F24E" stroke-width="2" stroke-dasharray="7 5" rx="4"/>
+    <!-- 인체 실루엣. 밴드 안에 들어오면 맞다 -->
+    <g stroke="rgba(255,255,255,0.72)" stroke-width="3" stroke-linecap="round" fill="none">
+      <circle cx="422" cy="192" r="12" fill="rgba(255,255,255,0.72)" stroke="none"/>
+      <path d="M422 204 L422 262"/>
+      <path d="M422 218 L392 236"/>
+      <path d="M422 218 L456 206"/>
+      <path d="M422 262 L404 310"/>
+      <path d="M422 262 L444 310"/>
+    </g>
+    <!-- 라켓 팔은 racketArm 색. 오버레이 팔레트를 섞지 않는다 -->
+    <path d="M456 206 L478 190" stroke="#4DD8E6" stroke-width="3" stroke-linecap="round" fill="none"/>
+
+    <!-- 높이 비율 표시 -->
+    <g stroke="#C6F24E" stroke-width="1.5">
+      <path d="M340 175 L340 323"/>
+      <path d="M334 175 L346 175"/>
+      <path d="M334 323 L346 323"/>
+    </g>
+  </svg>
+
+  <div style="position:absolute;left:248px;top:238px;transform:translateX(-100%);
+              background:rgba(11,13,15,0.72);border-radius:7px;padding:6px 10px">
+    <div style="font-size:12px;font-weight:600;color:#C6F24E;font-variant-numeric:tabular-nums">35~45%</div>
+    <div style="font-size:11px;color:#9BA3AB">선수 높이</div>
+  </div>
+
+  <!-- 배치 안내 — 관찰 대상이 정한다 -->
+  <div style="position:absolute;left:0;right:0;top:18px;text-align:center">
+    <div style="display:inline-block;background:rgba(11,13,15,0.72);border-radius:10px;padding:10px 18px">
+      <div style="font-size:17px;font-weight:600;color:#F2F4F6">선수가 네모 안에 들어오게 두세요</div>
+      <div style="font-size:12px;color:#9BA3AB;margin-top:3px">코트 옆 6m, 허리 높이 · 코트 장축에 수직</div>
+    </div>
+  </div>
+
+  <!-- 무엇을 찍는지 — 되돌리는 비용이 물리적이므로 계속 보인다 -->
+  <div style="position:absolute;left:20px;bottom:20px;background:rgba(11,13,15,0.72);border-radius:9px;padding:11px 14px">
+    <div style="font-size:11px;color:#6B737B;margin-bottom:4px">이번 촬영</div>
+    <div style="font-size:14px;font-weight:600;color:#F2F4F6">볼머신 · 내 스윙</div>
+    <div style="font-size:11px;color:#6B737B;margin-top:3px">잘못 골랐으면 뒤로 — 삼각대를 옮기기 전에</div>
+  </div>
+
+  <div style="position:absolute;right:20px;bottom:20px;display:flex;gap:10px">
+    <button style="height:46px;padding:0 20px;border:1px solid #1F2429;border-radius:9px;background:#16191D;color:#9BA3AB;font-size:15px;font-weight:500;font-family:inherit;cursor:pointer">뒤로</button>
+    <button style="height:46px;padding:0 26px;border:none;border-radius:9px;background:#C6F24E;color:#0B0D0F;font-size:16px;font-weight:600;font-family:inherit;cursor:pointer">촬영 시작</button>
+  </div>
+
+</div>
+</x-dc>
+</body>
+</html>

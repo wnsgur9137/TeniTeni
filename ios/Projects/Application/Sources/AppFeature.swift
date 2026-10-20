@@ -21,6 +21,8 @@ public struct AppFeature {
         /// `nil`이면 설정이 닫혀 있다. `@Presents`라야 `sheet(item:)`이
         /// 받는 `PresentationAction` 래핑이 생긴다.
         @Presents public var settings: SettingsFeature.State?
+        /// `nil`이면 촬영이 닫혀 있다. 홈에서 '시작'을 누를 때만 생긴다.
+        @Presents public var capture: CaptureFeature.State?
 
         public var hasCompletedOnboarding: Bool { preferences.hasCompletedOnboarding }
 
@@ -69,6 +71,7 @@ public struct AppFeature {
         case onboarding(OnboardingFeature.Action)
         case home(HomeFeature.Action)
         case settings(PresentationAction<SettingsFeature.Action>)
+        case capture(PresentationAction<CaptureFeature.Action>)
     }
 
     private let repository: any UserPreferencesRepository
@@ -116,8 +119,17 @@ public struct AppFeature {
                 )
                 return .none
 
-            case .home(.delegate(.start)):
-                // 촬영 시작은 1-B가 붙인다. 지금은 선택만 저장된다.
+            case .home(.delegate(.start(let situation, let observable))):
+                // 고른 것을 그대로 넘긴다. 촬영 중에는 바꿀 수 없다 —
+                // 바꾸려면 삼각대를 옮겨야 하는 선택이다.
+                state.capture = CaptureFeature.State(
+                    situation: situation,
+                    observable: observable
+                )
+                return .none
+
+            case .capture(.presented(.delegate(.finished))):
+                state.capture = nil
                 return .none
 
             case .settings(.presented(.delegate(.handednessChanged(let hand)))):
@@ -134,10 +146,11 @@ public struct AppFeature {
                 state.settings = nil
                 return .none
 
-            case .onboarding, .home, .settings:
+            case .onboarding, .home, .settings, .capture:
                 return .none
             }
         }
         .ifLet(\.$settings, action: \.settings) { SettingsFeature() }
+        .ifLet(\.$capture, action: \.capture) { CaptureFeature() }
     }
 }

@@ -10,46 +10,56 @@ import TeniVision
 /// 다가오면 촬영이 끊긴다.
 ///
 /// 목업: docs/06-디자인/_canvas/CaptureContinuous.dc.html · CaptureWarning.dc.html
-public struct CaptureView: View {
+struct CaptureView: View {
 
-    public init() {}
+    /// 세션과 생명주기는 `CaptureScreen`이 소유한다. 이 화면은 그리고 보낼 뿐이다 —
+    /// 가이드와 촬영이 세션을 공유해야 구도를 맞춘 화면이 꺼지지 않는다.
+    private let controller: CameraController
+    private let onClose: () -> Void
 
-    @Environment(\.scenePhase) private var scenePhase
-    @State private var controller = CameraController()
+    init(controller: CameraController, onClose: @escaping () -> Void) {
+        self.controller = controller
+        self.onClose = onClose
+    }
+
     @State private var showInspector = false
 
     private var isRecording: Bool { controller.status == .recording }
 
-    public var body: some View {
+    /// 배경·프리뷰·실패 화면은 `CaptureScreen`이 깐다. 이 뷰는 그 위에
+    /// 얹는 것만 그린다 — 단계가 바뀌어도 프리뷰 레이어가 다시 세워지지 않는다.
+    var body: some View {
         ZStack {
-            Token.Background.base.ignoresSafeArea()
-
-            switch controller.status {
-            case .idle, .configuring:
-                ProgressView("카메라 준비 중…")
-                    .tint(Token.Text.primary)
-                    .foregroundStyle(Token.Text.primary)
-            case .permissionDenied:
-                permissionDenied
-            case .failed(let reason):
-                failure(reason)
-            case .ready, .recording:
-                CameraPreview(session: controller.session).ignoresSafeArea()
+            if controller.status == .ready || controller.status == .recording {
                 bottomScrim
                 overlay
             }
         }
         // 상태를 화면 테두리 색으로 — 6m에서 읽히는 유일한 상태 표현이다
         .overlay(alignment: .center) { statusBorder }
-        .task { await controller.start() }
-        .onChange(of: scenePhase) { _, phase in
-            switch phase {
-            case .active: Task { await controller.resume() }
-            case .inactive, .background: controller.suspend()
-            @unknown default: break
-            }
-        }
+        // 어떤 상태에서도 나갈 수 있어야 한다. 카메라가 실패하면 아래 컨트롤이
+        // 통째로 안 그려지므로, 닫기를 상태 분기 밖에 둔다.
+        .overlay(alignment: .topLeading) { closeButton }
         .sheet(isPresented: $showInspector) { FormatInspectorView() }
+    }
+
+    /// 녹화 중에는 그리지 않는다 — 6m 밖에서 잘못 눌러도 알아채지 못한다.
+    /// 정지한 뒤에 닫는다.
+    @ViewBuilder
+    private var closeButton: some View {
+        if !isRecording {
+            Button(action: onClose) {
+                Image(systemName: "xmark")
+                    .font(.system(size: 17, weight: .semibold))
+                    .foregroundStyle(Token.Text.primary)
+                    .frame(width: 44, height: 44)
+                    .background(Token.Background.scrim, in: .circle)
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("촬영 닫기")
+            .padding(.leading, 16)
+            .padding(.top, 10)
+        }
     }
 
     // MARK: 상태 테두리
@@ -89,6 +99,7 @@ public struct CaptureView: View {
             if !isRecording {
                 VStack {
                     actualValuesBar
+                        .padding(.leading, 56)   // 닫기 버튼 자리를 비운다
                     Spacer()
                     controls
                 }
@@ -316,37 +327,4 @@ public struct CaptureView: View {
         .padding(.trailing, 32)
     }
 
-    // MARK: 실패 상태
-
-    private var permissionDenied: some View {
-        ContentUnavailableView {
-            Label("카메라 권한이 필요합니다", systemImage: "camera.fill")
-        } description: {
-            Text("설정에서 카메라 접근을 허용해 주세요.")
-        } actions: {
-            Button("설정 열기") {
-                if let url = URL(string: UIApplication.openSettingsURLString) {
-                    UIApplication.shared.open(url)
-                }
-            }
-            .tint(Token.Accent.primary)
-        }
-    }
-
-    private func failure(_ reason: String) -> some View {
-        ContentUnavailableView {
-            Label("카메라를 시작할 수 없습니다", systemImage: "exclamationmark.triangle")
-        } description: {
-            Text(reason)
-        }
-    }
-}
-
-// MARK: - 방향
-
-/// 촬영은 가로 고정이다. 앱 전체는 1-A에서 전 방향으로 풀렸으므로
-/// (세로 화면이 12종이다) 이 화면이 스스로 잠근다.
-/// 근거: docs/07-기획/SPEC-0061-module-shell.md 구현 선택지 3
-extension CaptureView {
-    static var supportedOrientations: UIInterfaceOrientationMask { .landscape }
 }

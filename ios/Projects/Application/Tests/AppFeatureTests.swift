@@ -4,6 +4,7 @@ import Domain
 import Foundation
 import Presentation
 import Testing
+import UIKit
 @testable import Application
 
 /// 테스트용 저장소. 실제 `UserDefaults`를 건드리면 테스트끼리 간섭한다.
@@ -298,5 +299,126 @@ struct CapturePermissionPlanTests {
         #expect(plan == .proceed(audio: true))
         #expect(plan.allowsCapture)
         #expect(plan.recordsAudio)
+    }
+}
+
+@Suite("촬영 시작 흐름")
+@MainActor
+struct CaptureFlowTests {
+
+    @Test("홈에서 시작을 누르면 촬영이 열린다 — 고른 것을 들고")
+    func 시작하면_열린다() async {
+        let repo = InMemoryRepository(UserPreferences(handedness: .right))
+        let store = TestStore(initialState: AppFeature.State(
+            preferences: UserPreferences(handedness: .right)
+        )) { AppFeature(repository: repo) }
+
+        await store.send(.home(.startTapped))
+        await store.receive(.home(.delegate(.start(.ballMachine, .swing)))) {
+            $0.capture = CaptureFeature.State(situation: .ballMachine, observable: .swing)
+        }
+
+        #expect(store.state.capture?.phase == .framing, "촬영은 프레이밍 가이드에서 시작한다")
+    }
+
+    @Test("시합에서 고른 라인 판정이 촬영까지 넘어간다")
+    func 라인_판정이_넘어간다() async {
+        let prefs = UserPreferences(
+            handedness: .right,
+            lastSituation: .match,
+            lastObservable: .lineCall
+        )
+        let repo = InMemoryRepository(prefs)
+        let store = TestStore(initialState: AppFeature.State(preferences: prefs)) {
+            AppFeature(repository: repo)
+        }
+
+        await store.send(.home(.startTapped))
+        await store.receive(.home(.delegate(.start(.match, .lineCall)))) {
+            $0.capture = CaptureFeature.State(situation: .match, observable: .lineCall)
+        }
+
+        #expect(store.state.capture?.observable == .lineCall)
+        #expect(store.state.capture?.guidance.frame == .line, "배치가 다르면 가이드도 달라야 한다")
+    }
+
+    @Test("촬영을 닫으면 홈으로 돌아온다")
+    func 닫으면_홈으로() async {
+        let repo = InMemoryRepository(UserPreferences(handedness: .right))
+        var initial = AppFeature.State(preferences: UserPreferences(handedness: .right))
+        initial.capture = CaptureFeature.State(situation: .rally, observable: .swing)
+        let store = TestStore(initialState: initial) { AppFeature(repository: repo) }
+
+        await store.send(.capture(.presented(.closeTapped)))
+        await store.receive(.capture(.presented(.delegate(.finished)))) {
+            $0.capture = nil
+        }
+    }
+
+    @Test("촬영 시작을 누르면 가이드에서 촬영으로 넘어간다")
+    func 단계_전이() async {
+        let store = TestStore(
+            initialState: CaptureFeature.State(situation: .wall, observable: .swing)
+        ) { CaptureFeature() }
+
+        await store.send(.startTapped) { $0.phase = .capturing }
+        // 단계는 되돌아가지 않는다
+        await store.send(.startTapped)
+    }
+}
+
+@Suite("프레이밍 가이드")
+struct FramingGuidanceTests {
+
+    @Test("관찰 대상에 따라 담을 것이 다르다")
+    func 대상별_가이드() {
+        let 스윙 = FramingGuidance.make(for: .swing)
+        let 판정 = FramingGuidance.make(for: .lineCall)
+
+        #expect(스윙.frame == .body, "선수가 프레임 높이의 35~45%를 차지해야 한다")
+        #expect(판정.frame == .line, "라인이 화면을 가로질러야 한다")
+        #expect(스윙.headline != 판정.headline)
+    }
+
+    @Test("배치 문구는 Domain이 들고 있는 것을 쓴다 — 두 벌로 갈라지면 안 된다")
+    func 배치_문구_재사용() {
+        for target in ObservationTarget.allCases {
+            let guidance = FramingGuidance.make(for: target)
+            #expect(
+                guidance.placement.hasPrefix(target.placement),
+                "\(target.label): \(guidance.placement)"
+            )
+        }
+    }
+}
+
+@Suite("방향 잠금")
+@MainActor
+struct OrientationLockTests {
+
+    @Test("촬영이 가로를 잠그고, 나가면 풀린다")
+    func 잠금과_해제() {
+        var applied: [UIInterfaceOrientationMask] = []
+        let lock = OrientationLock { applied.append($0) }
+
+        #expect(lock.mask == OrientationLock.unlocked, "기본은 기기 방향을 따른다")
+        #expect(
+            !lock.mask.contains(.portraitUpsideDown),
+            "Info.plist가 뺀 거꾸로를 델리게이트가 되살리면 안 된다"
+        )
+
+        lock.lock(to: .landscape)
+        #expect(lock.mask == .landscape)
+
+        lock.release()
+        #expect(lock.mask == OrientationLock.unlocked, "풀지 않으면 세로 화면 12종이 가로로 남는다")
+
+        // 마스크만 바꾸면 UIKit이 다시 묻지 않는다. 창에 갱신을 요청해야 한다.
+        #expect(applied == [.landscape, OrientationLock.unlocked])
+    }
+
+    @Test("촬영 화면은 가로를 선언한다")
+    func 촬영은_가로다() {
+        #expect(CaptureScreen.supportedOrientations == .landscape)
     }
 }
