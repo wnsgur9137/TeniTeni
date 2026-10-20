@@ -378,7 +378,7 @@ status: active
 
 | 파일 | 내용 |
 |---|---|
-| `*.dc.html` | 아트보드 17개. 파일 하나가 화면 하나입니다 |
+| `*.dc.html` | 아트보드 18개. 파일 하나가 화면 하나입니다 |
 | `canvas.json` | 배치·주석·실행 뷰 |
 | `TOKENS.txt` | 아트보드에 인라인으로 반복되는 공통 스타일 |
 
@@ -423,7 +423,7 @@ status: active
 
 10.9의 캔버스는 이 절의 개정 **이전**에 만들어졌습니다. 갱신 대상입니다.
 
-✅ **갱신 완료** — 아트보드 **17개**.
+✅ **갱신 완료** — 아트보드 **18개**.
 
 | 아트보드 | 크기 | 비고 |
 |---|---|---|
@@ -432,6 +432,7 @@ status: active
 | `CaptureHome` | 390×844 | **`ModeSelect`에서 개명.** 상황 5종 + 시합의 관찰 대상 + 탭바 |
 | `Settings` | 390×844 | **신규** |
 | `CourtPreset` | 844×390 | **신규** — 4점 탭 결과와 격자 검증 |
+| `FramingGuide` | 844×390 | **신규** — 촬영 시작 직전. 구도 가이드와 배치 안내 ([SPEC-0078](../07-기획/SPEC-0078-start-capture.md)) |
 | `CaptureContinuous` · `CaptureWarning` | 844×390 | 기존 |
 | `ThermalWarning` | 844×390 | **신규** — 발열 `.serious` |
 | `CaptureLineCall` | 844×390 | **신규** — `display/xl` OUT + 미니 코트맵 |
