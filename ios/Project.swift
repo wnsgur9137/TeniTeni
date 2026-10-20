@@ -37,6 +37,18 @@ let project = Project(
                 // 진입점은 Application만 안다. 나머지는 그 아래로 숨는다.
                 .project(target: "Application", path: "Projects/Application")
             ]
+        ),
+        // 화면 전환과 방향은 단위 테스트가 닿지 않는다 — `onAppear` 배선과
+        // `fullScreenCover` 제시는 뷰 계층에서만 일어난다. 모듈 테스트가
+        // 아니라 앱 타깃에 붙는 이유다 (이슈 #83).
+        .target(
+            name: "TeniTeniUITests",
+            destinations: .iOS,
+            product: .uiTests,
+            bundleId: "com.wnsgur9137.TeniTeni.UITests",
+            deploymentTargets: .iOS("26.0"),
+            sources: ["TeniTeni/UITests/**"],
+            dependencies: [.target(name: "TeniTeni")]
         )
     ]
 )

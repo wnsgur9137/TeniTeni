@@ -181,7 +181,7 @@ macOS 하한이 15.0인 것은 `DetectTrajectoriesRequest`가 macOS 15+이기 �
 - 살아있는 `AVCaptureDevice`를 다루는 코드는 iOS 전용입니다. `AVCaptureDevice.Format`의 `isVideoBinned`·`videoFieldOfView`·`minISO`·`videoMaxZoomFactor` 등이 macOS에 없습니다
 - 반대로 **Codable 데이터 모델과 계산식은 반드시 양 플랫폼 공용**으로 둡니다. CLI가 앱이 내보낸 JSON을 읽는 경로이기 때문입니다
 
-`scripts/verify-ios.sh`가 `Projects/*/Project.swift`에서 `.mac`을 선언한 모듈을 찾아 macOS로도 빌드하므로, 이 규약 위반은 게이트에서 걸립니다. 테스트 타깃(`product: .unitTests`)이 있는 모듈은 `build` 대신 `test`를 돌립니다.
+`scripts/verify-ios.sh`가 `Projects/*/Project.swift`에서 `.mac`을 선언한 모듈을 찾아 macOS로도 빌드하므로, 이 규약 위반은 게이트에서 걸립니다. 테스트 타깃(`product: .unitTests`)이 있는 모듈은 `build` 대신 `test`를 돌리고, 앱 타깃의 `product: .uiTests`는 별도 단계로 돕니다.
 
 `TeniVision`은 **정적 프레임워크**입니다. macOS CLI는 앱 번들이 아니라 프레임워크를 동봉할 자리가 없고 `@rpath`로 찾을 수도 없습니다. 리소스가 없으므로 정적으로 바꿔도 앱이 잃는 것이 없습니다.
 
@@ -392,7 +392,11 @@ ios/
 | 단위 테스트 | Domain UseCase, RuleEngine, DTW, OneEuroFilter | Swift Testing |
 | 스냅샷 테스트 | 오버레이 렌더링 결과 | `OffscreenRenderer` 출력 비교 (⬜ 검토) |
 | 통합 테스트 | Data 레이어 (mock 서버) | XCTest |
-| UI 테스트 | 핵심 플로우 1~2개만 | XCUITest |
+| UI 테스트 | 화면 전환·방향 잠금 — **모듈 테스트가 닿지 않는 배선** | XCUITest (`TeniTeniUITests`) |
+
+**UI 테스트는 배선만 봅니다.** 화면이 무엇을 그리는지는 단위 테스트가 더 싸게 잡습니다. XCUITest가 유일하게 잡을 수 있는 것은 `onAppear`가 실제로 불리는지, `fullScreenCover`가 실제로 뜨는지처럼 **뷰 계층에서만 일어나는 일**입니다. 상수 대 상수 비교로는 배선이 끊겨도 통과하기 때문입니다 (이슈 [#83](https://github.com/wnsgur9137/TeniTeni/issues/83)).
+
+`scripts/verify-ios.sh`가 `Project.swift`에 `product: .uiTests`가 있으면 앱 스킴으로 UI 테스트를 따로 돌립니다. 모듈 루프는 `Projects/*`의 `unitTests`만 모으므로 앱 타깃의 UI 테스트는 거기 들어오지 않습니다.
 
 **골든 테스트가 이 프로젝트의 핵심입니다.** 샘플 영상 10개에 대해 "스윙 개수, 유형, 임팩트 프레임 인덱스, 주요 각도"를 스냅샷으로 고정하면, 파이프라인을 수정할 때마다 회귀를 즉시 잡을 수 있습니다. 튜닝이 잦은 영역이라 이게 없으면 개선인지 퇴보인지 알 수 없습니다.
 

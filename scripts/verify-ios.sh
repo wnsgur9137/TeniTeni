@@ -205,6 +205,31 @@ done
 LOGS+=("$IOS_LOG")
 ok "iOS 빌드 성공"
 
+# UI 테스트는 앱 타깃에 붙는다 — 화면 전환과 방향 잠금은 모듈 테스트가
+# 닿지 않는 곳에서 일어난다 (이슈 #83). 위 루프는 Projects/*의 unitTests만
+# 모으므로 여기서 따로 돈다.
+if grep -q 'product: \.uiTests' Project.swift; then
+  step "iOS UI 테스트 ($SCHEME)"
+  UI_LOG=/tmp/teniteni-test-ios-ui.log
+  set +e
+  xcodebuild $CONTAINER_FLAG -scheme "$SCHEME" \
+    -destination "id=$DEST_ID" \
+    -configuration Debug \
+    CODE_SIGNING_ALLOWED=NO \
+    -only-testing:TeniTeniUITests \
+    test 2>&1 | tee "$UI_LOG" | tail -30
+  STATUS=${PIPESTATUS[0]}
+  set -e
+  [ "$STATUS" -eq 0 ] || { show_errors "$UI_LOG"; fail "iOS UI 테스트 실패 — 전체 로그: $UI_LOG"; }
+  # 0건 통과를 막는다. UI 테스트는 수집 실패가 더 흔하다 —
+  # 타깃 이름을 고치면 -only-testing이 조용히 아무것도 고르지 않는다.
+  UI_COUNT=$(grep -cE "^Test Case .* passed" "$UI_LOG" || true)
+  [ "${UI_COUNT:-0}" -gt 0 ] || fail "UI 테스트가 0건 실행됐습니다 — 로그: $UI_LOG"
+  # ${} 로 감싼다. 한글이 바로 뒤에 붙으면 bash가 변수명으로 먹는다.
+  ok "iOS UI 테스트 성공 — ${UI_COUNT}건"
+  LOGS+=("$UI_LOG")
+fi
+
 for mac_scheme in ${MAC_SCHEMES[@]+"${MAC_SCHEMES[@]}"}; do
   # 테스트 타깃이 있으면 build 대신 test를 돌린다. 빌드만 보면
   # "테스트는 있는데 한 번도 실행되지 않는" 상태를 못 잡는다.
