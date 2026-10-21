@@ -51,6 +51,14 @@ public struct SwingTriggerProfile: Sendable, Equatable {
         )
         precondition(minimumDuration >= 0, "최소 지속시간은 음수일 수 없다")
         precondition(preRoll >= 0 && postRoll >= 0, "구간 길이는 음수일 수 없다")
+        precondition(refractoryPeriod >= 0, "재트리거 간격은 음수일 수 없다")
+        // 0 이하면 모든 프레임 쌍이 결측으로 판정돼 **조용히 영구 미발화**한다.
+        precondition(maximumGap > 0, "결측 허용 시간은 0보다 커야 한다")
+        precondition(minimumRadiusRatio >= 0, "반경 비율은 음수일 수 없다")
+        precondition(
+            (0...1).contains(minimumConfidence),
+            "신뢰도 임계는 0~1이다 — 1을 넘으면 모든 관절이 버려진다"
+        )
         self.enterAngularVelocity = enterAngularVelocity
         self.exitAngularVelocity = exitAngularVelocity
         self.minimumDuration = minimumDuration
