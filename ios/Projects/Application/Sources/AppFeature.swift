@@ -76,7 +76,14 @@ public struct AppFeature {
 
     private let repository: any UserPreferencesRepository
 
-    public init(repository: any UserPreferencesRepository = UserDefaultsUserPreferencesRepository()) {
+    /// 기본 저장소는 실행 인자를 보고 정해진다 — UI 테스트로 실행하면
+    /// **빈 상태**에서 시작한다. 진입점은 `Application`만 알아야 하므로
+    /// (`Project.swift`) 그 판단을 여기서 한다. 근거: `LaunchDefaults`, #88
+    public init(
+        repository: any UserPreferencesRepository = UserDefaultsUserPreferencesRepository(
+            defaults: LaunchDefaults.resolve()
+        )
+    ) {
         self.repository = repository
     }
 
