@@ -344,6 +344,10 @@ Projects/
 │   │   ├── OneEuroFilter.swift          # 떨림 제거
 │   │   ├── PoseSmoother.swift           # 관절별 필터 관리
 │   │   └── JointAngle.swift             # 각도 계산 → 교정 판정 입력
+│   ├── Swing/
+│   │   ├── PoseFrame.swift              # 트리거 입력 — 관절 6개 + 신뢰도
+│   │   ├── SwingTriggerProfile.swift    # 임계·간격. 상황별로 갈린다
+│   │   └── SwingTrigger.swift           # ★ 각속도 + 몸통선 교차 + 히스테리시스
 │   └── Render/
 │       ├── FrameRenderer.swift          # Metal 파이프라인 총괄
 │       ├── CameraTexturePass.swift      # CVMetalTextureCache
