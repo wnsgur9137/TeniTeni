@@ -124,7 +124,7 @@ status: active
 ## 영향받는 문서
 
 - [비전 파이프라인 3.3](../02-설계/VISION-PIPELINE.md) — 트리거에 "구현됨" 주석과 파일 경로
-- [스켈레톤 오버레이 4.7](../02-설계/SKELETON-OVERLAY.md) — 모듈 구조 트리에 `Swing/` 추가
+- [스켈레톤 오버레이 4.9](../02-설계/SKELETON-OVERLAY.md) — 파일 배치 트리에 `Swing/` 추가
 
 ## 리스크
 
