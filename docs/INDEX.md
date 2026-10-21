@@ -84,6 +84,7 @@ status: active
 | [SPEC-0061 모듈 재편 + 앱 셸](./07-기획/SPEC-0061-module-shell.md) | #61 | 계층 5개, 코디네이터, 탭바, 방향 정리, TCA 도입 시점 |
 | [SPEC-0064 진입 화면](./07-기획/SPEC-0064-entry-screens.md) | #64 | 온보딩·주 사용 손·홈·설정, Feature 분할, 온보딩 2단계 |
 | [SPEC-0070 1-B 기반](./07-기획/SPEC-0070-persistence-foundation.md) | #70 | Session·Clip·Swing, SwiftData 영속화, 링 버퍼 |
+| [SPEC-0085 스윙 트리거 룰 엔진](./07-기획/SPEC-0085-swing-trigger.md) | #85 | 손목 각속도, 몸통선 교차, 히스테리시스, 합성 시계열 검증 |
 
 ## 08-레퍼런스
 
