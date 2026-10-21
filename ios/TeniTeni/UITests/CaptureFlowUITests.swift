@@ -15,6 +15,11 @@ final class CaptureFlowUITests: XCTestCase {
     override func setUp() {
         super.setUp()
         continueAfterFailure = false
+        // 앞 테스트가 촬영(가로)에서 죽으면 방향이 남는다. `tearDown`만으로는
+        // 모자라다 — 죽은 테스트는 `tearDown`을 돌지 못한다. 가로로 시작하면
+        // 홈의 아래쪽 카드가 화면 밖으로 밀려 **탭이 조용히 먹지 않고**,
+        // 무관한 테스트가 "피커가 안 뜬다"로 실패한다.
+        XCUIDevice.shared.orientation = .portrait
         app = XCUIApplication()
         app.launch()
         completeOnboardingIfNeeded()
