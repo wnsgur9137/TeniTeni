@@ -21,8 +21,11 @@ final class CaptureFlowUITests: XCTestCase {
         // 무관한 테스트가 "피커가 안 뜬다"로 실패한다.
         XCUIDevice.shared.orientation = .portrait
         app = XCUIApplication()
+        // 앞선 실행이 남긴 선택·온보딩 완료를 지운다. 없으면 테스트 결과가
+        // **그 시뮬레이터에 무엇이 남아 있었는지**에 달린다 — #88
+        app.launchArguments = ["-ui-testing"]
         app.launch()
-        completeOnboardingIfNeeded()
+        completeOnboarding()
     }
 
     override func tearDown() {
@@ -131,10 +134,17 @@ final class CaptureFlowUITests: XCTestCase {
         }
     }
 
-    /// 온보딩은 설치 직후 한 번만 뜬다. CI는 매번 새 시뮬레이터다.
-    private func completeOnboardingIfNeeded() {
+    /// 상태를 비우고 시작하므로 온보딩은 **항상** 뜬다.
+    ///
+    /// 뜨지 않으면 상태가 비워지지 않은 것이다. 조용히 넘어가면 그 뒤의
+    /// 실패가 엉뚱한 곳을 가리킨다 — 전에는 `guard`로 빠져나가며 10초를
+    /// 버리고, 남은 선택 때문에 무관한 단정이 깨졌다.
+    private func completeOnboarding() {
         let begin = app.buttons["시작하기"]
-        guard begin.waitForExistence(timeout: 10) else { return }
+        XCTAssertTrue(
+            begin.waitForExistence(timeout: 10),
+            "온보딩이 떠야 한다 — 뜨지 않으면 앱 상태가 비워지지 않은 것이다"
+        )
         begin.tap()
         let hand = app.buttons["오른손"]
         XCTAssertTrue(hand.waitForExistence(timeout: 5), "주 사용 손을 물어야 한다")
