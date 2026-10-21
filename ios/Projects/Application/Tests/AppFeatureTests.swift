@@ -414,7 +414,12 @@ struct OrientationLockTests {
         #expect(lock.mask == OrientationLock.unlocked, "풀지 않으면 세로 화면 12종이 가로로 남는다")
 
         // 마스크만 바꾸면 UIKit이 다시 묻지 않는다. 창에 갱신을 요청해야 한다.
-        #expect(applied == [.landscape, OrientationLock.unlocked])
+        //
+        // 해제는 `unlocked`가 아니라 **세로**를 요청한다. 넓히기만 하면
+        // 현재 방향(가로)이 허용 집합에 들어 있어 iOS가 그대로 두고,
+        // 기기가 세로인데 앱이 가로로 남는다 — #88에서 실측했다.
+        #expect(applied == [.landscape, .portrait])
+        #expect(lock.mask == OrientationLock.unlocked, "요청은 세로지만 마스크는 넓어야 한다")
     }
 
     @Test("촬영 화면은 가로를 선언한다")
