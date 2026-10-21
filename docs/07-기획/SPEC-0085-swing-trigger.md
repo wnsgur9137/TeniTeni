@@ -110,7 +110,8 @@ status: active
 - [ ] 손목이 몸통선을 넘지 않는 큰 팔 움직임(공 줍기 모사)이 후보를 만들지 않는다
 - [ ] 반경 하한 미만 프레임이 각속도 폭주로 후보를 만들지 않는다
 - [ ] 신뢰도 결측이 이어지면 진행 중이던 트리거가 버려진다
-- [ ] `DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer ./scripts/verify-ios.sh` 통과, 경고 0
+- [ ] `DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer ./scripts/verify-ios.sh` 통과
+- [ ] **새로 넣은 코드의 경고 0** — 게이트 전체의 경고 0이 아니다. `CaptureFlowUITests.swift`(#83)에 기존 동시성 경고 76건이 있고, 이 작업에서 그 파일을 건드리면 재컴파일되며 드러난다. 고치려면 `setUp`/`tearDown`의 액터 격리를 손봐야 해 범위가 다르다 — [#88](https://github.com/wnsgur9137/TeniTeni/issues/88)
 
 ## 검증 방법
 
@@ -140,6 +141,8 @@ status: active
 - **실영상 검증** — 합성 시계열로만 확인합니다. 실제 포즈 출력으로 돌려본 적이 없습니다
 - **포즈 검출과의 연결** — 0-D #4가 실기기를 얻은 뒤입니다
 - **성능 측정** — 120fps 8.3ms 예산 안인지는 실기기에서 잽니다
+- **UI 테스트의 동시성 경고 76건** — `CaptureFlowUITests.swift`의 액터 격리 문제입니다. `@MainActor`를 클래스에 붙이면 `setUp`/`tearDown`이 상위의 `nonisolated` 선언을 override해 `sending 'self' risks causing data races`로 막힙니다. 파일 구조를 바꿔야 하므로 [#88](https://github.com/wnsgur9137/TeniTeni/issues/88)로 넘깁니다
+- **UI 테스트 런너가 비정상 종료한 원인** — 1회차 게이트에서 첫 UI 테스트의 런너가 죽었습니다. 크래시 리포트를 확보하지 못해 앱이 죽은 것인지 런너가 타임아웃한 것인지 **구분하지 못했습니다.** 앱을 지운 뒤에는 재현되지 않습니다 — [#88](https://github.com/wnsgur9137/TeniTeni/issues/88)
 
 ## 관련 문서
 
