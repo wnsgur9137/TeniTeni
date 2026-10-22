@@ -85,6 +85,7 @@ status: active
 | [SPEC-0064 진입 화면](./07-기획/SPEC-0064-entry-screens.md) | #64 | 온보딩·주 사용 손·홈·설정, Feature 분할, 온보딩 2단계 |
 | [SPEC-0070 1-B 기반](./07-기획/SPEC-0070-persistence-foundation.md) | #70 | Session·Clip·Swing, SwiftData 영속화, 링 버퍼 |
 | [SPEC-0085 스윙 트리거 룰 엔진](./07-기획/SPEC-0085-swing-trigger.md) | #85 | 손목 각속도, 몸통선 교차, 히스테리시스, 합성 시계열 검증 |
+| [SPEC-0091 스윙 구간 클립 저장](./07-기획/SPEC-0091-swing-clip-recording.md) | #91 | 겹침 병합, postRoll 플러시, H.264, 합성 픽셀 버퍼 검증 |
 
 ## 08-레퍼런스
 
