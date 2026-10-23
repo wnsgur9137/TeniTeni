@@ -7,13 +7,26 @@ import XCTest
 /// 상수 대 상수 비교로는 배선이 끊겨도 통과한다 — SPEC-0078이 고치겠다고
 /// 적은 "아무도 읽지 않는 죽은 선언"이 바로 그 양식이었다.
 ///
-/// 근거: 이슈 #83
+/// ## 왜 `@MainActor`인가
+///
+/// `XCUIApplication`·`XCUIElement`·`XCUIDevice`는 전부 `@MainActor`다.
+/// 격리를 선언하지 않으면 호출 하나하나가 경고가 되어 **77건**이 쌓였고,
+/// 그만큼 새 경고가 노이즈에 묻혔다.
+///
+/// 클래스에 `@MainActor`를 붙이면 `setUp()`·`tearDown()`을 **async
+/// 오버라이드로 바꿔야 한다.** 상위의 동기 메서드는 nonisolated라
+/// 동기 오버라이드로 덮으면 격리가 어긋나 `sending 'self' risks causing
+/// data races`가 난다. async 변형은 XCTest가 따로 제공하므로 그 충돌이
+/// 없다.
+///
+/// 근거: 이슈 #83, #88
+@MainActor
 final class CaptureFlowUITests: XCTestCase {
 
     private var app: XCUIApplication!
 
-    override func setUp() {
-        super.setUp()
+    override func setUp() async throws {
+        try await super.setUp()
         continueAfterFailure = false
         // 앞 테스트가 촬영(가로)에서 죽으면 방향이 남는다. `tearDown`만으로는
         // 모자라다 — 죽은 테스트는 `tearDown`을 돌지 못한다. 가로로 시작하면
@@ -28,10 +41,10 @@ final class CaptureFlowUITests: XCTestCase {
         completeOnboarding()
     }
 
-    override func tearDown() {
+    override func tearDown() async throws {
         XCUIDevice.shared.orientation = .portrait
         app = nil
-        super.tearDown()
+        try await super.tearDown()
     }
 
     // MARK: 전환
@@ -78,24 +91,30 @@ final class CaptureFlowUITests: XCTestCase {
 
     // MARK: 방향
 
-    func test_촬영은_가로를_유지하고_나오면_푼다() {
+    func test_촬영은_가로를_유지하고_나오면_푼다() async {
         choose(situation: "볼머신")
-        XCTAssertTrue(waitUntil { !self.isLandscape }, "홈은 세로다")
+        // `XCTAssertTrue`의 autoclosure는 async를 받지 못한다. 먼저 기다린
+        // 결과를 변수에 담아 넘긴다.
+        let homeIsPortrait = await waitUntil { !self.isLandscape }
+        XCTAssertTrue(homeIsPortrait, "홈은 세로다")
 
         tapStart()
         XCTAssertTrue(app.buttons["뒤로"].waitForExistence(timeout: 10))
-        XCTAssertTrue(waitUntil { self.isLandscape }, "촬영 흐름은 가로로 뜬다")
+        let captureIsLandscape = await waitUntil { self.isLandscape }
+        XCTAssertTrue(captureIsLandscape, "촬영 흐름은 가로로 뜬다")
 
         // 기기를 세로로 돌려도 따라가지 않는다 — 폰은 삼각대 위에 가로로 있다.
         XCUIDevice.shared.orientation = .portrait
-        XCTAssertTrue(waitUntil(timeout: 3) { self.isLandscape }, "촬영 중에는 가로를 유지한다")
+        let staysLandscape = await waitUntil(timeout: 3) { self.isLandscape }
+        XCTAssertTrue(staysLandscape, "촬영 중에는 가로를 유지한다")
 
         app.buttons["뒤로"].tap()
         XCTAssertTrue(homeHeader.waitForExistence(timeout: 10))
 
         XCUIDevice.shared.orientation = .portrait
+        let releasedToPortrait = await waitUntil { !self.isLandscape }
         XCTAssertTrue(
-            waitUntil { !self.isLandscape },
+            releasedToPortrait,
             "나오면 잠금이 풀려야 한다 — 풀지 않으면 세로 화면 12종이 가로로 남는다"
         )
     }
@@ -152,11 +171,18 @@ final class CaptureFlowUITests: XCTestCase {
         app.buttons["다음"].tap()
     }
 
-    private func waitUntil(timeout: TimeInterval = 5, _ condition: () -> Bool) -> Bool {
+    /// 조건이 참이 될 때까지 기다린다.
+    ///
+    /// `Thread.sleep`이 아니라 `Task.sleep`이다. 이 클래스는 `@MainActor`이고
+    /// 화면 조회도 전부 그 위에서 돈다 — 스레드를 막으면 **기다리는 동안
+    /// 아무것도 못 한다.**
+    private func waitUntil(
+        timeout: TimeInterval = 5, _ condition: () -> Bool
+    ) async -> Bool {
         let deadline = Date().addingTimeInterval(timeout)
         while Date() < deadline {
             if condition() { return true }
-            Thread.sleep(forTimeInterval: 0.2)
+            try? await Task.sleep(for: .milliseconds(200))
         }
         return condition()
     }
