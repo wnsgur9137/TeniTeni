@@ -76,6 +76,15 @@ public struct TimedRingBuffer<Element>: Sendable where Element: Sendable {
         return entries.filter { $0.timestamp >= from && $0.timestamp <= to }.map(\.value)
     }
 
+    /// 두 시각 사이를 **시각과 함께** 꺼낸다.
+    ///
+    /// 클립으로 쓸 때는 프레임마다 시각이 필요하다 — `range(from:to:)`는
+    /// 값만 주므로 PTS를 매길 수 없다.
+    public func slice(from: TimeInterval, to: TimeInterval) -> [Entry] {
+        guard from <= to else { return [] }
+        return entries.filter { $0.timestamp >= from && $0.timestamp <= to }
+    }
+
     public mutating func removeAll() { entries.removeAll() }
 
     private mutating func evict(now: TimeInterval) {
