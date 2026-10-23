@@ -33,7 +33,7 @@ Swift 6 strict concurrency 아래에서 격리 도메인을 어떻게 나눌지,
 | `captureOutput(_:didOutput:from:)` | `nonisolated` + 전용 `DispatchQueue` | AVFoundation이 지정 큐에서 호출 |
 | `TrajectoryAnalyzer` | **단일 `Task` + `AsyncStream`** | 프레임 순서가 절대적 (6.4절) |
 | `PoseAnalyzer` | **단일 `Task` + `AsyncStream`** | 스무딩·세그멘테이션이 상태를 누적 |
-| `ClipRecorder` | `actor` | 링 버퍼와 `AVAssetWriter` 상태 보호 |
+| `ClipRecorder` | `actor` | 링 버퍼와 `AVAssetWriter` 상태 보호. **구현됨** |
 | `Domain` UseCase, `TeniVision` 순수 계산 | `nonisolated` | 상태 없음 |
 
 ```
@@ -69,13 +69,17 @@ Swift 6 strict concurrency 아래에서 격리 도메인을 어떻게 나눌지,
 
 델리게이트에서 받은 `CMSampleBuffer`를 경계에서 한 번 감싸면, 이후로는 `@unchecked Sendable` 없이 격리 도메인을 넘길 수 있습니다.
 
+> **Content 타입은 `CVReadOnlyPixelBuffer`입니다.** 이 문서가 `CMSampleBuffer.PixelBufferContent`로 적었는데 그런 타입은 없습니다 — 고쳤습니다.
+>
+> **`CMReadySampleBuffer`는 iOS 26 / macOS 26 이상입니다.** `TeniVision`은 macOS 15도 지원하므로(`TeniTool`이 같은 프레임워크를 정적 링크) 엔진 안쪽에서는 쓸 수 없습니다. 그래서 `ClipFrame` 프로토콜이 경계에 서고, 이 래핑은 **카메라 인테이크(iOS 전용)에서만** 합니다 — [SPEC-0091](../07-기획/SPEC-0091-swing-clip-recording.md) 선택지 1.
+
 ```swift
 // TeniVision/Pipeline/FrameIntake.swift
 nonisolated func captureOutput(_ output: AVCaptureOutput,
                                didOutput sampleBuffer: CMSampleBuffer,
                                from connection: AVCaptureConnection) {
     // 콜백은 즉시 반환한다. 여기서 무거운 일을 하면 캡처 풀이 고갈된다
-    guard let ready = CMReadySampleBuffer<CMSampleBuffer.PixelBufferContent>(
+    guard let ready = CMReadySampleBuffer<CVReadOnlyPixelBuffer>(
         unsafeWithPixelBuffer: sampleBuffer
     ) else { return }
 

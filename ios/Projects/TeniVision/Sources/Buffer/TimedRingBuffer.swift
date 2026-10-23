@@ -40,6 +40,12 @@ public struct TimedRingBuffer<Element>: Sendable where Element: Sendable {
     /// 가장 최근 타임스탬프. 비어 있으면 `nil`.
     public var latest: TimeInterval? { entries.last?.timestamp }
 
+    /// 가장 오래된 타임스탬프. 비어 있으면 `nil`.
+    ///
+    /// 이보다 이른 구간을 요구받으면 **가진 것이 없다** — 호출부가 그것을
+    /// 알아야 조용히 짧은 클립을 만들지 않는다.
+    public var oldest: TimeInterval? { entries.first?.timestamp }
+
     /// 넣으면서 창 밖으로 나간 것을 버린다.
     ///
     /// - Note: 타임스탬프가 뒤로 가는 입력(되감기)은 상정하지 않는다.
@@ -74,6 +80,15 @@ public struct TimedRingBuffer<Element>: Sendable where Element: Sendable {
     public func range(from: TimeInterval, to: TimeInterval) -> [Element] {
         guard from <= to else { return [] }
         return entries.filter { $0.timestamp >= from && $0.timestamp <= to }.map(\.value)
+    }
+
+    /// 두 시각 사이를 **시각과 함께** 꺼낸다.
+    ///
+    /// 클립으로 쓸 때는 프레임마다 시각이 필요하다 — `range(from:to:)`는
+    /// 값만 주므로 PTS를 매길 수 없다.
+    public func slice(from: TimeInterval, to: TimeInterval) -> [Entry] {
+        guard from <= to else { return [] }
+        return entries.filter { $0.timestamp >= from && $0.timestamp <= to }
     }
 
     public mutating func removeAll() { entries.removeAll() }

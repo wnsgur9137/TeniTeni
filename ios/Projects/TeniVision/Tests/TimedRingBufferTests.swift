@@ -140,6 +140,37 @@ struct TimedRingBufferTests {
         #expect(buffer.latest == nil)
     }
 
+    @Test("slice는 시각을 함께 돌려준다")
+    func slice_시각() {
+        var buffer = TimedRingBuffer<Int>(window: 10)
+        for (index, time) in timestamps(frames: 5, fps: 1).enumerated() {
+            buffer.append(index, at: time)
+        }
+
+        let picked = buffer.slice(from: 1, to: 3)
+        #expect(picked.map(\.value) == [1, 2, 3])
+        #expect(picked.map(\.timestamp) == [1, 2, 3])
+    }
+
+    @Test("slice는 경계를 포함한다")
+    func slice_경계() {
+        var buffer = TimedRingBuffer<Int>(window: 10)
+        buffer.append(0, at: 0)
+        buffer.append(1, at: 1)
+
+        #expect(buffer.slice(from: 0, to: 1).count == 2)
+        #expect(buffer.slice(from: 0, to: 0).map(\.value) == [0])
+    }
+
+    @Test("거꾸로 된 범위는 비어 있다")
+    func slice_역범위() {
+        var buffer = TimedRingBuffer<Int>(window: 10)
+        buffer.append(0, at: 0)
+        buffer.append(1, at: 1)
+
+        #expect(buffer.slice(from: 1, to: 0).isEmpty)
+    }
+
     @Test("값 타입이라 복사본은 따로 논다")
     func 값_의미론() {
         var original = TimedRingBuffer<Int>(window: 10)

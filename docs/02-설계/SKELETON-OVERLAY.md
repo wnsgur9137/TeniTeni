@@ -347,7 +347,12 @@ Projects/
 │   ├── Swing/
 │   │   ├── PoseFrame.swift              # 트리거 입력 — 관절 6개 + 신뢰도
 │   │   ├── SwingTriggerProfile.swift    # 임계·간격. 상황별로 갈린다
-│   │   └── SwingTrigger.swift           # ★ 각속도 + 몸통선 교차 + 히스테리시스
+│   │   ├── SwingTrigger.swift           # ★ 각속도 + 몸통선 교차 + 히스테리시스
+│   │   ├── ClipFrame.swift              # 쓰기 입력 — 픽셀 버퍼를 빌려준다
+│   │   ├── ClipPlanner.swift            # 겹치는 후보를 한 구간으로 병합
+│   │   ├── ClipWriter.swift             # AVAssetWriter 스트리밍 세션
+│   │   ├── ClipRecorder.swift           # ★ actor — 버퍼 + 쓰기
+│   │   └── RecordedClip.swift           # 절대 시각 → 클립 상대초
 │   └── Render/
 │       ├── FrameRenderer.swift          # Metal 파이프라인 총괄
 │       ├── CameraTexturePass.swift      # CVMetalTextureCache
