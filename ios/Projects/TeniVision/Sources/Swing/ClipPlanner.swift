@@ -71,9 +71,15 @@ public struct ClipPlanner: Sendable {
     ///   돌려주는 것이 맞다 — 버리면 스윙이 사라진다.
     public mutating func accept(_ candidate: SwingCandidate) -> Segment? {
         let mark = Mark(candidate)
+        // 하한만 보면 모자란다. `triggeredAt`이 앞 mark보다 이르면 marks가
+        // 시간순이 아닌 채로 클립에 들어가고, 상대초도 뒤섞인다.
         assert(
             candidate.range.lowerBound >= (open?.range.lowerBound ?? -.infinity),
             "후보가 시간을 거슬러 들어왔다"
+        )
+        assert(
+            candidate.triggeredAt >= (open?.marks.last?.triggeredAt ?? -.infinity),
+            "후보의 교차 시각이 앞 후보보다 이르다"
         )
 
         guard var current = open else {

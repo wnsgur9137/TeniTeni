@@ -153,6 +153,11 @@ struct ClipRecorderTests {
         // 1.0초부터 4.0초까지 = 91장
         #expect(clip.frameCount == 91)
         #expect(FileManager.default.fileExists(atPath: clip.url.path))
+        // 스윙의 끝(절대 5.0초)은 클립에 없다. 상한으로 눌려야 한다 —
+        // 누르지 않으면 클립 길이를 넘는 시각이 도메인에 들어간다
+        let swing = try #require(clip.swings.first)
+        #expect(abs(swing.endSeconds - clip.duration) < 0.001)
+        #expect(swing.endSeconds <= clip.duration)
     }
 
     @Test("후보가 없으면 아무것도 쓰지 않는다")
@@ -167,6 +172,73 @@ struct ClipRecorderTests {
         #expect(try FileManager.default.contentsOfDirectory(atPath: directory.path).isEmpty)
     }
 
+    @Test("후보 뒤에 프레임이 없어도 종료에서 쓴다")
+    func 후보_직후_종료() async throws {
+        let recorder = ClipRecorder<TestFrame>(directory: ClipFixture.directory(), stamp: "s")
+        let clips = try await run(
+            recorder,
+            // 마지막 프레임에서 후보가 들어온다 — 그 뒤로 아무것도 없다
+            frames: ClipFixture.frames(from: 0, to: 3, fps: fps),
+            candidates: [90: ClipFixture.candidate(triggeredAt: 3.0)]
+        )
+
+        let clip = try #require(clips.first)
+        // 1.0초부터 3.0초까지 = 61장
+        #expect(clip.frameCount == 61)
+        #expect(try await sampleCount(of: clip.url) == 61)
+    }
+
+    @Test("종료를 두 번 불러도 한 번만 쓴다")
+    func 종료_두_번() async throws {
+        let directory = ClipFixture.directory()
+        let recorder = ClipRecorder<TestFrame>(directory: directory, stamp: "s")
+        for (index, frame) in ClipFixture.frames(from: 0, to: 3, fps: fps).enumerated() {
+            _ = try await recorder.enqueue(frame)
+            if index == 90 { _ = try await recorder.accept(ClipFixture.candidate(triggeredAt: 3.0)) }
+        }
+
+        #expect(try await recorder.finish() != nil)
+        #expect(try await recorder.finish() == nil)
+        #expect(try FileManager.default.contentsOfDirectory(atPath: directory.path).count == 1)
+    }
+
+    @Test("같은 이름의 앞 클립을 지우지 않는다")
+    func 이름_충돌() async throws {
+        let directory = ClipFixture.directory()
+        // stamp는 1초 해상도다 — 세션을 바로 다시 시작하면 같은 값이 온다
+        for _ in 0..<2 {
+            let recorder = ClipRecorder<TestFrame>(directory: directory, stamp: "s")
+            _ = try await run(
+                recorder,
+                frames: ClipFixture.frames(from: 0, to: 6, fps: fps),
+                candidates: [90: ClipFixture.candidate(triggeredAt: 3.0)]
+            )
+        }
+
+        let files = try FileManager.default.contentsOfDirectory(atPath: directory.path).sorted()
+        #expect(files == ["s-1.mov", "s-2.mov"])
+    }
+
+    @Test("경계가 딱 떨어지지 않아도 구간 밖 프레임은 들어가지 않는다")
+    func 비정수_경계() async throws {
+        let recorder = ClipRecorder<TestFrame>(directory: ClipFixture.directory(), stamp: "s")
+        // 91/30 = 3.0333... — 구간 경계가 부동소수로 정확히 표현되지 않는다
+        let triggeredAt = 91.0 / 30.0
+        let clips = try await run(
+            recorder,
+            frames: ClipFixture.frames(from: 0, to: 7, fps: fps),
+            candidates: [91: ClipFixture.candidate(triggeredAt: triggeredAt)]
+        )
+
+        let clip = try #require(clips.first)
+        // 이상값은 121장이지만 경계 한 장은 어느 쪽으로든 갈 수 있다
+        #expect(clip.frameCount >= 120)
+        #expect(clip.frameCount <= 121)
+        // 벗어나면 안 되는 것: 구간 밖 프레임이 들어오는 것
+        #expect(clip.startedAt >= triggeredAt - 2.0)
+        #expect(clip.startedAt + clip.duration <= triggeredAt + 2.0)
+    }
+
     @Test("버퍼는 preRoll과 여유만큼만 들고 있는다")
     func 버퍼_창() async throws {
         let recorder = ClipRecorder<TestFrame>(
@@ -175,9 +247,8 @@ struct ClipRecorderTests {
         for frame in ClipFixture.frames(from: 0, to: 10, fps: fps) {
             _ = try await recorder.enqueue(frame)
         }
-        // 창 3초 = 90프레임 간격. 경계 하나는 밀려날 수 있다
+        // 창 3초, 30fps. 경계(7.0초)는 버려지므로 7.0333~10.0의 90장이다
         let count = await recorder.bufferedFrameCount
-        #expect(count <= 91)
-        #expect(count >= 89)
+        #expect(count == 90)
     }
 }

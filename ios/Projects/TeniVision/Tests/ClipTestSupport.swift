@@ -18,7 +18,9 @@ struct TestFrame: ClipFrame, @unchecked Sendable {
         self.buffer = buffer
     }
 
-    func withPixelBuffer<Result>(_ body: (CVPixelBuffer) throws -> Result) rethrows -> Result {
+    func withPixelBuffer<Result: Sendable>(
+        _ body: (CVPixelBuffer) throws -> Result
+    ) rethrows -> Result {
         try body(buffer)
     }
 }

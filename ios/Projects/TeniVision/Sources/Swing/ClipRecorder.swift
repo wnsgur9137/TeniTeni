@@ -84,7 +84,7 @@ public actor ClipRecorder<Frame: ClipFrame> {
 
         guard planner.isOpen else { return nil }
         if session == nil {
-            // 세션 시작 직후라 소급분이 비어 세션을 못 열었던 경우.
+            // 구간이 막 열렸거나, 소급분이 비어 아직 못 열었던 경우.
             // 이 프레임이 버퍼에 들어왔으니 이제 열린다.
             try openSession()
         } else {
@@ -94,18 +94,32 @@ public actor ClipRecorder<Frame: ClipFrame> {
     }
 
     /// 후보를 받는다. 앞선 구간이 이것과 겹치지 않으면 그 구간을 닫는다.
+    ///
+    /// **세션을 여기서 열지 않는다.** 닫기에 성공해 파일이 디스크에 생겼는데
+    /// 이어지는 열기가 던지면, 완성된 `RecordedClip`이 반환되지 못하고
+    /// 사라진다 — 파일은 있고 기록은 없는 고아가 된다. 열기는 다음
+    /// `enqueue`가 맡는다.
     public func accept(_ candidate: SwingCandidate) throws -> RecordedClip? {
-        var clip: RecordedClip?
-        if let closed = planner.accept(candidate) {
-            clip = try closeSession(closed)
-        }
-        try openSession()
-        return clip
+        // 트리거가 버퍼 창보다 늦게 울리면 임팩트 프레임이 이미 버려졌고,
+        // 상대초 클램프가 그것을 0초(= 첫 프레임)로 둔갑시킨다. 조용히
+        // 틀린 프레임을 분석하게 되므로 디버그에서 잡는다.
+        assert(
+            candidate.triggeredAt >= (buffer.oldest ?? -.infinity),
+            "트리거가 버퍼 창보다 늦게 울렸다 — 임팩트 프레임이 없다"
+        )
+        guard let closed = planner.accept(candidate) else { return nil }
+        return try closeSession(closed)
     }
 
     /// 세션을 끝낸다. `postRoll`을 못 채운 구간도 **가진 만큼** 쓴다 —
     /// 마지막 스윙을 버리지 않는다.
+    ///
+    /// 두 번 불러도 같은 세션을 다시 저장하지 않는다.
     public func finish() throws -> RecordedClip? {
+        // 후보가 들어온 뒤 프레임이 하나도 오지 않았으면 세션이 아직
+        // 없다. 버퍼의 소급분으로 지금 연다 — 안 열면 마지막 스윙이
+        // 통째로 사라진다.
+        if session == nil { try openSession() }
         guard let segment = planner.finish() else { return nil }
         return try closeSession(segment)
     }
@@ -118,12 +132,25 @@ public actor ClipRecorder<Frame: ClipFrame> {
         // 여기서 파일을 만들면 **재생할 수 없는 0프레임 클립**이 남는다.
         guard let first = backlog.first else { return }
 
-        index += 1
-        let url = directory.appending(path: "\(stamp)-\(index).mov")
+        // 이미 있는 이름은 건너뛴다. `ClipWriter.Session`은 덮어쓰지 않고
+        // 거부하므로, 같은 초에 세션을 다시 시작해도 앞 세션의 클립이
+        // 지워지지 않는다.
+        var url: URL
+        repeat {
+            index += 1
+            url = directory.appending(path: "\(stamp)-\(index).mov")
+        } while FileManager.default.fileExists(atPath: url.path)
+
         let opened = try ClipWriter.Session(url: url, first: first)
-        // 첫 프레임도 써야 한다 — `Session.init`은 크기와 원점만 정하고
-        // 아무것도 쓰지 않는다.
-        for frame in backlog { try opened.append(frame) }
+        do {
+            // 첫 프레임도 써야 한다 — `Session.init`은 크기와 원점만 정하고
+            // 아무것도 쓰지 않는다.
+            for frame in backlog { try opened.append(frame) }
+        } catch {
+            // 덜 쓰인 파일을 남기면 재생할 수 없는 `.mov`가 쌓인다.
+            opened.cancel()
+            throw error
+        }
         session = opened
     }
 

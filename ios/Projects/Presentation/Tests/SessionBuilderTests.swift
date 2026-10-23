@@ -38,10 +38,12 @@ private func recorded(
     )
 }
 
-private func builder(_ repository: any SessionRepository) -> SessionBuilder {
+private func builder(
+    _ repository: any SessionRepository, clockOrigin: TimeInterval = 0
+) -> SessionBuilder {
     SessionBuilder(
-        startedAt: start, situation: .ballMachine, observable: .swing, fps: 120,
-        repository: repository
+        startedAt: start, clockOrigin: clockOrigin, situation: .ballMachine,
+        observable: .swing, fps: 120, repository: repository
     )
 }
 
@@ -83,6 +85,27 @@ struct SessionBuilderTests {
         let session = try await subject.finish(at: start)
 
         #expect(session.clips.first?.recordedAt == start.addingTimeInterval(12.5))
+    }
+
+    @Test("프레임 시계 원점을 빼고 날짜로 바꾼다")
+    func 시계_원점() async throws {
+        let repository = SpyRepository()
+        // 부팅 후 11시간 넘게 지난 기기를 흉내낸다
+        let subject = builder(repository, clockOrigin: 42_319.5)
+        await subject.add(recorded(startedAt: 42_321.0))
+        let session = try await subject.finish(at: start)
+
+        #expect(session.clips.first?.recordedAt == start.addingTimeInterval(1.5))
+    }
+
+    @Test("원점보다 이른 클립은 세션 시작으로 눌린다")
+    func 시계_역행() async throws {
+        let repository = SpyRepository()
+        let subject = builder(repository, clockOrigin: 100)
+        await subject.add(recorded(startedAt: 90))
+        let session = try await subject.finish(at: start)
+
+        #expect(session.clips.first?.recordedAt == start)
     }
 
     @Test("스윙의 상대초가 자리를 바꾸지 않고 옮겨진다")

@@ -31,6 +31,7 @@ public struct ClipWriter: Sendable {
         case emptyClip
         case cannotReadDimensions
         case timestampWentBackwards
+        case fileAlreadyExists(String)
         case writerFailed(String)
 
         public var description: String {
@@ -38,6 +39,7 @@ public struct ClipWriter: Sendable {
             case .emptyClip: "쓸 프레임이 없습니다"
             case .cannotReadDimensions: "프레임 크기를 읽을 수 없습니다"
             case .timestampWentBackwards: "프레임 시각이 역행했습니다"
+            case .fileAlreadyExists(let name): "이미 있는 파일입니다: \(name)"
             case .writerFailed(let reason): "클립 기록 실패: \(reason)"
             }
         }
@@ -48,7 +50,8 @@ public struct ClipWriter: Sendable {
         public let frameCount: Int
         /// 첫 프레임부터 마지막 프레임까지의 간격.
         public let duration: TimeInterval
-        /// 세션 시계 기준 첫 프레임 시각. 영상의 PTS 0이 이 시각이다.
+        /// 첫 프레임의 **프레임 시계** 값. 영상의 PTS 0이 이 시각이다.
+        /// 벽시계가 아니다 — `RecordedClip.startedAt` 참고.
         public let startedAt: TimeInterval
 
         public init(url: URL, frameCount: Int, duration: TimeInterval, startedAt: TimeInterval) {
@@ -89,8 +92,11 @@ public struct ClipWriter: Sendable {
             try FileManager.default.createDirectory(
                 at: url.deletingLastPathComponent(), withIntermediateDirectories: true
             )
-            if FileManager.default.fileExists(atPath: url.path) {
-                try FileManager.default.removeItem(at: url)
+            // **덮어쓰지 않는다.** stamp는 1초 해상도이고 index는 recorder마다
+            // 1부터 다시 센다 — 1초 안에 세션을 다시 시작하면 앞 세션의
+            // 클립을 지우게 되고, DB의 그 행은 남의 영상을 가리킨다.
+            guard !FileManager.default.fileExists(atPath: url.path) else {
+                throw Failure.fileAlreadyExists(url.lastPathComponent)
             }
 
             writer = try AVAssetWriter(outputURL: url, fileType: .mov)
@@ -126,10 +132,22 @@ public struct ClipWriter: Sendable {
         /// - Note: 시각이 역행하면 `AVAssetWriter`가 append를 거부한다.
         ///   조용히 넘기지 않고 오류로 올린다.
         public func append(_ frame: some ClipFrame) throws {
-            guard frame.seconds >= latest || count == 0 else {
+            // `latest`는 첫 프레임 시각으로 초기화된다. 그래서 `count == 0`
+            // 예외가 필요 없고, **첫 프레임보다 이른 것을 넣으면 거부된다** —
+            // 세션은 .zero에서 시작하므로 그런 프레임은 음수 PTS가 된다.
+            guard frame.seconds >= latest else {
                 throw Failure.timestampWentBackwards
             }
             while !input.isReadyForMoreMediaData {
+                // 상태를 보지 않으면 **영원히 돌 수 있다.** writer가 .failed로
+                // 떨어진 순간 isReadyForMoreMediaData가 false였다면 다시
+                // true가 되지 않는다. 소유자가 actor이므로 그 스핀은
+                // 협력 스레드 하나를 영구 점유하고 recorder 전체를 막는다.
+                guard writer.status == .writing else {
+                    throw Failure.writerFailed(
+                        writer.error?.localizedDescription ?? "status=\(writer.status.rawValue)"
+                    )
+                }
                 // 실시간이 아니므로 짧게 양보하면 충분하다.
                 usleep(1000)
             }
@@ -144,6 +162,15 @@ public struct ClipWriter: Sendable {
             }
             latest = frame.seconds
             count += 1
+        }
+
+        /// 쓰기를 포기하고 **덜 쓰인 파일을 지운다.**
+        ///
+        /// 중간에 실패한 세션을 그냥 버리면 `AVAssetWriter`가 종료되지 않아
+        /// 재생할 수 없는 `.mov`가 디스크에 남는다.
+        public func cancel() {
+            writer.cancelWriting()
+            try? FileManager.default.removeItem(at: url)
         }
 
         /// 파일을 닫는다.
@@ -172,7 +199,12 @@ public struct ClipWriter: Sendable {
     public func write(_ frames: [some ClipFrame], to url: URL) throws -> Written {
         guard let first = frames.first else { throw Failure.emptyClip }
         let session = try Session(url: url, first: first)
-        for frame in frames { try session.append(frame) }
-        return try session.finish()
+        do {
+            for frame in frames { try session.append(frame) }
+            return try session.finish()
+        } catch {
+            session.cancel()
+            throw error
+        }
     }
 }

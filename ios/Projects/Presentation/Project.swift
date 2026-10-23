@@ -35,7 +35,13 @@ let project = Project(
             bundleId: "com.wnsgur9137.TeniTeni.PresentationTests",
             deploymentTargets: .iOS("26.0"),
             sources: ["Tests/**"],
-            dependencies: [.target(name: "Presentation")]
+            // 테스트가 Domain·TeniVision을 직접 import한다. 정적 링크의
+            // 전이 의존으로 지금은 통하지만 명시해 둔다.
+            dependencies: [
+                .target(name: "Presentation"),
+                .project(target: "Domain", path: "../Domain"),
+                .project(target: "TeniVision", path: "../TeniVision"),
+            ]
         )
     ]
 )

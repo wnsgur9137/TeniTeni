@@ -6,7 +6,12 @@ import Foundation
 /// `Clip`을 만들지 않고, 둘을 함께 아는 계층이 옮긴다.
 public struct RecordedClip: Sendable, Equatable {
     public let url: URL
-    /// 세션 시계 기준 첫 프레임 시각. 영상의 PTS 0이 이 시각이다.
+    /// 첫 프레임의 **프레임 시계** 값. 영상의 PTS 0이 이 시각이다.
+    ///
+    /// 벽시계가 아니다 — 카메라가 배선되면
+    /// `CMSampleBuffer.presentationTimeStamp`, 즉 부팅 이후 호스트 시각이
+    /// 된다. 날짜로 바꾸려면 **세션 시작 시점의 프레임 시계 값을 빼야
+    /// 한다**(`SessionBuilder`의 `clockOrigin`).
     public let startedAt: TimeInterval
     /// 첫 프레임부터 마지막 프레임까지의 간격.
     public let duration: TimeInterval

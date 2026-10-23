@@ -26,6 +26,12 @@ public protocol ClipFrame: Sendable {
     /// 다르면 구간이 조용히 어긋난다.
     var seconds: TimeInterval { get }
 
-    /// 픽셀 버퍼를 빌려준다. 클로저 밖으로 내보내면 안 된다.
-    func withPixelBuffer<Result>(_ body: (CVPixelBuffer) throws -> Result) rethrows -> Result
+    /// 픽셀 버퍼를 빌려준다.
+    ///
+    /// `Result`를 `Sendable`로 묶었다. `CVPixelBuffer`가 Sendable이 아니므로
+    /// **버퍼를 그대로 돌려주는 코드가 컴파일되지 않는다** — "빌려준다"는
+    /// 말이 주석이 아니라 타입으로 강제된다.
+    func withPixelBuffer<Result: Sendable>(
+        _ body: (CVPixelBuffer) throws -> Result
+    ) rethrows -> Result
 }

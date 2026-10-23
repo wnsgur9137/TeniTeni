@@ -70,6 +70,49 @@ struct ClipWriterTests {
         }
     }
 
+    @Test("있는 파일을 덮어쓰지 않는다")
+    func 덮어쓰기_금지() throws {
+        let url = ClipFixture.directory().appending(path: "clip.mov")
+        let frames = ClipFixture.frames(from: 0, to: 0.2, fps: 30)
+        _ = try ClipWriter().write(frames, to: url)
+        let before = try Data(contentsOf: url).count
+
+        #expect(throws: ClipWriter.Failure.fileAlreadyExists("clip.mov")) {
+            _ = try ClipWriter().write(frames, to: url)
+        }
+        // 거부만 하는 게 아니라 **앞 파일이 그대로** 있어야 한다
+        #expect(try Data(contentsOf: url).count == before)
+    }
+
+    @Test("쓰다가 실패하면 덜 쓰인 파일을 남기지 않는다")
+    func 실패_정리() throws {
+        let buffer = ClipFixture.pixelBuffer()
+        let frames = [
+            TestFrame(seconds: 0.0, buffer: buffer),
+            TestFrame(seconds: 0.1, buffer: buffer),
+            TestFrame(seconds: 0.05, buffer: buffer),  // 역행 — 여기서 던진다
+        ]
+        let url = ClipFixture.directory().appending(path: "clip.mov")
+        #expect(throws: ClipWriter.Failure.timestampWentBackwards) {
+            _ = try ClipWriter().write(frames, to: url)
+        }
+        #expect(FileManager.default.fileExists(atPath: url.path) == false)
+    }
+
+    @Test("첫 프레임보다 이른 프레임을 거부한다")
+    func 첫_프레임보다_이름() throws {
+        let buffer = ClipFixture.pixelBuffer()
+        let url = ClipFixture.directory().appending(path: "clip.mov")
+        let session = try ClipWriter.Session(
+            url: url, first: TestFrame(seconds: 1.0, buffer: buffer)
+        )
+        defer { session.cancel() }
+        // 세션은 .zero에서 시작한다 — 이것을 통과시키면 음수 PTS가 된다
+        #expect(throws: ClipWriter.Failure.timestampWentBackwards) {
+            try session.append(TestFrame(seconds: 0.5, buffer: buffer))
+        }
+    }
+
     @Test("프레임을 하나도 넣지 않고 닫으면 거부한다")
     func 세션_빈_종료() throws {
         let url = ClipFixture.directory().appending(path: "clip.mov")
