@@ -24,6 +24,18 @@ let project = Project(
                 .project(target: "TeniVision", path: "../TeniVision"),
                 .external(name: "ComposableArchitecture"),
             ]
+        ),
+        // 세션 조립은 상대초 변환과 저장소 호출을 들고 있다 — 그것을
+        // 확인할 자리가 없었다. 테스트 타깃이 있으면
+        // scripts/verify-ios.sh가 build 대신 test를 돈다.
+        .target(
+            name: "PresentationTests",
+            destinations: .iOS,
+            product: .unitTests,
+            bundleId: "com.wnsgur9137.TeniTeni.PresentationTests",
+            deploymentTargets: .iOS("26.0"),
+            sources: ["Tests/**"],
+            dependencies: [.target(name: "Presentation")]
         )
     ]
 )
