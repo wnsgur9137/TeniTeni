@@ -107,8 +107,60 @@ struct CaptureView: View {
             }
 
             elapsedTime
+            poseIndicator
             warningBanner
             recordButton
+        }
+    }
+
+    // MARK: 포즈 — "지금 내가 보이고 있는가"
+
+    /// 6m 밖에서 읽혀야 하는 상태다. 사람이 프레임에서 벗어나면 스윙이 하나도
+    /// 잡히지 않는데, 그 사실을 끝나고 알면 다시 찍을 수밖에 없다.
+    ///
+    /// 수치가 아니라 **상태**이므로 녹화 중에도 남는다(IA-FLOW 10.5).
+    @ViewBuilder
+    private var poseIndicator: some View {
+        if let label = poseLabel {
+            VStack {
+                HStack {
+                    Spacer()
+                    HStack(spacing: 10) {
+                        Circle()
+                            .fill(poseTint)
+                            .frame(width: 14, height: 14)
+                        Text(label)
+                            .font(.system(size: 20, weight: .semibold))
+                            .foregroundStyle(Token.Text.primary)
+                    }
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 10)
+                    .background(Token.Background.scrim, in: .capsule)
+                    .accessibilityElement(children: .combine)
+                    .accessibilityLabel(label)
+                }
+                Spacer()
+            }
+            .padding(.trailing, 16)
+            .padding(.top, 14)
+            .allowsHitTesting(false)
+        }
+    }
+
+    private var poseLabel: String? {
+        switch controller.poseStatus {
+        case .idle: nil
+        case .detected: "사람이 보입니다"
+        case .notFound: "사람이 안 보입니다"
+        case .failed: "포즈 분석이 멈췄습니다"
+        }
+    }
+
+    private var poseTint: Color {
+        switch controller.poseStatus {
+        case .detected: Token.State.success
+        case .notFound, .failed: Token.State.warning
+        case .idle: Token.Text.tertiary
         }
     }
 
