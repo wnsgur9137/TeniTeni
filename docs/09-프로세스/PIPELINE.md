@@ -25,7 +25,7 @@ status: active
 | 6 | 기획서 작성·검증 | ✅ | `docs/07-기획/SPEC-NNNN-*.md` |
 | 7 | 디자인 작성·검증 | ✅ | 디자인 캔버스 Artifact |
 | 8 | 개발·검증 | ✅ | 코드 + 게이트 통과 |
-| 9 | commit → PR → 리뷰 → 반영 | — | `/ship --from=2` 위임 |
+| 9 | commit → Draft PR → 리뷰 → 반영 | — | `/commit`·`/create-pr`·`/pr-review`·`/apply-review` |
 | 10 | 병합 | — | `--merge` 옵션에 따름 |
 
 ## 12.2 작업 상태 — GitHub Issues
@@ -273,23 +273,25 @@ gh run view <run-id> --repo wnsgur9137/TeniTeni --json jobs \
 
 이 저장소는 **문서 폴더명이 전부 한글**이라 경로 판정 버그가 문서 게이트를 통째로 무력화합니다. 경로 필터를 건드릴 때마다 한글 경로로 확인합니다.
 
-## 12.8 9~10단계 — `/ship` 위임
+## 12.8 9~10단계 — 커밋에서 병합까지
 
-```
-/ship --from=2
-```
+`/pipeline`이 직접 처리합니다. 하위 단계만 전역 커맨드에 위임합니다 — `/commit` · `/create-pr` · `/pr-review` · `/apply-review`. 재구현하지 않습니다.
 
-`/ship`이 commit → Draft PR → 리뷰 → 반영 → Ready → 병합을 처리합니다. 재구현하지 않습니다.
+> **`/ship`은 없앴습니다.** `/pipeline`을 전역 커맨드로 올리면서 9~10단계를 그 안으로 흡수했습니다. 전역에 `/ship`을 두면 `/pipeline`만 옮겨도 반쪽이 따라오지 않습니다.
+
+**PR은 항상 Draft로 만들고 반영이 끝난 뒤에 Ready로 올립니다.** CI가 Draft를 건너뛰므로, 9단계를 Draft에서 끝내고 10단계에서 한 번만 Ready로 올리면 CI가 1회로 끝납니다. 순서를 바꾸면(생성→Ready→리뷰→반영) 2회 이상 돕니다.
 
 ### 병합 옵션
 
 | 옵션 | 동작 |
 |---|---|
-| `--merge=critical` | **기본값.** CRITICAL이 남아 있을 때만 확인 |
+| `--merge=confirm` | **기본값.** 항상 확인 |
+| `--merge=critical` | CRITICAL이 남아 있을 때만 확인 |
 | `--merge=auto` | 항상 자동 병합 |
-| `--merge=confirm` | 항상 확인 |
 
 셋 다 **게이트 실패 시에는 무조건 중단**합니다.
+
+> ⚠️ **이 저장소에서는 병합을 매번 명시적으로 지시받습니다.** 승인은 PR 간에 이어지지 않습니다 — `--merge` 값과 무관하게 이 규약이 우선합니다.
 
 ### PR 규약
 
@@ -357,7 +359,7 @@ git diff --numstat -M origin/main...HEAD | awk '$1 ~ /^[0-9]+$/ {a+=$1} END {pri
 | 6 | `docs/07-기획/SPEC-NNNN-*.md` 존재 |
 | 7 | 디자인 캔버스 Artifact 존재 |
 | 8 | `git diff` |
-| 9~10 | `/ship`이 판정 |
+| 9~10 | 열린 PR의 `draft` 필드 · 리뷰 코멘트 · CI `conclusion` |
 
 `--from=N`의 선행 조건이 충족되지 않으면 **중단하고 무엇이 빠졌는지 알립니다.**
 
@@ -366,7 +368,7 @@ git diff --numstat -M origin/main...HEAD | awk '$1 ~ /^[0-9]+$/ {a+=$1} END {pri
 이 규약은 24개 결정(P-01~P-24)으로 정해졌습니다. 주요 근거:
 
 - **P-01 Issues** — 문서 체크박스는 이미 깨져 있었고(28/1), PR과 자동 연결되는 유일한 출처
-- **P-02 1~2일치** — 0-A가 1,147줄이었고 `/ship`도 500줄 초과 시 외부 리뷰를 권고
+- **P-02 1~2일치** — 0-A가 1,147줄이었고 500줄을 넘으면 외부 리뷰어가 필요합니다
 - **P-05 Markdown** — HTML은 볼트 밖으로 나가 링크 그래프가 끊기고 기존 설계 문서와 중복
 - **P-16 커맨드가 상한 감시** — 훅 카운터가 지정 상한을 반영하지 않음
 - **P-23 실물 판정** — 상태 파일은 반드시 실제와 어긋남
