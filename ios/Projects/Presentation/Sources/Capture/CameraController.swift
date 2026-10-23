@@ -1,5 +1,6 @@
 import DesignSystem
 import AVFoundation
+import ImageIO
 import Observation
 import TeniVision
 import UIKit
@@ -41,6 +42,21 @@ final class CameraController: NSObject {
 
     private(set) var supports120: Bool = false
 
+    /// 포즈가 잡히는가. 6m 밖에서 "지금 내가 보이고 있는지"를 알려주는 유일한 수단이다.
+    private(set) var poseStatus: PoseIndicator = .idle
+
+    /// 포즈가 안 보인 채 흐른 시간. 깜빡임을 막는다 — 한 프레임 놓칠 때마다
+    /// 표시가 바뀌면 6m 밖에서는 읽을 수 없다.
+    private var lastPoseAt: Date?
+
+    enum PoseIndicator: Equatable {
+        /// 아직 프레임이 들어오지 않았다.
+        case idle
+        case detected
+        case notFound
+        case failed(String)
+    }
+
     /// 마이크 권한이 없으면 거짓. 무음으로 녹화하고 있다는 사실을 화면이 계속 보여줘야 한다 —
     /// 배너는 다른 메시지에 덮이고, 끝난 뒤에 알면 다시 찍을 수 없다.
     private(set) var recordsAudio: Bool = true
@@ -60,6 +76,17 @@ final class CameraController: NSObject {
     private var pendingMetadata: ClipMetadata?
     private var rotationCoordinator: AVCaptureDevice.RotationCoordinator?
     private var rotationObservation: NSKeyValueObservation?
+
+    // MARK: 분석 경로
+
+    /// 프레임을 한 장씩 꺼내는 출력. 0-A의 통영상 녹화(`movieOutput`)와 **공존한다** —
+    /// 녹화 경로를 건드리지 않으려고 출력을 더한다.
+    private let videoOutput = AVCaptureVideoDataOutput()
+    /// 콜백이 들어오는 전용 큐. 메인을 쓰면 UI가 프레임마다 막힌다.
+    private let captureQueue = DispatchQueue(label: "com.wnsgur9137.TeniTeni.capture")
+    private var intake: FrameIntake?
+    private var analyzer: PoseAnalyzer?
+    private var poseTask: Task<Void, Never>?
 
     // MARK: 구성
 
@@ -94,6 +121,7 @@ final class CameraController: NSObject {
         session.startRunning()
         applyFormat()
         startTrackingRotation(for: camera)
+        startAnalysis()
         status = .ready
         // applyFormat이 이미 경고를 띄웠으면 덮지 않는다 — "120fps 포맷을 찾을 수 없습니다"가
         // 무음 안내보다 중하다. 무음은 표시줄에 계속 남으므로 배너를 양보해도 사라지지 않는다.
@@ -152,7 +180,85 @@ final class CameraController: NSObject {
            connection.isVideoStabilizationSupported {
             connection.preferredVideoStabilizationMode = .off
         }
+
+        configureAnalysisOutput()
     }
+
+    /// 분석용 출력을 더한다. **실패해도 중단하지 않는다** — 녹화는 그대로
+    /// 되고, 분석만 없는 상태가 된다. 기기에 따라 출력 조합이 거부될 수 있다.
+    private func configureAnalysisOutput() {
+        guard session.canAddOutput(videoOutput) else {
+            message = "이 기기에서는 녹화와 분석을 함께 할 수 없습니다"
+            return
+        }
+        // 밀리면 버린다. 붙들면 캡처 풀이 고갈된다 — 동시성 6.3.
+        videoOutput.alwaysDiscardsLateVideoFrames = true
+        videoOutput.videoSettings = [
+            kCVPixelBufferPixelFormatTypeKey as String:
+                Int(kCVPixelFormatType_420YpCbCr8BiPlanarFullRange)
+        ]
+        session.addOutput(videoOutput)
+    }
+
+    /// 분석을 시작한다. 포맷이 정해진 **뒤에** 불러야 한다 — 데시메이션 간격이
+    /// 실제 fps에서 나온다.
+    ///
+    /// `AsyncStream`은 한 번 끝나면 다시 쓸 수 없으므로 분석기를 매번 새로
+    /// 만든다. 세션이 멈췄다 다시 도는 경로(백그라운드 왕복)가 그래서 생긴다.
+    private func startAnalysis() {
+        guard session.outputs.contains(videoOutput), analyzer == nil else { return }
+
+        let analyzer = PoseAnalyzer()
+        let intake = FrameIntake(
+            decimator: FrameDecimator(captureFPS: actualFPS),
+            onAnalysisFrame: { [weak analyzer] frame in analyzer?.submit(frame) }
+        )
+        videoOutput.setSampleBufferDelegate(intake, queue: captureQueue)
+        analyzer.update(orientation: visionOrientation)
+
+        self.analyzer = analyzer
+        self.intake = intake
+        // 포획은 한 번만 한다. Task 안에서 다시 `[weak self]`를 쓰면 바깥의
+        // 포획 변수를 동시 실행 코드에서 읽는 꼴이 된다.
+        let sink: @Sendable (PoseOutcome) -> Void = { [weak self] outcome in
+            Task { @MainActor in self?.apply(outcome) }
+        }
+        poseTask = Task { await analyzer.run(onOutcome: sink) }
+    }
+
+    private func stopAnalysis() {
+        poseTask?.cancel()
+        poseTask = nil
+        analyzer?.finish()
+        analyzer = nil
+        videoOutput.setSampleBufferDelegate(nil, queue: nil)
+        intake = nil
+        poseStatus = .idle
+        lastPoseAt = nil
+    }
+
+    private func apply(_ outcome: PoseOutcome) {
+        switch outcome {
+        case .detected:
+            lastPoseAt = Date()
+            poseStatus = .detected
+        case .notFound:
+            // 한 프레임 놓친 것으로 표시를 바꾸지 않는다. 트리거의 결측 허용
+            // 간격과 같은 값을 쓴다 — 그보다 짧게 끊기면 트리거도 끊긴다.
+            guard let lastPoseAt else {
+                poseStatus = .notFound
+                return
+            }
+            if Date().timeIntervalSince(lastPoseAt) > Self.poseGraceSeconds {
+                poseStatus = .notFound
+            }
+        case .failed(let reason):
+            poseStatus = .failed(reason)
+        }
+    }
+
+    /// 포즈가 끊겼다고 표시할 때까지 기다리는 시간. 트리거의 `maximumGap`과 맞춘다.
+    private static let poseGraceSeconds: TimeInterval = SwingTriggerProfile.default.maximumGap
 
     // MARK: 회전
 
@@ -173,8 +279,31 @@ final class CameraController: NSObject {
         }
     }
 
+    /// 분석 버퍼가 세워진 방향. Vision에 넘기면 **좌표까지 맞춰** 돌려준다 —
+    /// 버퍼를 돌리지 않아도 된다.
+    private var visionOrientation: CGImagePropertyOrientation?
+
+    /// 회전각 → 이미지 방향.
+    ///
+    /// **실기기에서 확인하지 못했다.** 다만 틀려도 기하는 무너지지 않는다 —
+    /// 트리거가 쓰는 각속도 크기와 몸통선 교차 **부호 변화**는 화면 전체의
+    /// 회전·거울에 불변이다. 영향은 "누워 있는 사람을 Vision이 못 찾는" 쪽이다.
+    private static func orientation(forRotationAngle angle: CGFloat) -> CGImagePropertyOrientation {
+        switch Int(angle.rounded()) % 360 {
+        case 90: .right
+        case 180: .down
+        case 270: .left
+        default: .up
+        }
+    }
+
     /// 녹화 중에는 방향을 바꾸지 않는다. 파일 중간에 회전이 바뀌면 안 된다.
     private func applyRotation(_ angle: CGFloat) {
+        // 분석 방향은 녹화와 무관하다. 파일이 아니라 요청 인자이므로
+        // 중간에 바뀌어도 이미 쓴 것이 망가지지 않는다.
+        visionOrientation = Self.orientation(forRotationAngle: angle)
+        analyzer?.update(orientation: visionOrientation)
+
         guard !movieOutput.isRecording,
               let connection = movieOutput.connection(with: .video),
               connection.isVideoRotationAngleSupported(angle) else { return }
@@ -216,6 +345,8 @@ final class CameraController: NSObject {
         }
 
         readActualValues()
+        // 120fps면 포즈를 2프레임에 한 번만 돌린다. 포맷이 바뀌면 간격도 바뀐다.
+        intake?.update(decimator: FrameDecimator(captureFPS: actualFPS))
     }
 
     private func applyExposure(to device: AVCaptureDevice, format: AVCaptureDevice.Format) {
@@ -261,6 +392,7 @@ final class CameraController: NSObject {
 
     /// 백그라운드 진입. 녹화 중이면 먼저 정상 종료해 파일 손상을 막는다.
     func suspend() {
+        stopAnalysis()
         rotationObservation?.invalidate()
         rotationObservation = nil
         if movieOutput.isRecording {
@@ -286,6 +418,7 @@ final class CameraController: NSObject {
             session.startRunning()
             applyFormat()
             if let device { startTrackingRotation(for: device) }
+            startAnalysis()
         }
     }
 
