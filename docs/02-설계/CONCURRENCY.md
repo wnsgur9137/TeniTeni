@@ -32,7 +32,8 @@ Swift 6 strict concurrency 아래에서 격리 도메인을 어떻게 나눌지,
 | `CameraSession` | `actor` | 세션 구성이 여러 곳에서 호출됨. 내부적으로 전용 `DispatchQueue`에 위임 |
 | `captureOutput(_:didOutput:from:)` | `nonisolated` + 전용 `DispatchQueue` | AVFoundation이 지정 큐에서 호출 |
 | `TrajectoryAnalyzer` | **단일 `Task` + `AsyncStream`** | 프레임 순서가 절대적 (6.4절) |
-| `PoseAnalyzer` | **단일 `Task` + `AsyncStream`** | 스무딩·세그멘테이션이 상태를 누적 |
+| `PoseAnalyzer` | **단일 `Task` + `AsyncStream`** | 스무딩·세그멘테이션이 상태를 누적. **구현됨** ([SPEC-0096](../07-기획/SPEC-0096-pose-intake.md)) |
+| `FrameIntake` (`AVCaptureVideoDataOutput` 델리게이트) | `nonisolated` + 전용 큐 | 감싸고 셈하고 넘기기만 한다. **구현됨** |
 | `ClipRecorder` | `actor` | 링 버퍼와 `AVAssetWriter` 상태 보호. **구현됨** |
 | `Domain` UseCase, `TeniVision` 순수 계산 | `nonisolated` | 상태 없음 |
 
@@ -74,14 +75,23 @@ Swift 6 strict concurrency 아래에서 격리 도메인을 어떻게 나눌지,
 > **`CMReadySampleBuffer`는 iOS 26 / macOS 26 이상입니다.** `TeniVision`은 macOS 15도 지원하므로(`TeniTool`이 같은 프레임워크를 정적 링크) 엔진 안쪽에서는 쓸 수 없습니다. 그래서 `ClipFrame` 프로토콜이 경계에 서고, 이 래핑은 **카메라 인테이크(iOS 전용)에서만** 합니다 — [SPEC-0091](../07-기획/SPEC-0091-swing-clip-recording.md) 선택지 1.
 
 ```swift
-// TeniVision/Pipeline/FrameIntake.swift
+// Presentation/Capture/FrameIntake.swift — TeniVision이 아니다.
+// `CMReadySampleBuffer`가 iOS 26+이고 엔진은 macOS 15도 지원한다.
 nonisolated func captureOutput(_ output: AVCaptureOutput,
                                didOutput sampleBuffer: CMSampleBuffer,
                                from connection: AVCaptureConnection) {
     // 콜백은 즉시 반환한다. 여기서 무거운 일을 하면 캡처 풀이 고갈된다
-    guard let ready = CMReadySampleBuffer<CVReadOnlyPixelBuffer>(
-        unsafeWithPixelBuffer: sampleBuffer
-    ) else { return }
+
+    // AVFoundation의 델리게이트 인자는 `sending`으로 선언돼 있지 않은데
+    // `init(unsafeWithPixelBuffer:)`는 `sending`을 요구한다. 그래서 **사본을
+    // 만들고**, 영역 검사를 그 한 줄에서만 끊는다 — 사본은 우리 것이고
+    // 이 함수는 다시 쓰지 않는다. 실제 구현은 `FrameIntake.swift`.
+    var copied: CMSampleBuffer?
+    guard CMSampleBufferCreateCopy(
+        allocator: nil, sampleBuffer: sampleBuffer, sampleBufferOut: &copied
+    ) == noErr, let copied else { return }
+    nonisolated(unsafe) let transferred = copied
+    let ready = CMReadySampleBuffer<CVReadOnlyPixelBuffer>(unsafeWithPixelBuffer: transferred)
 
     let seq = sequence.wrappingIncrement()
 

@@ -9,7 +9,7 @@ type: feature
 area: core
 created: 2026-10-23
 updated: 2026-10-23
-status: draft
+status: active
 ---
 
 # SPEC-0096. 카메라 프레임을 포즈로 바꾼다
@@ -70,6 +70,10 @@ status: draft
 
 **채택**: 다운스케일한 사본. 설계가 "분석 입력은 반드시 다운스케일한다"를 이미 정했고, 수명 문제가 거기서 함께 풀린다.
 
+> **구현에서 드러난 것 — `sending` 간극.** `CMReadySampleBuffer.init(unsafeWithPixelBuffer:)`는 `sending CMSampleBuffer`를 요구하는데, AVFoundation의 델리게이트 인자는 `sending`으로 선언돼 있지 않다(SDK 헤더 확인). `CMSampleBufferCreateCopy`로 사본을 만들어도 "입력에서 파생됐다"는 사실이 남아 영역 검사를 통과하지 못한다. 그래서 **사본을 만들고 그 한 줄에서만 `nonisolated(unsafe)`로 검사를 끊었다** — 끊어도 되는 근거가 복사다. 이것이 `@unchecked Sendable`을 쓰지 않으면서 경계를 넘는 유일한 길이었다.
+>
+> 또 `PoseEstimator.frame(in:)`의 버퍼 인자를 `sending`으로 받지 않는다. 받으면 호출부가 루프에서 그 버퍼를 들고 있는 것조차 "전달 후 사용"이 되어 컴파일되지 않는다. 양쪽이 모두 `nonisolated`이므로 넘길 경계가 없다.
+
 ### 2. 어댑터를 무엇으로 테스트하는가
 
 `HumanBodyPoseObservation`에는 합성할 생성자가 없다. 있는 것은 `init(_ observation: VNHumanBodyPoseObservation)` 뿐이고, 그 레거시 타입도 합성할 수 없다. 관측을 입력으로 삼으면 **실기기 없이는 어댑터를 한 줄도 검증할 수 없다.**
@@ -96,13 +100,14 @@ status: draft
 
 ## 완료 기준
 
-- [ ] `PoseFrameAdapter`가 가짜 관측으로 검증된다 — 관절 6개 매핑, 좌표 원점 보존, 신뢰도 임계 미만 제외, 관절 결손
-- [ ] `PoseEstimator`의 **사람 선택 규칙**이 가짜 관측 여러 개로 검증된다
-- [ ] `FrameDownscaler`가 합성 `CVPixelBuffer`로 검증된다 — 출력 크기, 반복 호출 시 풀 재사용, 입력 크기가 바뀌어도 깨지지 않는다
-- [ ] `PoseStream`의 데시메이션이 검증된다 — 120fps 입력에서 포즈 호출이 절반
-- [ ] `ReadyFrame`이 `ClipFrame`을 준수한다(컴파일로 보장) — #97이 그대로 쓴다
-- [ ] 클린 빌드(`CLEAN_BUILD=1`) 경고 **0**
-- [ ] 촬영 화면이 "사람 감지됨 / 안 보임"을 표시한다
+- [x] `PoseFrameAdapter`가 가짜 관측으로 검증된다 — 관절 6개 매핑, 좌표 원점 보존, 관절 결손, **신뢰도는 그대로 전달**
+      — 기획 단계에서 "신뢰도 임계 미만 제외"로 적었던 것은 틀렸다. 어댑터가 걸러내면 같은 판단이 `PoseFrame.point(_:minimumConfidence:)`와 두 곳에 생기고, 둘이 어긋나면 트리거가 조용히 신호를 잃는다. 임계는 프로파일의 일이다.
+- [x] `PoseEstimator`의 **사람 선택 규칙**이 가짜 관측 여러 개로 검증된다
+- [x] `FrameDownscaler`가 합성 `CVPixelBuffer`로 검증된다 — 출력 크기, 반복 호출 시 풀 재사용, 입력 크기가 바뀌어도 깨지지 않는다
+- [x] 데시메이션이 검증된다 — 120fps 입력에서 포즈 호출이 절반
+- [x] `ReadyFrame`이 `ClipFrame`을 준수한다(컴파일로 보장) — #97이 그대로 쓴다
+- [x] 클린 빌드(`CLEAN_BUILD=1`) 경고 **0**
+- [x] 촬영 화면이 "사람이 보입니다 / 안 보입니다"를 표시한다
 
 ## 검증 방법
 
@@ -133,7 +138,9 @@ status: draft
 
 ## 미수행으로 남길 것
 
+- **Vision 포즈 요청 자체가 시뮬레이터에서 돌지 않는다.** `No available compute device for VNComputeStageMain`으로 실패한다 — 구현 중 확인했다. 그래서 어댑터·선택·데시메이션·다운스케일은 전부 검증했지만 **요청과 그 결과를 쓰는 구간은 테스트가 덮지 못한다.** 테스트가 확인하는 것은 "프레임 한 장이 결과 하나로 끝나고 실패를 삼키지 않는다"까지다
 - **실기기에서 사람이 실제로 잡히는가** — 카메라가 필요하다
+- **회전각 → `CGImagePropertyOrientation` 매핑** — 실기기에서만 맞는지 확인된다. 다만 틀려도 기하는 무너지지 않는다: 트리거가 쓰는 각속도 크기와 몸통선 교차의 **부호 변화**는 화면 전체의 회전·거울에 불변이다. 영향은 "누워 있는 사람을 Vision이 못 찾는" 쪽이다
 - **프레임 예산 실측** — A17 기준 3~5ms는 설계의 추정값이다
 - **떨림 정도** — One Euro Filter가 필요한지는 보고 나서 정한다
 - **6m 거리에서 포즈가 잡히는가** — 정규화 좌표에서 사람이 작아진다. 거리 한계는 실측 항목이다
