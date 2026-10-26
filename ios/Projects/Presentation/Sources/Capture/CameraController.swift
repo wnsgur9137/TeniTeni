@@ -45,16 +45,37 @@ final class CameraController: NSObject {
     /// 포즈가 잡히는가. 6m 밖에서 "지금 내가 보이고 있는지"를 알려주는 유일한 수단이다.
     private(set) var poseStatus: PoseIndicator = .idle
 
-    /// 포즈가 안 보인 채 흐른 시간. 깜빡임을 막는다 — 한 프레임 놓칠 때마다
-    /// 표시가 바뀌면 6m 밖에서는 읽을 수 없다.
-    private var lastPoseAt: Date?
+    /// 마지막으로 포즈가 잡힌 **프레임 시각**. 깜빡임을 막는 기준이다 —
+    /// 한 프레임 놓칠 때마다 표시가 바뀌면 6m 밖에서는 읽을 수 없다.
+    ///
+    /// 벽시계(`Date`)를 쓰지 않는다. 벽시계로 재면 "메인 액터에 결과가
+    /// **배달된** 간격"을 재게 되는데, 녹화 시작처럼 메인이 수백 ms 막히는
+    /// 순간에 쌓였던 결과가 한꺼번에 풀리면 프레임 간격이 8ms였는데도
+    /// "끊겼다"고 판정한다.
+    ///
+    /// 표시가 아니라 판단용이므로 관측에서 뺀다 — 매 프레임 쓰기가 뷰
+    /// 무효화를 일으키면 안 된다.
+    @ObservationIgnored private var lastDetectedAt: TimeInterval?
+
+    /// 마지막으로 적용한 결과의 프레임 시각. 비구조 `Task`는 생성 순서대로
+    /// 실행되는 것이 보장되지 않으므로, 늦게 도착한 과거 결과를 버린다.
+    @ObservationIgnored private var lastAppliedAt: TimeInterval?
+
+    /// AVFoundation이 밀려서 버린 프레임 수. 포즈가 예산을 넘겼는지를
+    /// 실기기에서 읽을 유일한 단서다.
+    private(set) var droppedFrames: UInt64 = 0
 
     enum PoseIndicator: Equatable {
         /// 아직 프레임이 들어오지 않았다.
         case idle
         case detected
         case notFound
+        /// 사람은 보이는데 어깨를 못 믿는다 — 측면으로 서면 이렇게 된다.
+        case unusable
         case failed(String)
+        /// 이 기기에서 분석 출력을 붙일 수 없다. 표시가 없는 것과
+        /// 아직 프레임이 안 온 것을 구분한다.
+        case unavailable(String)
     }
 
     /// 마이크 권한이 없으면 거짓. 무음으로 녹화하고 있다는 사실을 화면이 계속 보여줘야 한다 —
@@ -188,7 +209,11 @@ final class CameraController: NSObject {
     /// 되고, 분석만 없는 상태가 된다. 기기에 따라 출력 조합이 거부될 수 있다.
     private func configureAnalysisOutput() {
         guard session.canAddOutput(videoOutput) else {
-            message = "이 기기에서는 녹화와 분석을 함께 할 수 없습니다"
+            // 배너는 다음 메시지에 덮인다. 지표 자리에도 사유를 남겨야
+            // "표시가 없는 것"과 "아직 프레임이 안 온 것"이 구분된다.
+            let reason = "이 기기에서는 녹화와 분석을 함께 할 수 없습니다"
+            message = reason
+            poseStatus = .unavailable(reason)
             return
         }
         // 밀리면 버린다. 붙들면 캡처 풀이 고갈된다 — 동시성 6.3.
@@ -233,32 +258,68 @@ final class CameraController: NSObject {
         analyzer = nil
         videoOutput.setSampleBufferDelegate(nil, queue: nil)
         intake = nil
-        poseStatus = .idle
-        lastPoseAt = nil
+        // `.unavailable`은 기기의 성질이다. 멈췄다는 이유로 지우면
+        // 사유가 사라지고 지표가 통째로 화면에서 없어진다.
+        if case .unavailable = poseStatus {} else { poseStatus = .idle }
+        lastDetectedAt = nil
+        lastAppliedAt = nil
     }
 
     private func apply(_ outcome: PoseOutcome) {
+        let seconds = outcome.seconds
+        // 비구조 Task는 생성 순서대로 실행되지 않는다. 늦게 온 과거 결과가
+        // 기준시를 과거로 되감으면 멀쩡한 상태에서 "끊겼다"가 뜬다.
+        if let lastAppliedAt, seconds < lastAppliedAt { return }
+        lastAppliedAt = seconds
+        if case .detected = outcome { lastDetectedAt = seconds }
+
+        guard let next = Self.indicator(
+            for: outcome, lastDetectedAt: lastDetectedAt, grace: Self.poseGraceSeconds
+        ) else { return }
+
+        // `@Observable`의 setter는 값을 비교하지 않고 무조건 변경을 알린다.
+        // 같은 값을 덮으면 **아무것도 바뀌지 않았는데** 초당 60회 뷰가
+        // 무효화된다 — 메인이 가장 바쁜 녹화 중에.
+        guard poseStatus != next else { return }
+        poseStatus = next
+    }
+
+    /// 결과 하나를 표시로 바꾼다. `nil`이면 **바꾸지 않는다**(유예 중).
+    ///
+    /// 순수 함수로 빼 뒀다 — 카메라가 없으면 이 판단을 검증할 방법이 없고,
+    /// 이것이 이 화면의 유일한 출력이다.
+    static func indicator(
+        for outcome: PoseOutcome,
+        lastDetectedAt: TimeInterval?,
+        grace: TimeInterval
+    ) -> PoseIndicator? {
         switch outcome {
         case .detected:
-            lastPoseAt = Date()
-            poseStatus = .detected
-        case .notFound:
-            // 한 프레임 놓친 것으로 표시를 바꾸지 않는다. 트리거의 결측 허용
-            // 간격과 같은 값을 쓴다 — 그보다 짧게 끊기면 트리거도 끊긴다.
-            guard let lastPoseAt else {
-                poseStatus = .notFound
-                return
-            }
-            if Date().timeIntervalSince(lastPoseAt) > Self.poseGraceSeconds {
-                poseStatus = .notFound
-            }
-        case .failed(let reason):
-            poseStatus = .failed(reason)
+            return .detected
+        case .noPerson(let at):
+            return settled(.notFound, at: at, lastDetectedAt: lastDetectedAt, grace: grace)
+        case .unusable(let at):
+            return settled(.unusable, at: at, lastDetectedAt: lastDetectedAt, grace: grace)
+        case .failed(let reason, let at):
+            // 한 프레임 오류로 "분석이 멈췄습니다"가 떴다 사라지면 읽을 수 없다.
+            return settled(.failed(reason), at: at, lastDetectedAt: lastDetectedAt, grace: grace)
         }
     }
 
-    /// 포즈가 끊겼다고 표시할 때까지 기다리는 시간. 트리거의 `maximumGap`과 맞춘다.
-    private static let poseGraceSeconds: TimeInterval = SwingTriggerProfile.default.maximumGap
+    /// 한 번도 잡힌 적 없으면 즉시 바꾼다. 잡힌 적이 있으면 유예를 기다린다.
+    private static func settled(
+        _ indicator: PoseIndicator,
+        at seconds: TimeInterval,
+        lastDetectedAt: TimeInterval?,
+        grace: TimeInterval
+    ) -> PoseIndicator? {
+        guard let lastDetectedAt else { return indicator }
+        return seconds - lastDetectedAt > grace ? indicator : nil
+    }
+
+    /// 포즈가 끊겼다고 표시할 때까지 기다리는 시간. 트리거의 `maximumGap`과 맞춘다 —
+    /// 그보다 짧게 끊으면 트리거가 아직 이어가는 중에 화면만 끊겼다고 말한다.
+    static let poseGraceSeconds: TimeInterval = SwingTriggerProfile.default.maximumGap
 
     // MARK: 회전
 
@@ -383,6 +444,7 @@ final class CameraController: NSObject {
         actualFPS = minDuration.seconds > 0 ? 1.0 / minDuration.seconds : 0
         actualExposureSeconds = device.exposureDuration.seconds
         actualISO = device.iso
+        if let intake { droppedFrames = intake.droppedCount + intake.rejectedCount }
     }
 
     /// 실제 적용값을 다시 읽는다. 노출은 자동 모드에서 계속 변한다.
@@ -496,6 +558,17 @@ final class CameraController: NSObject {
         let seconds = time.seconds
         guard seconds > 0 else { return "-" }
         return "1/\(Int((1 / seconds).rounded()))"
+    }
+
+    /// `Task`는 그 자체가 보유 루트다. 취소하지 않으면 분석기 → 스트림 →
+    /// 버퍼된 프레임 → 캡처 풀 IOSurface와 전송 세션·버퍼 풀이 `for await`에
+    /// 정지한 채 남는다. 화면이 `suspend()`를 부르는 것이 정상 경로지만,
+    /// 그것이 불리지 않는 경로에서도 새지 않게 한다.
+    /// `isolated deinit`이라야 메인에 묶인 프로퍼티를 만질 수 있다.
+    /// 평범한 `deinit`은 nonisolated여서 `poseTask`를 읽지 못한다.
+    isolated deinit {
+        poseTask?.cancel()
+        elapsedTimer?.invalidate()
     }
 
     enum CaptureError: LocalizedError {

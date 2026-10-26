@@ -152,14 +152,17 @@ struct CaptureView: View {
         case .idle: nil
         case .detected: "사람이 보입니다"
         case .notFound: "사람이 안 보입니다"
+        // "안 보인다"와 합치면 프레임 안에 멀쩡히 있는 사람이 자리를 옮긴다.
+        case .unusable: "자세가 잘 안 보입니다"
         case .failed: "포즈 분석이 멈췄습니다"
+        case .unavailable: "이 기기에서는 분석을 할 수 없습니다"
         }
     }
 
     private var poseTint: Color {
         switch controller.poseStatus {
         case .detected: Token.State.success
-        case .notFound, .failed: Token.State.warning
+        case .notFound, .unusable, .failed, .unavailable: Token.State.warning
         case .idle: Token.Text.tertiary
         }
     }
@@ -247,6 +250,13 @@ struct CaptureView: View {
             }
             if !controller.recordsAudio {
                 Label("무음", systemImage: "mic.slash.fill")
+                    .font(.caption2)
+                    .foregroundStyle(Token.State.warning)
+            }
+            // 포즈가 예산을 넘겼는지를 실기기에서 읽을 유일한 단서다.
+            // 0이면 띄우지 않는다 — 표시줄은 이미 빽빽하다.
+            if controller.droppedFrames > 0 {
+                Label("드롭 \(controller.droppedFrames)", systemImage: "exclamationmark.triangle.fill")
                     .font(.caption2)
                     .foregroundStyle(Token.State.warning)
             }
