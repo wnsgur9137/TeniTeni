@@ -108,6 +108,7 @@ struct CaptureView: View {
 
             elapsedTime
             swingCount
+            interruptionBanner
             storageWarning
             poseIndicator
             warningBanner
@@ -239,6 +240,26 @@ struct CaptureView: View {
                 }
                 .padding(.leading, 24)
                 .padding(.bottom, 20)
+            }
+            .allowsHitTesting(false)
+        }
+    }
+
+    /// 세션이 스스로 멈춘 사유. **상태**이므로 배너와 달리 덮이지 않는다 —
+    /// 왜 멈춰 있는지 모르면 사용자는 앱이 고장났다고 읽는다.
+    @ViewBuilder
+    private var interruptionBanner: some View {
+        if let reason = controller.interruptionMessage {
+            VStack {
+                Spacer()
+                Text(reason)
+                    .font(.system(size: 17, weight: .semibold))
+                    .foregroundStyle(Token.Text.primary)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, 18)
+                    .padding(.vertical, 12)
+                    .background(Token.State.error.opacity(0.92), in: .capsule)
+                    .padding(.bottom, 140)
             }
             .allowsHitTesting(false)
         }
