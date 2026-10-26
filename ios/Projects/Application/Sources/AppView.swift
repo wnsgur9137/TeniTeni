@@ -33,11 +33,7 @@ public struct AppView: View {
         .fullScreenCover(item: $store.scope(state: \.capture, action: \.capture)) { captureStore in
             CaptureScreen(store: captureStore, storage: storage)
         }
-        // 요약도 탭바를 덮는다. 흐름 중간이라 탭 이동이 세션을 끊는다
-        // (IA-FLOW 10.2). 촬영과 같은 층이어야 그것이 성립한다.
-        .fullScreenCover(item: $store.scope(state: \.summary, action: \.summary)) { summaryStore in
-            SessionSummaryView(store: summaryStore)
-        }
+
     }
 
     private var tabs: some View {
@@ -49,6 +45,15 @@ public struct AppView: View {
             }
         }
         .tint(Token.Accent.primary)
+        // 요약도 탭바를 덮는다 — 흐름 중간이라 탭 이동이 세션을 끊는다
+        // (IA-FLOW 10.2).
+        //
+        // **촬영 커버와 다른 앵커에 붙인다.** 같은 뷰에 둘을 달면 한
+        // 프레임에 하나를 닫고 다른 하나를 여는 전이에서 SwiftUI가 두 번째
+        // 제시를 흘릴 수 있다 — 그러면 사용자는 요약을 영원히 못 본다.
+        .fullScreenCover(item: $store.scope(state: \.summary, action: \.summary)) { summaryStore in
+            SessionSummaryView(store: summaryStore)
+        }
     }
 
     @ViewBuilder

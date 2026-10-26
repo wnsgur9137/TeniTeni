@@ -48,8 +48,12 @@ public struct CaptureScreen: View {
                 )
             case .capturing:
                 CaptureView(controller: controller) {
-                    // 저장에 성공한 세션이 있으면 요약으로 간다.
-                    store.send(.closeTapped(savedSessionID: controller.lastSavedSessionID))
+                    // 세션 저장은 비동기다. **기다린 뒤** 닫는다 — 정지
+                    // 직후 닫으면 저장은 되는데 id가 없어 요약을 못 본다.
+                    Task {
+                        let id = await controller.finishPendingSession()
+                        store.send(.closeTapped(savedSessionID: id))
+                    }
                 }
             }
         }

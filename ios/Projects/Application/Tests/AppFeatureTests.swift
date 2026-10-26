@@ -411,11 +411,18 @@ struct CaptureFlowTests {
         initial.summary = SessionSummaryFeature.State(sessionID: UUID())
         let store = TestStore(initialState: initial) { AppFeature(repository: repo) }
 
-        await store.send(.summary(.presented(.reframeTapped)))
-        await store.receive(.summary(.presented(.delegate(.reframe)))) {
+        // 자식의 delegate를 직접 보낸다. `reframeTapped`은 세션을 읽은
+        // 뒤에만 delegate를 내므로(상황을 알아야 한다) 여기서는 그 결과만
+        // 흉내낸다 — 코디네이터가 무엇을 하는지가 이 테스트의 관심사다.
+        //
+        // **설정값은 .wall이지만 세션은 .match였다고** 넣는다. 추론하면
+        // 틀리는 경로를 이 차이가 잡는다.
+        await store.send(.summary(.presented(.delegate(.reframe(
+            situation: .match, observable: .lineCall
+        ))))) {
             $0.summary = nil
             $0.capture = CaptureFeature.State(
-                situation: .wall, observable: .swing, handedness: .left
+                situation: .match, observable: .lineCall, handedness: .left
             )
         }
         #expect(store.state.capture?.phase == .framing, "배치부터 다시 본다")

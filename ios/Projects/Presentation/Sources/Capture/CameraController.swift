@@ -893,6 +893,9 @@ final class CameraController: NSObject {
         swingClipCount = 0
         swingCount = 0
         lastSnapshotAt = nil
+        lastSavedSessionID = nil
+        // 이전 세션 id를 버린다. 남겨 두면 이번 녹화의 저장이 실패했을 때
+        // **지난 세션이 "방금 연습"으로 열린다.**
         if let pipeline, let context {
             // 메타데이터와 세션이 **같은 벽시계**를 쓴다. 따로 찍으면 같은
             // 녹화에 시각이 둘 생긴다.
@@ -936,6 +939,20 @@ final class CameraController: NSObject {
 
     private func stopRecording() {
         movieOutput.stopRecording()
+    }
+
+    /// 닫기 직전에 호출한다. **진행 중인 세션 작업이 끝나길 기다리고** 그
+    /// 세션의 id를 돌려준다.
+    ///
+    /// 세션 저장은 비동기다(`enqueueSessionWork`). 정지 버튼을 누른 직후
+    /// 닫으면 저장은 되는데 **id가 아직 없어 요약을 못 본다** — 찍은 것이
+    /// 사라진 것처럼 보인다. 기다려야 그 경로가 막힌다.
+    ///
+    /// 닫기 버튼은 녹화 중에 그려지지 않으므로(`CaptureView`), 이 시점에는
+    /// 녹화 종료 델리게이트가 이미 세션 닫기를 큐에 올렸다.
+    func finishPendingSession() async -> UUID? {
+        await sessionWork?.value
+        return lastSavedSessionID
     }
 
     /// 녹화가 끝났다. 녹화 중이라 못 했던 압력 조치를 지금 적용한다.

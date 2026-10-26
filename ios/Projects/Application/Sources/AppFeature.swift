@@ -162,14 +162,15 @@ public struct AppFeature {
                 state.summary = nil
                 return .none
 
-            case .summary(.presented(.delegate(.reframe))):
+            case .summary(.presented(.delegate(.reframe(let situation, let observable)))):
                 // 진단의 "배치 다시 보기" — 요약을 닫고 촬영을 다시 연다.
-                // 고른 상황은 그대로 쓴다.
+                // **그 세션이 찍던 상황**을 쓴다. 설정에서 추론하면 그 사이
+                // 사용자가 홈에서 다른 상황을 골랐을 때 엉뚱한 안내가 뜬다.
                 state.summary = nil
                 guard let hand = state.preferences.handedness else { return .none }
                 state.capture = CaptureFeature.State(
-                    situation: state.preferences.lastSituation,
-                    observable: state.preferences.lastObservable,
+                    situation: situation,
+                    observable: observable,
                     handedness: hand
                 )
                 return .none

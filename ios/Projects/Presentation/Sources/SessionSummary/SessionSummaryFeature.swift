@@ -62,7 +62,11 @@ public struct SessionSummaryFeature {
         public enum Delegate: Equatable {
             case closed
             /// 진단 화면의 "배치 다시 보기". 촬영 전 단계로 돌아간다.
-            case reframe
+            ///
+            /// **그 세션이 찍던 상황을 그대로 들고 간다.** 설정에서 추론하면
+            /// 그 사이 사용자가 홈에서 다른 상황을 골랐을 때 엉뚱한 배치
+            /// 안내를 보여준다.
+            case reframe(situation: CaptureSituation, observable: ObservationTarget)
         }
     }
 
@@ -111,7 +115,11 @@ public struct SessionSummaryFeature {
                 return .send(.delegate(.closed))
 
             case .reframeTapped:
-                return .send(.delegate(.reframe))
+                // 읽은 세션이 있어야 상황을 안다. 없으면 보낼 것이 없다.
+                guard case .loaded(let session) = state.phase else { return .none }
+                return .send(.delegate(.reframe(
+                    situation: session.situation, observable: session.observable
+                )))
 
             case .delegate:
                 return .none

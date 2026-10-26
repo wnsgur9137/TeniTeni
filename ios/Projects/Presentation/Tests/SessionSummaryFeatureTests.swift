@@ -137,15 +137,44 @@ struct SessionSummaryFeatureTests {
         #expect(repository.loadCount == 2)
     }
 
-    @Test("닫기와 배치 다시 보기가 각자 올라간다")
-    func 델리게이트() async {
+    @Test("닫기가 올라간다")
+    func 닫기() async {
         let store = TestStore(initialState: SessionSummaryFeature.State(sessionID: UUID())) {
             SessionSummaryFeature(repository: StubRepository(.missing))
         }
         await store.send(.closeTapped)
         await store.receive(.delegate(.closed))
+    }
+
+    /// 설정에서 추론하면 그 사이 사용자가 홈에서 다른 상황을 골랐을 때
+    /// 엉뚱한 배치 안내를 보여준다. 그 세션이 찍던 상황을 들고 간다.
+    @Test("배치 다시 보기는 그 세션의 상황을 들고 올라간다")
+    func 배치_상황() async {
+        let start = Date(timeIntervalSince1970: 1_700_000_000)
+        let stored = Session(
+            startedAt: start,
+            endedAt: start.addingTimeInterval(30),
+            situation: .wall,
+            observable: .lineCall,
+            fps: 60,
+            clips: []
+        )
+        let store = TestStore(initialState: SessionSummaryFeature.State(sessionID: stored.id)) {
+            SessionSummaryFeature(repository: StubRepository(.found(stored)))
+        }
+        await store.send(.appeared)
+        await store.receive(.loaded(stored)) { $0.phase = .loaded(stored) }
         await store.send(.reframeTapped)
-        await store.receive(.delegate(.reframe))
+        await store.receive(.delegate(.reframe(situation: .wall, observable: .lineCall)))
+    }
+
+    /// 읽지 못한 상태에서는 상황을 모른다. 보낼 것이 없으면 보내지 않는다.
+    @Test("읽기 전에는 배치 다시 보기가 아무것도 보내지 않는다")
+    func 배치_미로드() async {
+        let store = TestStore(initialState: SessionSummaryFeature.State(sessionID: UUID())) {
+            SessionSummaryFeature(repository: StubRepository(.missing))
+        }
+        await store.send(.reframeTapped)
     }
 
     @Test("소요 시간을 분·초로 적는다")
