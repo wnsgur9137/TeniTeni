@@ -312,6 +312,13 @@ struct CaptureView: View {
                     .font(.caption2)
                     .foregroundStyle(Token.State.warning)
             }
+            // 소급분이 상한에 걸렸다 = 클립의 머리가 잘렸다. 실기기에서
+            // 상한을 올릴지 판단할 근거다(#103).
+            if controller.droppedBacklog > 0 {
+                Label("소급 \(controller.droppedBacklog)", systemImage: "scissors")
+                    .font(.caption2)
+                    .foregroundStyle(Token.State.warning)
+            }
             // 포즈가 예산을 넘겼는지를 실기기에서 읽을 유일한 단서다.
             // 0이면 띄우지 않는다 — 표시줄은 이미 빽빽하다.
             if controller.droppedFrames > 0 {

@@ -359,6 +359,26 @@ struct SwingPipelineTests {
         #expect(repository.sessions.contains { $0.fps == 120 }, "두 번째 세션이 자기 설정으로 남는다")
     }
 
+    /// 소급분이 캡처 풀을 붙들므로 상한이 없으면 풀이 고갈돼 분석이
+    /// 끊긴다. 상한에 걸려 버린 장 수가 **보여야** 한다 — 조용히 짧아지면
+    /// 클립의 머리가 왜 없는지 알 수 없다.
+    @Test("소급분이 상한을 넘기면 세면서 버린다")
+    func 소급_상한() async throws {
+        let pipeline = SwingPipeline(
+            directory: try directory(), storage: SessionStorage(repository: SpyRepository())
+        )
+        await pipeline.begin(
+            at: Date(), handedness: .right, situation: .rally, observable: .swing, fps: 60
+        )
+        // 상한(24장)보다 훨씬 많이 흘린다. 스윙은 없으므로 전부 소급분이다.
+        for step in 0..<100 {
+            await pipeline.handle(try makeReadyFrame(seconds: Double(step) / 60), pose: nil)
+        }
+        // 클립이 닫혀야 수치가 올라온다 — 스윙이 없으니 end로 확인한다.
+        _ = await pipeline.end(at: Date())
+        #expect(await pipeline.droppedBacklog > 0, "상한을 넘긴 만큼 세어야 한다")
+    }
+
     /// 벽치기는 기본값으로는 통째로 놓친다 — 벽이 가까워 스윙이 짧고 느리다.
     @Test("상황이 트리거 프로파일을 고른다")
     func 상황별_프로파일() {
@@ -377,7 +397,9 @@ struct SwingPipelineTests {
         await pipeline.begin(
             at: Date(), handedness: .right, situation: .rally, observable: .swing, fps: 60
         )
-        var last = SwingSnapshot(swingCount: 0, clipCount: 0, failure: nil, seconds: 0)
+        var last = SwingSnapshot(
+            swingCount: 0, clipCount: 0, failure: nil, droppedBacklog: 0, seconds: 0
+        )
         for frame in swingFrames(startingAt: 0) {
             last = await pipeline.handle(try makeReadyFrame(seconds: frame.timestamp), pose: frame)
         }

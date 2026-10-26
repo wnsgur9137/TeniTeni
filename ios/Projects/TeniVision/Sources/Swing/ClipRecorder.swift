@@ -49,20 +49,38 @@ public actor ClipRecorder<Frame: ClipFrame> {
     ///     최소 지속시간(`minimumDuration`)만큼 뒤에 울린다.
     ///   - stamp: 파일명 접두사. 시각 포매팅을 밖에 두면 테스트가
     ///     결정론적이다.
+    ///   - backlogCapacity: 소급분으로 **들고 있을 장 수 상한**.
+    ///     `nil`이면 시간 창만으로 자른다.
+    ///
+    ///     카메라 프레임은 캡처 풀의 버퍼를 붙든다. 시간 창(`preRoll +
+    ///     margin`)만 믿으면 60fps에서 180장을 들고 있게 되고, 그만큼
+    ///     출력 풀이 고갈돼 **분석이 통째로 끊긴다.** 순수한 값을 담는
+    ///     호출부(테스트·오프라인 분석)는 `nil`로 둬도 된다.
+    ///
+    ///     근거: [#103](https://github.com/wnsgur9137/TeniTeni/issues/103)
     public init(
         profile: SwingTriggerProfile = .default,
         margin: TimeInterval = 1.0,
         directory: URL,
-        stamp: String
+        stamp: String,
+        backlogCapacity: Int? = nil
     ) {
         precondition(margin > 0, "여유는 0보다 커야 한다")
-        self.buffer = TimedRingBuffer(window: profile.preRoll + margin)
+        self.buffer = TimedRingBuffer(
+            window: profile.preRoll + margin, capacity: backlogCapacity
+        )
         self.directory = directory
         self.stamp = stamp
     }
 
     /// 들고 있는 프레임 수. 진단용이다.
     public var bufferedFrameCount: Int { buffer.count }
+
+    /// 장 수 상한에 걸려 버린 소급 프레임 수.
+    ///
+    /// 0이 아니면 **되감을 수 있는 구간이 `preRoll`보다 짧다.** 클립의
+    /// 머리가 잘린다는 뜻이므로 호출부가 노출해야 한다.
+    public var droppedBacklogCount: Int { buffer.droppedByCapacity }
 
     /// 아직 닫히지 않은 구간이 있는지.
     public var hasOpenSegment: Bool { planner.isOpen }
