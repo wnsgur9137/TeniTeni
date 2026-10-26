@@ -278,11 +278,18 @@ status: active
 
 [성공 기준](../01-제품/PRODUCT-OVERVIEW.md)이 "연속 15분 촬영 시 스로틀링 없음"을 요구합니다. 그래도 넘으면 **조용히 느려지는 것이 가장 나쁩니다** — 사용자는 계속 치고 있는데 기록이 빠집니다.
 
-| `thermalState` | 대응 |
-|---|---|
-| `.nominal` `.fair` | 아무것도 하지 않음 |
-| `.serious` | 테두리 주황 + **"120fps를 60fps로 낮출까요"** 제안 |
-| `.critical` | 테두리 빨강 + 경고음 + **녹화 중단**, 지금까지 기록은 저장 |
+신호는 `ProcessInfo.thermalState`가 아니라 **`AVCaptureDevice.SystemPressureState`** 다 — 캡처 시스템에 특화된 값이고, [동시성 6.6](../02-설계/CONCURRENCY.md)이 정본이다.
+
+| 압력 수준 | 대응 | 사용자 고지 |
+|---|---|---|
+| `.nominal` `.fair` | 아무것도 하지 않음 | 없음 |
+| `.serious` | 포즈 데시메이션 강화(분석 60 → 30fps) | **없음** |
+| `.critical` | fps 120 → 60 **자동 강등** | 테두리 빨강 + **"60fps로 낮췄습니다"** 사후 고지 |
+| `.shutdown` | 시스템이 세션을 내린다 | 중단 안내([#100](https://github.com/wnsgur9137/TeniTeni/issues/100) 경로) |
+
+> **묻지 않고 낮춘다.** 이 절은 전에 `.serious`에서 "120→60 낮출까요"를 제안하도록 적었는데, 두 가지 이유로 고쳤다 — 압력이 과도해지면 **캡처 시스템이 세션을 스스로 종료하므로** 답을 기다리는 사이에 그게 벌어지고, 사용자는 **6m 밖 코트에 있어** 답할 수도 없다. 다가와 답하면 촬영이 끊긴다. 근거: [SPEC-0107](../07-기획/SPEC-0107-thermal-response.md)
+>
+> 강등된 fps는 **그 뒤 클립의 `fps`에 실제값으로** 기록된다. 한 세션이 강등을 걸치면 클립마다 값이 다르다 — 섞으면 분석이 프레임 간격을 잘못 가정한다.
 
 ### 스윙 0개는 요약이 아니라 진단이다
 
@@ -434,7 +441,7 @@ status: active
 | `CourtPreset` | 844×390 | **신규** — 4점 탭 결과와 격자 검증 |
 | `FramingGuide` | 844×390 | **신규** — 촬영 시작 직전. 구도 가이드와 배치 안내 ([SPEC-0078](../07-기획/SPEC-0078-start-capture.md)) |
 | `CaptureContinuous` · `CaptureWarning` | 844×390 | 기존 |
-| `ThermalWarning` | 844×390 | **신규** — 발열 `.serious` |
+| `ThermalWarning` | 844×390 | **신규** — 시스템 압력 `.critical` 사후 고지. `.serious`는 조용히 조정하므로 화면이 없다 |
 | `CaptureLineCall` | 844×390 | **신규** — `display/xl` OUT + 미니 코트맵 |
 | `QuickCheck` | 390×844 | **가로 → 세로 전환** |
 | `SessionSummary` | 390×844 | 스윙 탭 |
