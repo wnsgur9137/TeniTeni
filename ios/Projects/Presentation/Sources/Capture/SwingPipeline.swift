@@ -15,6 +15,35 @@ extension Handedness {
     }
 }
 
+/// 상황에 맞는 트리거 프로파일.
+///
+/// 벽치기는 **기본값을 쓰면 통째로 놓친다** — 벽이 가까워 스윙이 구조적으로
+/// 짧고 느리다(`SwingTriggerProfile.wall`의 근거). 상황을 받아 놓고 쓰지
+/// 않으면 `.wall`로 촬영한 사용자는 스윙 0개를 보고 원인을 알 수 없다.
+extension CaptureSituation {
+    var triggerProfile: SwingTriggerProfile {
+        switch self {
+        case .wall: .wall
+        case .ballMachine, .rally, .match, .lesson: .default
+        }
+    }
+}
+
+/// 파이프라인이 한 프레임을 처리한 결과. 화면이 읽는 값만 담는다.
+///
+/// 프레임마다 actor를 세 번 찾아가는(처리·카운트·실패) 대신 **한 번에 받아
+/// 온다.** 60fps면 그 차이가 초당 홉 120회다.
+struct SwingSnapshot: Sendable, Equatable {
+    /// 트리거가 발화한 횟수. **클립 수가 아니다** — `ClipPlanner`가 겹치는
+    /// 후보를 한 클립으로 병합하므로 랠리 20번이 클립 1~2개가 된다.
+    let swingCount: Int
+    /// 저장된 클립 수.
+    let clipCount: Int
+    let failure: String?
+    /// 이 결과가 가리키는 프레임 시각. 늦게 도착한 과거 스냅샷을 걸러낸다.
+    let seconds: TimeInterval
+}
+
 /// 포즈 한 장을 받아 스윙 구간을 클립과 세션으로 남긴다.
 ///
 /// ## 순서는 누가 지키는가
@@ -24,23 +53,28 @@ extension Handedness {
 /// 앞 프레임의 처리가 끝난 뒤에 들어온다. 트리거는 순서에 의존하는 상태
 /// 기계이고 그 보장이 여기서 나온다([동시성 6.1](../../../../../docs/02-설계/CONCURRENCY.md)).
 ///
-/// actor인 이유는 다르다 — **녹화 시작·정지가 메인에서 들어온다.** 그 둘과
-/// 프레임 처리가 같은 상태를 만지므로 보호가 필요하다. 재진입은 그 경로에서만
-/// 일어나고, 그건 실제로 동시에 벌어지는 일이다.
+/// ## 재진입을 어떻게 다루는가
+///
+/// 녹화 시작·정지는 메인에서 들어오므로 `handle`의 `await` 사이에 끼어든다.
+/// 그것은 실제로 동시에 벌어지는 일이라 막을 수 없다. 대신 **세대 토큰**을
+/// 둔다 — `begin`·`end`가 세대를 올리고, `handle`은 재개할 때 세대가
+/// 바뀌었으면 쓰기를 포기한다.
+///
+/// 토큰이 없으면 `end()`가 닫은 세션이 `handle`의 뒤늦은 쓰기로 **되살아나고**,
+/// 그 뒤의 모든 녹화가 첫 세션 id로 덮여 레코드가 사라진다.
+///
+/// 트리거 상태는 `await` 없이 제자리에서 바꾼다(`processTrigger`) — 꺼내
+/// 되돌려 넣는 사이에 끼어들 틈을 만들지 않는다.
 ///
 /// 근거: docs/07-기획/SPEC-0097-swing-wiring.md
-/// `ReadyFrame`이 내부 타입이므로 이 타입도 내부다 — 프레임은 카메라
-/// 경계 밖으로 나가지 않는다.
 actor SwingPipeline {
 
-    /// 세션 하나가 쓰는 것들. 녹화가 시작되면 열리고 정지에서 닫힌다.
-    private struct Active {
-        var trigger: SwingTrigger
-        let recorder: ClipRecorder<ReadyFrame>
-        let builder: SessionBuilder
-    }
+    private let directory: URL
+    private let storage: SessionStorage
 
-    /// 녹화가 시작됐지만 아직 프레임이 오지 않은 상태. 세션 시계의 원점을
+    // MARK: 세션 상태
+
+    /// 녹화가 시작됐지만 아직 프레임이 오지 않았다. 세션 시계의 원점을
     /// **첫 프레임의 PTS**로 잡아야 하므로 그때까지 기다린다.
     private struct Pending {
         let startedAt: Date
@@ -50,29 +84,29 @@ actor SwingPipeline {
         let fps: Int
     }
 
-    private let directory: URL
-    private let storage: SessionStorage
-    private let profile: SwingTriggerProfile
-
     private var pending: Pending?
-    private var active: Active?
+    private var trigger: SwingTrigger?
+    private var recorder: ClipRecorder<ReadyFrame>?
+    /// 저장소가 없으면 `nil`이다. 그래도 **클립 파일은 쓴다** — 디스크에
+    /// 남은 `.mov`는 나중에 복구할 수 있는 자산이고, 안 만들면 그조차 없다.
+    private var builder: SessionBuilder?
 
-    /// 이번 세션에서 저장된 클립 수. 화면이 읽는다.
+    /// `begin`·`end`가 올린다. `handle`이 재개할 때 이 값이 바뀌었으면
+    /// 그 세션은 이미 끝난 것이므로 아무것도 쓰지 않는다.
+    private var generation = 0
+
+    private(set) var swingCount = 0
     private(set) var clipCount = 0
-    /// 마지막 실패 사유. 조용히 삼키지 않는다.
     private(set) var failure: String?
+    /// 쓰기가 한 번 깨지면 매 프레임 같은 오류가 반복된다. 멈춘다.
+    private var writesDisabled = false
 
-    init(
-        directory: URL = URL.documentsDirectory,
-        storage: SessionStorage,
-        profile: SwingTriggerProfile = .default
-    ) {
+    init(directory: URL = URL.documentsDirectory, storage: SessionStorage) {
         self.directory = directory
         self.storage = storage
-        self.profile = profile
     }
 
-    var isRecording: Bool { pending != nil || active != nil }
+    var isRecording: Bool { pending != nil || recorder != nil }
 
     /// 녹화 시작. **여기서 세션을 만들지 않는다** — 프레임 시계의 원점을
     /// 아직 모른다. 첫 프레임에서 만든다.
@@ -84,8 +118,11 @@ actor SwingPipeline {
         fps: Int
     ) {
         guard !isRecording else { return }
+        generation += 1
+        swingCount = 0
         clipCount = 0
         failure = nil
+        writesDisabled = false
         pending = Pending(
             startedAt: startedAt,
             handedness: handedness,
@@ -97,53 +134,69 @@ actor SwingPipeline {
 
     /// 프레임 하나를 흘린다. 포즈가 없는 프레임도 버퍼에는 담는다 —
     /// 사람이 잠깐 가려진 구간이 클립에서 잘리면 임팩트가 사라진다.
-    func handle(_ frame: ReadyFrame, pose: PoseFrame?) async {
-        if active == nil { open(at: frame.seconds) }
-        guard var state = active else { return }
+    @discardableResult
+    func handle(_ frame: ReadyFrame, pose: PoseFrame?) async -> SwingSnapshot {
+        if recorder == nil { open(at: frame.seconds) }
+        guard let recorder, !writesDisabled else { return snapshot(at: frame.seconds) }
 
+        let token = generation
         do {
-            if let clip = try await state.recorder.enqueue(frame) {
-                await store(clip, in: state)
+            if let clip = try await recorder.enqueue(frame) {
+                guard token == generation else { return snapshot(at: frame.seconds) }
+                await store(clip, token: token)
             }
-            if let pose, let candidate = state.trigger.process(pose) {
-                if let clip = try await state.recorder.accept(candidate) {
-                    await store(clip, in: state)
+            // 트리거는 `await` 없이 제자리에서 돌린다 — 꺼내 되돌려 넣는
+            // 사이에 `end()`가 끼면 그 프레임의 진행분이 사라진다.
+            if let pose, let candidate = processTrigger(pose) {
+                swingCount += 1
+
+                if let clip = try await recorder.accept(candidate) {
+                    guard token == generation else { return snapshot(at: frame.seconds) }
+                    await store(clip, token: token)
                 }
             }
-            // `trigger`는 값 타입이다. 처리한 상태를 다시 넣지 않으면
-            // 무장·교차가 매 프레임 초기화되어 **아무 스윙도 잡히지 않는다.**
-            active = state
         } catch {
-            failure = error.localizedDescription
+            // 한 번 깨진 쓰기는 매 프레임 같은 오류를 낸다. 세우고 사유를 남긴다.
+            writesDisabled = true
+            failure = "클립 쓰기 실패: \(error.localizedDescription)"
         }
+        return snapshot(at: frame.seconds)
     }
 
     /// 녹화 정지. `postRoll`을 못 채운 마지막 스윙도 **가진 만큼** 저장하고,
     /// 스윙이 0개여도 세션을 남긴다 — 0개도 결과다.
+    ///
+    /// 두 번 불려도 안전하다. 백그라운드 진입과 녹화 델리게이트가 **둘 다**
+    /// 이 경로로 들어온다.
     @discardableResult
     func end(at endedAt: Date) async -> Session? {
-        defer {
-            pending = nil
-            active = nil
-        }
-        // 프레임이 한 장도 오지 않은 채 멈췄다. 남길 것이 없다.
-        guard let state = active else { return nil }
+        guard isRecording else { return nil }
+        generation += 1
+        let token = generation
+        let closing = (recorder: recorder, builder: builder)
+        pending = nil
+        recorder = nil
+        builder = nil
+        trigger = nil
 
-        do {
-            if let clip = try await state.recorder.finish() {
-                await store(clip, in: state)
+        guard let recorder = closing.recorder else { return nil }
+
+        if !writesDisabled {
+            do {
+                if let clip = try await recorder.finish() {
+                    if let builder = closing.builder, token == generation {
+                        await builder.add(clip)
+                        clipCount += clip.swings.count
+                    }
+                }
+            } catch {
+                failure = "마지막 클립 저장 실패: \(error.localizedDescription)"
             }
-        } catch {
-            failure = error.localizedDescription
         }
 
-        guard storage.repository != nil else {
-            // 저장소가 없는 것은 이미 화면에 떠 있다(`SessionStorage.failure`).
-            // 여기서 덮지 않는다 — 원인이 더 구체적인 쪽을 남긴다.
-            return nil
-        }
+        guard let builder = closing.builder else { return nil }
         do {
-            return try await state.builder.finish(at: endedAt)
+            return try await builder.finish(at: endedAt)
         } catch {
             failure = "세션 저장 실패: \(error.localizedDescription)"
             return nil
@@ -153,17 +206,20 @@ actor SwingPipeline {
     // MARK: - 내부
 
     /// 첫 프레임의 PTS를 원점으로 세션을 연다.
+    ///
+    /// 저장소가 없어도 **레코더는 만든다.** 클립 파일은 디스크에 남아
+    /// 복구할 수 있지만, 안 만들면 그조차 없다.
     private func open(at seconds: TimeInterval) {
-        guard let pending, let repository = storage.repository else { return }
-        let stamp = Self.stamp(for: pending.startedAt)
-        active = Active(
-            trigger: SwingTrigger(profile: profile, racketSide: pending.handedness.racketSide),
-            recorder: ClipRecorder(
-                profile: profile,
-                directory: directory,
-                stamp: stamp
-            ),
-            builder: SessionBuilder(
+        guard let pending else { return }
+        let profile = pending.situation.triggerProfile
+        trigger = SwingTrigger(profile: profile, racketSide: pending.handedness.racketSide)
+        recorder = ClipRecorder(
+            profile: profile,
+            directory: directory,
+            stamp: Self.stamp(for: pending.startedAt)
+        )
+        if let repository = storage.repository {
+            builder = SessionBuilder(
                 startedAt: pending.startedAt,
                 clockOrigin: seconds,
                 situation: pending.situation,
@@ -171,13 +227,31 @@ actor SwingPipeline {
                 fps: pending.fps,
                 repository: repository
             )
-        )
+        }
         self.pending = nil
     }
 
-    private func store(_ clip: RecordedClip, in state: Active) async {
-        await state.builder.add(clip)
-        clipCount += 1
+    /// `await`가 없다. 그래서 그 사이에 `end()`가 끼어들 틈이 없다.
+    private func processTrigger(_ pose: PoseFrame) -> SwingCandidate? {
+        guard var trigger else { return nil }
+        let candidate = trigger.process(pose)
+        self.trigger = trigger
+        return candidate
+    }
+
+    private func store(_ clip: RecordedClip, token: Int) async {
+        guard let builder else { return }
+        await builder.add(clip)
+        // 돌아왔을 때 세션이 바뀌었으면 셈하지 않는다 — 닫힌 세션의 클립이
+        // 다음 녹화의 수치에 섞인다.
+        guard token == generation else { return }
+        clipCount += clip.swings.count
+    }
+
+    private func snapshot(at seconds: TimeInterval) -> SwingSnapshot {
+        SwingSnapshot(
+            swingCount: swingCount, clipCount: clipCount, failure: failure, seconds: seconds
+        )
     }
 
     /// 파일명 접두사. 포매팅을 밖에 두면 테스트가 결정론적이다.
@@ -185,6 +259,7 @@ actor SwingPipeline {
         let formatter = DateFormatter()
         formatter.dateFormat = "yyyyMMdd-HHmmss"
         formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.timeZone = TimeZone(identifier: "UTC")
         return formatter.string(from: date)
     }
 }

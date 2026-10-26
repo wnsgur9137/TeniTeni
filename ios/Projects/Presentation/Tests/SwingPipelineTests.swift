@@ -175,25 +175,35 @@ struct SwingPipelineTests {
         #expect(repository.sessions.isEmpty)
     }
 
-    @Test("저장소가 없으면 클립도 세션도 만들지 않는다")
+    /// 기획서 선택지 3: "촬영은 되지만 세션이 저장되지 않는다". 클립
+    /// 파일조차 안 만들면 디스크에 복구할 자산이 남지 않는다.
+    @Test("저장소가 없어도 클립은 쓰고 세션만 남기지 않는다")
     func 저장소_없음() async throws {
-        let pipeline = SwingPipeline(
-            directory: try directory(), storage: SessionStorage(failure: "열 수 없다")
-        )
+        let dir = try directory()
+        let pipeline = SwingPipeline(directory: dir, storage: SessionStorage(failure: "열 수 없다"))
         await pipeline.begin(
             at: Date(), handedness: .right, situation: .rally, observable: .swing, fps: 60
         )
         for frame in swingFrames(startingAt: 0) {
             await pipeline.handle(try makeReadyFrame(seconds: frame.timestamp), pose: frame)
         }
+        _ = await pipeline.end(at: Date())
+
+        // 트리거는 돌았고 파일도 생겼다. 세션만 없다.
+        #expect(await pipeline.swingCount > 0)
         #expect(await pipeline.clipCount == 0)
-        #expect(await pipeline.end(at: Date()) == nil)
+        let files = try FileManager.default.contentsOfDirectory(atPath: dir.path)
+        #expect(files.contains { $0.hasSuffix(".mov") })
     }
 
-    @Test("녹화를 두 번 시작해도 세션은 하나다")
+    /// `#expect(isRecording)`만 보면 guard를 지워도 통과한다 — `pending`이
+    /// 덮일 뿐 `isRecording`은 여전히 참이기 때문이다. 두 번째 `begin`의
+    /// 인자가 **반영되지 않았음**을 저장된 세션으로 확인한다.
+    @Test("녹화를 두 번 시작해도 첫 번째 설정이 유지된다")
     func 중복_시작() async throws {
+        let repository = SpyRepository()
         let pipeline = SwingPipeline(
-            directory: try directory(), storage: SessionStorage(repository: SpyRepository())
+            directory: try directory(), storage: SessionStorage(repository: repository)
         )
         let first = Date()
         await pipeline.begin(
@@ -201,15 +211,178 @@ struct SwingPipelineTests {
         )
         await pipeline.begin(
             at: first.addingTimeInterval(5), handedness: .left,
-            situation: .match, observable: .swing, fps: 120
+            situation: .match, observable: .lineCall, fps: 120
         )
-        #expect(await pipeline.isRecording)
+        await pipeline.handle(try makeReadyFrame(seconds: 0), pose: nil)
+        _ = await pipeline.end(at: first.addingTimeInterval(1))
+
+        let stored = try #require(repository.sessions.first)
+        #expect(stored.fps == 60)
+        #expect(stored.situation == .rally)
+        #expect(stored.observable == .swing)
     }
 
-    @Test("파일명 접두사는 시각에서 결정론적으로 나온다")
+    @Test("파일명 접두사가 시각에서 결정론적으로 나온다")
     func 접두사() {
+        // UTC로 고정했으므로 기대값을 적을 수 있다. 동어반복(같은 입력 →
+        // 같은 출력)은 포매팅이 틀려도 통과한다.
         let date = Date(timeIntervalSince1970: 1_700_000_000)
-        #expect(SwingPipeline.stamp(for: date) == SwingPipeline.stamp(for: date))
-        #expect(SwingPipeline.stamp(for: date).count == 15)
+        #expect(SwingPipeline.stamp(for: date) == "20231114-221320")
+    }
+
+    // MARK: - 리뷰가 비어 있다고 지적한 자리
+
+    /// 재발화 간격(0.8초)이 구간(4초)보다 짧아 연속 스윙은 거의 항상 겹친다.
+    /// 병합이 풀리면 클립이 둘로 쪼개진다.
+    @Test("겹치는 스윙 둘은 클립 하나로 병합된다")
+    func 겹침_병합() async throws {
+        let repository = SpyRepository()
+        let pipeline = SwingPipeline(
+            directory: try directory(), storage: SessionStorage(repository: repository)
+        )
+        let startedAt = Date()
+        await pipeline.begin(
+            at: startedAt, handedness: .right, situation: .rally, observable: .swing, fps: 60
+        )
+
+        // 두 스윙을 1초 간격으로. 구간(±2초)이 겹친다.
+        for frame in swingFrames(startingAt: 0) {
+            await pipeline.handle(try makeReadyFrame(seconds: frame.timestamp), pose: frame)
+        }
+        for frame in swingFrames(startingAt: 1.0) {
+            await pipeline.handle(try makeReadyFrame(seconds: frame.timestamp), pose: frame)
+        }
+        // postRoll을 채워 구간을 닫는다.
+        for step in 0..<180 {
+            await pipeline.handle(try makeReadyFrame(seconds: 1.4 + Double(step) / 60), pose: nil)
+        }
+        _ = await pipeline.end(at: startedAt.addingTimeInterval(5))
+
+        let stored = try #require(repository.sessions.first)
+        #expect(stored.clips.count == 1, "겹치는 후보는 한 클립으로 묶인다")
+        let clip = try #require(stored.clips.first)
+        #expect(clip.swings.count == 2, "병합돼도 스윙은 둘 다 기록된다")
+    }
+
+    /// `클립_생성`은 postRoll을 채워 `advance`로 닫으므로 `finish()` 플러시
+    /// 경로를 지나지 않는다. 마지막 스윙을 버리지 않는지는 여기서 본다.
+    @Test("postRoll을 못 채운 마지막 스윙도 저장된다")
+    func 마지막_스윙() async throws {
+        let repository = SpyRepository()
+        let pipeline = SwingPipeline(
+            directory: try directory(), storage: SessionStorage(repository: repository)
+        )
+        let startedAt = Date()
+        await pipeline.begin(
+            at: startedAt, handedness: .right, situation: .rally, observable: .swing, fps: 60
+        )
+        // 스윙만 흘리고 **바로** 멈춘다. postRoll 2초를 채우지 않는다.
+        for frame in swingFrames(startingAt: 0) {
+            await pipeline.handle(try makeReadyFrame(seconds: frame.timestamp), pose: frame)
+        }
+        _ = await pipeline.end(at: startedAt.addingTimeInterval(1))
+
+        let stored = try #require(repository.sessions.first)
+        #expect(stored.clips.isEmpty == false, "가진 만큼이라도 저장한다")
+    }
+
+    /// 세대 토큰이 없으면 `handle`의 뒤늦은 쓰기가 닫힌 세션을 되살리고,
+    /// 그 뒤 모든 녹화가 첫 세션 id로 덮여 레코드가 사라진다.
+    @Test("세션을 닫은 뒤 들어온 프레임이 세션을 되살리지 않는다")
+    func 재진입() async throws {
+        let repository = SpyRepository()
+        let pipeline = SwingPipeline(
+            directory: try directory(), storage: SessionStorage(repository: repository)
+        )
+        await pipeline.begin(
+            at: Date(), handedness: .right, situation: .rally, observable: .swing, fps: 60
+        )
+        await pipeline.handle(try makeReadyFrame(seconds: 0), pose: nil)
+        _ = await pipeline.end(at: Date())
+        #expect(await pipeline.isRecording == false)
+
+        // 닫힌 뒤에 프레임이 더 들어온다.
+        for frame in swingFrames(startingAt: 1.0) {
+            await pipeline.handle(try makeReadyFrame(seconds: frame.timestamp), pose: frame)
+        }
+        #expect(await pipeline.isRecording == false, "닫힌 세션이 되살아나면 다음 녹화가 영구히 막힌다")
+
+        // 두 번째 녹화가 정상적으로 열린다.
+        let second = Date()
+        await pipeline.begin(
+            at: second, handedness: .left, situation: .match, observable: .lineCall, fps: 120
+        )
+        await pipeline.handle(try makeReadyFrame(seconds: 2.0), pose: nil)
+        _ = await pipeline.end(at: second.addingTimeInterval(1))
+        #expect(repository.sessions.count == 2, "두 세션이 각자 남는다")
+        #expect(Set(repository.sessions.map(\.id)).count == 2, "같은 id로 덮이면 하나가 사라진다")
+    }
+
+    /// `handle`이 `await` 지점에 멈춰 있는 동안 `end()`가 들어오는 경로.
+    /// actor가 비는 그 틈이 C2의 실패 지점이었다.
+    ///
+    /// **단정은 불변식만 본다.** 어느 쪽이 먼저 도느냐는 보장되지 않으므로,
+    /// "닫은 뒤에는 닫혀 있고 다음 녹화가 정상적으로 열린다"를 확인한다.
+    @Test("handle이 멈춘 사이에 end가 들어와도 세션이 잠기지 않는다")
+    func 교차_종료() async throws {
+        let repository = SpyRepository()
+        let pipeline = SwingPipeline(
+            directory: try directory(), storage: SessionStorage(repository: repository)
+        )
+        let first = Date()
+        await pipeline.begin(
+            at: first, handedness: .right, situation: .rally, observable: .swing, fps: 60
+        )
+
+        let frames = swingFrames(startingAt: 0)
+        let ready = try frames.map { try makeReadyFrame(seconds: $0.timestamp) }
+        // 프레임을 흘리는 Task와 닫는 호출을 겹친다.
+        let feeding = Task {
+            for (frame, pose) in zip(ready, frames) {
+                await pipeline.handle(frame, pose: pose)
+            }
+        }
+        _ = await pipeline.end(at: first.addingTimeInterval(1))
+        await feeding.value
+
+        #expect(await pipeline.isRecording == false, "닫힌 뒤에 열린 채로 남으면 다음 녹화가 막힌다")
+
+        let second = first.addingTimeInterval(10)
+        await pipeline.begin(
+            at: second, handedness: .left, situation: .match, observable: .lineCall, fps: 120
+        )
+        await pipeline.handle(try makeReadyFrame(seconds: 100), pose: nil)
+        _ = await pipeline.end(at: second.addingTimeInterval(1))
+
+        #expect(Set(repository.sessions.map(\.id)).count == repository.sessions.count,
+                "같은 id로 덮이면 레코드가 사라진다")
+        #expect(repository.sessions.contains { $0.fps == 120 }, "두 번째 세션이 자기 설정으로 남는다")
+    }
+
+    /// 벽치기는 기본값으로는 통째로 놓친다 — 벽이 가까워 스윙이 짧고 느리다.
+    @Test("상황이 트리거 프로파일을 고른다")
+    func 상황별_프로파일() {
+        #expect(CaptureSituation.wall.triggerProfile.enterAngularVelocity
+            == SwingTriggerProfile.wall.enterAngularVelocity)
+        #expect(CaptureSituation.rally.triggerProfile.enterAngularVelocity
+            == SwingTriggerProfile.default.enterAngularVelocity)
+    }
+
+    /// 클립은 구간이 닫힐 때야 저장된다. 그 값을 띄우면 랠리 중에는 0이 뜬다.
+    @Test("스윙 수는 트리거가 울리는 즉시 올라간다")
+    func 즉시_카운트() async throws {
+        let pipeline = SwingPipeline(
+            directory: try directory(), storage: SessionStorage(repository: SpyRepository())
+        )
+        await pipeline.begin(
+            at: Date(), handedness: .right, situation: .rally, observable: .swing, fps: 60
+        )
+        var last = SwingSnapshot(swingCount: 0, clipCount: 0, failure: nil, seconds: 0)
+        for frame in swingFrames(startingAt: 0) {
+            last = await pipeline.handle(try makeReadyFrame(seconds: frame.timestamp), pose: frame)
+        }
+        // 아직 postRoll을 못 채웠으니 클립은 0인데 스윙은 세어져 있다.
+        #expect(last.swingCount == 1)
+        #expect(last.clipCount == 0)
     }
 }
