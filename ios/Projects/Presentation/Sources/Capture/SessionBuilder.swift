@@ -56,10 +56,18 @@ public actor SessionBuilder {
 
     public var clipCount: Int { clips.count }
 
-    public func add(_ recorded: RecordedClip) {
+    /// - Parameter fps: **그 클립이 찍힌 시점의 실제 fps.** 세션의 값을 쓰면
+    ///   발열 강등을 걸친 세션에서 강등 전 클립이 60fps로 기록되고, 분석이
+    ///   프레임 간격을 잘못 가정한다 — [ADR-0005](../../../../../docs/05-결정/adr/ADR-0005-thermal-auto-adjust.md).
+    ///
+    ///   생략하면 세션 시작 시점의 값을 쓴다.
+    public func add(_ recorded: RecordedClip, fps clipFPS: Int? = nil) {
         clips.append(
             Self.clip(
-                from: recorded, fps: fps, sessionStartedAt: startedAt, clockOrigin: clockOrigin
+                from: recorded,
+                fps: clipFPS ?? fps,
+                sessionStartedAt: startedAt,
+                clockOrigin: clockOrigin
             )
         )
     }

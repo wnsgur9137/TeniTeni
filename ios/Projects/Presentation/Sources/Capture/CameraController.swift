@@ -66,6 +66,14 @@ final class CameraController: NSObject {
     /// 실기기에서 읽을 유일한 단서다.
     private(set) var droppedFrames: UInt64 = 0
 
+    /// 발열·압력 때문에 조정했다는 고지. `.serious`는 조용히 조정하므로
+    /// 비어 있다 — 그 사실은 클립의 fps와 드롭 카운터로 드러난다.
+    private(set) var pressureNotice: String?
+
+    /// 지금 적용 중인 압력 대응. 같은 수준이 반복해 와도 한 번만 반영한다.
+    @ObservationIgnored private var pressureResponse: SystemPressureResponse = .normal
+    @ObservationIgnored private var pressureObservation: NSKeyValueObservation?
+
     /// 세션이 스스로 멈춘 사유. 중단이 끝나면 지운다.
     ///
     /// `message`와 따로 두는 이유: `message`는 다음 안내에 덮이는데, 중단은
@@ -212,6 +220,7 @@ final class CameraController: NSObject {
         applyFormat()
         startTrackingRotation(for: camera)
         startObservingInterruptions()
+        startObservingPressure(for: camera)
         startAnalysis()
         status = .ready
         // applyFormat이 이미 경고를 띄웠으면 덮지 않는다 — "120fps 포맷을 찾을 수 없습니다"가
@@ -317,6 +326,53 @@ final class CameraController: NSObject {
         let center = NotificationCenter.default
         interruptionObservers.forEach(center.removeObserver)
         interruptionObservers.removeAll()
+    }
+
+    // MARK: 시스템 압력
+
+    /// `systemPressureState`를 KVO로 본다. `ProcessInfo.thermalState`보다
+    /// **캡처 시스템에 특화된 신호**다 — 동시성 6.6.
+    private func startObservingPressure(for device: AVCaptureDevice) {
+        pressureObservation?.invalidate()
+        apply(SystemPressureResponse.make(for: device.systemPressureState.level))
+        pressureObservation = device.observe(\.systemPressureState, options: [.new]) { [weak self] _, change in
+            // `SystemPressureState`는 Sendable이 아니다. 수준만 꺼내 넘긴다.
+            guard let level = change.newValue?.level else { return }
+            Task { @MainActor [weak self] in
+                self?.apply(SystemPressureResponse.make(for: level))
+            }
+        }
+    }
+
+    /// 압력 대응을 반영한다. **묻지 않는다** — ADR-0005.
+    private func apply(_ response: SystemPressureResponse) {
+        guard response != pressureResponse else { return }
+        let previous = pressureResponse
+        pressureResponse = response
+
+        // 분석 밀도를 먼저 줄인다. 촬영을 건드리지 않는 가장 싼 수단이다.
+        if response.analysisFPS != previous.analysisFPS {
+            intake?.update(
+                decimator: FrameDecimator(captureFPS: actualFPS, analysisFPS: response.analysisFPS)
+            )
+        }
+
+        // 촬영 fps 상한이 생겼거나 풀렸다. 포맷을 다시 고른다.
+        if response.captureFPSCeiling != previous.captureFPSCeiling {
+            applyFormat()
+        }
+
+        pressureNotice = response.notice
+        if response.isTerminal {
+            // 시스템이 세션을 내린다. 중단 경로가 받는다 — #100.
+            handleInterruption(
+                CaptureInterruption(
+                    message: response.notice ?? "기기가 과열돼 촬영을 멈췄습니다",
+                    endsRecording: true,
+                    needsRestart: true
+                )
+            )
+        }
     }
 
     private func handleInterruption(_ interruption: CaptureInterruption) {
@@ -578,7 +634,9 @@ final class CameraController: NSObject {
             message = "녹화 중에는 설정을 바꿀 수 없습니다"
             return
         }
-        let targetFPS = quality.fps
+        // 발열 강등이 걸려 있으면 그 상한을 넘지 않는다. 사용자가 고른
+        // 값(`quality`)과 실제 적용값을 섞지 않는다 — 동시성 6.6.
+        let targetFPS = min(quality.fps, pressureResponse.captureFPSCeiling ?? .infinity)
 
         guard let format = FormatSelector.format(in: device, targetFPS: targetFPS) else {
             message = "\(Int(targetFPS))fps 포맷을 찾을 수 없습니다"
@@ -602,7 +660,17 @@ final class CameraController: NSObject {
 
         readActualValues()
         // 120fps면 포즈를 2프레임에 한 번만 돌린다. 포맷이 바뀌면 간격도 바뀐다.
-        intake?.update(decimator: FrameDecimator(captureFPS: actualFPS))
+        intake?.update(
+            decimator: FrameDecimator(
+                captureFPS: actualFPS, analysisFPS: pressureResponse.analysisFPS
+            )
+        )
+        // 강등된 fps는 **그 뒤 클립에** 실제값으로 기록된다. 세션의 값을
+        // 덮으면 강등 전 클립이 60fps로 기록돼 분석이 틀어진다 — ADR-0005.
+        if let pipeline {
+            let effective = Int(actualFPS.rounded())
+            Task { await pipeline.update(effectiveFPS: effective) }
+        }
     }
 
     private func applyExposure(to device: AVCaptureDevice, format: AVCaptureDevice.Format) {
@@ -659,6 +727,8 @@ final class CameraController: NSObject {
         // 남고 레코드가 없는 고아가 된다. 오류도 배너도 없이.
         teardownAnalysis()
         stopObservingInterruptions()
+        pressureObservation?.invalidate()
+        pressureObservation = nil
         rotationObservation?.invalidate()
         rotationObservation = nil
         if session.isRunning { session.stopRunning() }
@@ -685,6 +755,7 @@ final class CameraController: NSObject {
         // `AVCaptureSession`은 스스로 재개하므로, `isRunning` 안에 두면
         // 세션은 살아 있고 분석만 죽은 상태가 영구히 남는다.
         startObservingInterruptions()
+        if let device { startObservingPressure(for: device) }
         startAnalysis()
     }
 

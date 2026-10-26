@@ -359,6 +359,53 @@ struct SwingPipelineTests {
         #expect(repository.sessions.contains { $0.fps == 120 }, "두 번째 세션이 자기 설정으로 남는다")
     }
 
+    /// 세션의 값을 덮으면 강등 전 클립이 60fps로 기록되고, 분석이 프레임
+    /// 간격을 잘못 가정한다 — ADR-0005.
+    @Test("강등 뒤 저장된 클립은 그때의 실제 fps로 기록된다")
+    func 강등_fps() async throws {
+        let repository = SpyRepository()
+        let pipeline = SwingPipeline(
+            directory: try directory(), storage: SessionStorage(repository: repository)
+        )
+        let startedAt = Date()
+        await pipeline.begin(
+            at: startedAt, handedness: .right, situation: .rally, observable: .swing, fps: 120
+        )
+        // 발열로 60으로 내려갔다.
+        await pipeline.update(effectiveFPS: 60)
+
+        for frame in swingFrames(startingAt: 0) {
+            await pipeline.handle(try makeReadyFrame(seconds: frame.timestamp), pose: frame)
+        }
+        _ = await pipeline.end(at: startedAt.addingTimeInterval(2))
+
+        let stored = try #require(repository.sessions.first)
+        // 세션은 시작 시점의 값을 들고 있다.
+        #expect(stored.fps == 120)
+        // 클립은 그 클립이 찍힌 시점의 값이다.
+        let clip = try #require(stored.clips.first)
+        #expect(clip.fps == 60, "강등을 반영하지 않으면 분석이 프레임 간격을 잘못 가정한다")
+    }
+
+    @Test("강등이 없으면 클립도 세션과 같은 fps다")
+    func 강등_없음() async throws {
+        let repository = SpyRepository()
+        let pipeline = SwingPipeline(
+            directory: try directory(), storage: SessionStorage(repository: repository)
+        )
+        let startedAt = Date()
+        await pipeline.begin(
+            at: startedAt, handedness: .right, situation: .rally, observable: .swing, fps: 120
+        )
+        for frame in swingFrames(startingAt: 0) {
+            await pipeline.handle(try makeReadyFrame(seconds: frame.timestamp), pose: frame)
+        }
+        _ = await pipeline.end(at: startedAt.addingTimeInterval(2))
+
+        let clip = try #require(repository.sessions.first?.clips.first)
+        #expect(clip.fps == 120)
+    }
+
     /// 소급분이 캡처 풀을 붙들므로 상한이 없으면 풀이 고갈돼 분석이
     /// 끊긴다. 상한에 걸려 버린 장 수가 **보여야** 한다 — 조용히 짧아지면
     /// 클립의 머리가 왜 없는지 알 수 없다.

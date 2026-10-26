@@ -141,6 +141,7 @@ actor SwingPipeline {
         clipCount = 0
         failure = nil
         writesDisabled = false
+        effectiveFPS = fps
         pending = Pending(
             startedAt: startedAt,
             handedness: handedness,
@@ -205,7 +206,7 @@ actor SwingPipeline {
             do {
                 if let clip = try await recorder.finish() {
                     if let builder = closing.builder, token == generation {
-                        await builder.add(clip)
+                        await builder.add(clip, fps: effectiveFPS)
                         clipCount += clip.swings.count
                     }
                 }
@@ -262,9 +263,14 @@ actor SwingPipeline {
         return candidate
     }
 
+    /// 촬영 fps가 바뀌었다(발열 강등·복귀). 다음 클립부터 이 값으로 기록한다.
+    func update(effectiveFPS new: Int) {
+        effectiveFPS = new
+    }
+
     private func store(_ clip: RecordedClip, token: Int) async {
         guard let builder else { return }
-        await builder.add(clip)
+        await builder.add(clip, fps: effectiveFPS)
         // 돌아왔을 때 세션이 바뀌었으면 셈하지 않는다 — 닫힌 세션의 클립이
         // 다음 녹화의 수치에 섞인다.
         guard token == generation else { return }
@@ -284,6 +290,12 @@ actor SwingPipeline {
     /// 상한에 걸려 버린 소급 프레임 수. 레코더가 사라진 뒤에도 마지막
     /// 값을 들고 있어야 화면이 그 사실을 계속 보여줄 수 있다.
     private(set) var droppedBacklog = 0
+
+    /// 지금 실제로 적용된 촬영 fps. 발열 강등이 이 값을 바꾼다.
+    ///
+    /// 세션의 `fps`와 따로 든다 — 세션은 시작 시점의 값이고, 클립은 **그
+    /// 클립이 찍힌 시점의 값**이어야 한다.
+    private var effectiveFPS: Int?
 
     /// 파일명 접두사. 포매팅을 밖에 두면 테스트가 결정론적이다.
     static func stamp(for date: Date) -> String {
