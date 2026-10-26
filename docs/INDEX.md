@@ -84,6 +84,7 @@ status: active
 | [SPEC-0061 모듈 재편 + 앱 셸](./07-기획/SPEC-0061-module-shell.md) | #61 | 계층 5개, 코디네이터, 탭바, 방향 정리, TCA 도입 시점 |
 | [SPEC-0064 진입 화면](./07-기획/SPEC-0064-entry-screens.md) | #64 | 온보딩·주 사용 손·홈·설정, Feature 분할, 온보딩 2단계 |
 | [SPEC-0070 1-B 기반](./07-기획/SPEC-0070-persistence-foundation.md) | #70 | Session·Clip·Swing, SwiftData 영속화, 링 버퍼 |
+| [SPEC-0078 촬영 시작 흐름](./07-기획/SPEC-0078-start-capture.md) | #78 | 프레이밍 가이드 → 촬영, 세션 1회 구성, 방향 잠금 |
 | [SPEC-0085 스윙 트리거 룰 엔진](./07-기획/SPEC-0085-swing-trigger.md) | #85 | 손목 각속도, 몸통선 교차, 히스테리시스, 합성 시계열 검증 |
 | [SPEC-0091 스윙 구간 클립 저장](./07-기획/SPEC-0091-swing-clip-recording.md) | #91 | 겹침 병합, postRoll 플러시, H.264, 합성 픽셀 버퍼 검증 |
 | [SPEC-0096 카메라 프레임을 포즈로](./07-기획/SPEC-0096-pose-intake.md) | #96 | 비디오 데이터 출력, 다운스케일, Vision 어댑터, 경계 프로토콜 |
