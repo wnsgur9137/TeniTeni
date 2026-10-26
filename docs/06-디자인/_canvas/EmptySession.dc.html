@@ -18,7 +18,10 @@ body{margin:0;font-family:-apple-system,"SF Pro Text",system-ui,sans-serif}
       <path d="M22 22l22 22" stroke="#6B737B" stroke-width="2" stroke-linecap="round"/>
     </svg>
     <div style="font-size:24px;font-weight:700;text-align:center;line-height:1.35">스윙을 하나도<br>찾지 못했습니다</div>
-    <div style="font-size:14px;color:#9BA3AB;text-align:center;line-height:1.6">영상은 저장하지 않았습니다.<br>아래를 확인하고 다시 찍어보세요.</div>
+    <!-- "저장하지 않았습니다"는 사실이 아니었다. 통영상은 Documents에
+       남아 있고 아무도 지우지 않는다. 삭제는 되돌릴 수 없어 별도 작업으로
+       뗐으므로 문구를 현실에 맞춘다 — SPEC-0110. -->
+    <div style="font-size:14px;color:#9BA3AB;text-align:center;line-height:1.6">영상은 남아 있습니다.<br>아래를 확인하고 다시 찍어보세요.</div>
   </div>
 
   <div style="padding:34px 20px 0">
@@ -44,7 +47,6 @@ body{margin:0;font-family:-apple-system,"SF Pro Text",system-ui,sans-serif}
 
   <div style="padding:14px 20px 30px;display:flex;flex-direction:column;gap:10px">
     <button style="height:52px;border:none;border-radius:10px;background:#C6F24E;color:#0B0D0F;font-size:17px;font-weight:600;font-family:inherit;cursor:pointer">배치 다시 보기</button>
-    <button style="height:48px;border:1px solid #1F2429;border-radius:10px;background:transparent;color:#9BA3AB;font-size:15px;font-weight:500;font-family:inherit;cursor:pointer">방금 영상 확인</button>
   </div>
 
 </div>
