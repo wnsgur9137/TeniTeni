@@ -101,8 +101,11 @@ for p in pathlib.Path("docs").rglob("*.md"):
     s = str(p)
     if "_templates" in s or s.endswith("INDEX.md"):
         continue
-    # 결정 노트와 레퍼런스는 허브 문서가 따로 있으므로 제외
-    if "05-결정/stack/" in s or "05-결정/adr/" in s or "08-레퍼런스/" in s or "07-기획/" in s:
+    # 결정 노트와 레퍼런스는 **허브 문서가 따로 있으므로** 제외한다.
+    # 07-기획은 허브가 없다 — INDEX.md 자신이 기획서 표를 들고 있으므로
+    # 제외하면 누락을 잡을 자리가 아예 없어진다. 실제로 SPEC-0078이
+    # 그렇게 빠졌다 (#87).
+    if "05-결정/stack/" in s or "05-결정/adr/" in s or "08-레퍼런스/" in s:
         continue
     rel = s[len("docs/"):]
     if rel not in index:
@@ -111,8 +114,11 @@ print("\n".join(out))
 PY
 )
 if [ -n "$UNLINKED" ]; then
-  warn "INDEX.md에 등재되지 않은 문서"
+  # warn이 아니라 fail이다. 경고로 두면 아무도 읽지 않는다 — SPEC-0078은
+  # 그렇게 스무 개 남짓의 PR을 통과했다. 허브가 관리하는 디렉터리는 위
+  # 제외 목록이 맡으므로, 여기 걸리는 것은 **한 줄 추가로 끝나는 누락**뿐이다.
   printf '%s\n' "$UNLINKED" | sed 's/^/    /'
+  fail "INDEX.md에 등재되지 않은 문서가 있습니다"
 else
   ok "전 문서 등재됨"
 fi
