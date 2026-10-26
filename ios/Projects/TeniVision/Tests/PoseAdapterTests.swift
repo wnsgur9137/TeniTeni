@@ -129,3 +129,48 @@ struct PrimaryObservationTests {
         #expect(abs(width - 0.3) < 1e-9)
     }
 }
+
+@Suite("프레임 읽기 분류")
+struct PoseReadingTests {
+
+    /// 옵셔널 하나로 합치면 화면이 두 상태를 구분할 수 없다. 측면으로 서서
+    /// 한쪽 어깨가 가려진 사용자가 "사람이 안 보입니다"를 읽고 자리를 옮긴다.
+    @Test("관측이 없으면 noPerson, 어깨를 못 믿으면 unusable")
+    func 구분() {
+        let none = [FakePose]()
+        #expect(PoseEstimator.reading(from: none, at: 0, minimumConfidence: 0.3) == .noPerson)
+
+        let sideOn = FakePose(samples: [
+            .leftShoulder: PoseJointSample(point: CGPoint(x: 0.5, y: 0.6), confidence: 0.25),
+            .rightWrist: PoseJointSample(point: CGPoint(x: 0.7, y: 0.5), confidence: 0.9),
+        ])
+        #expect(PoseEstimator.reading(from: [sideOn], at: 0, minimumConfidence: 0.3) == .unusable)
+    }
+
+    @Test("어깨를 믿을 수 있으면 포즈가 나오고 시각이 붙는다")
+    func 포즈() throws {
+        let reading = PoseEstimator.reading(
+            from: [FakePose.shoulders(width: 0.2)], at: 4.25, minimumConfidence: 0.3
+        )
+        guard case .pose(let frame) = reading else {
+            Issue.record("포즈로 분류되지 않았다")
+            return
+        }
+        #expect(frame.timestamp == 4.25)
+        #expect(frame.joints.count == 2)
+    }
+
+    @Test("여러 사람 중 어깨 폭이 큰 쪽의 포즈가 나온다")
+    func 선택_반영() throws {
+        let near = FakePose.shoulders(width: 0.30)
+        let far = FakePose.shoulders(width: 0.08)
+        let reading = PoseEstimator.reading(from: [far, near], at: 0, minimumConfidence: 0.3)
+        guard case .pose(let frame) = reading else {
+            Issue.record("포즈로 분류되지 않았다")
+            return
+        }
+        let left = try #require(frame.joints[.leftShoulder]?.point.x)
+        let right = try #require(frame.joints[.rightShoulder]?.point.x)
+        #expect(abs(Double(right - left) - 0.30) < 1e-9)
+    }
+}
