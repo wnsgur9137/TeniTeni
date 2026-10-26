@@ -107,8 +107,63 @@ struct CaptureView: View {
             }
 
             elapsedTime
+            poseIndicator
             warningBanner
             recordButton
+        }
+    }
+
+    // MARK: 포즈 — "지금 내가 보이고 있는가"
+
+    /// 6m 밖에서 읽혀야 하는 상태다. 사람이 프레임에서 벗어나면 스윙이 하나도
+    /// 잡히지 않는데, 그 사실을 끝나고 알면 다시 찍을 수밖에 없다.
+    ///
+    /// 수치가 아니라 **상태**이므로 녹화 중에도 남는다(IA-FLOW 10.5).
+    @ViewBuilder
+    private var poseIndicator: some View {
+        if let label = poseLabel {
+            VStack {
+                HStack {
+                    Spacer()
+                    HStack(spacing: 10) {
+                        Circle()
+                            .fill(poseTint)
+                            .frame(width: 14, height: 14)
+                        Text(label)
+                            .font(.system(size: 20, weight: .semibold))
+                            .foregroundStyle(Token.Text.primary)
+                    }
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 10)
+                    .background(Token.Background.scrim, in: .capsule)
+                    .accessibilityElement(children: .combine)
+                    .accessibilityLabel(label)
+                }
+                Spacer()
+            }
+            .padding(.trailing, 16)
+            .padding(.top, 14)
+            .allowsHitTesting(false)
+        }
+    }
+
+    private var poseLabel: String? {
+        switch controller.poseStatus {
+        case .idle: nil
+        case .detected: "사람이 보입니다"
+        case .notFound: "사람이 안 보입니다"
+        // "안 보인다"와 합치면 프레임 안에 멀쩡히 있는 사람이 자리를 옮긴다.
+        case .unusable: "자세가 잘 안 보입니다"
+        case .failed: "포즈 분석이 멈췄습니다"
+        case .unavailable: "이 기기에서는 분석을 할 수 없습니다"
+        }
+    }
+
+    private var poseTint: Color {
+        switch controller.poseStatus {
+        case .detected: Token.State.success
+        case .notFound, .unusable, .failed, .unavailable: Token.State.warning
+        case .idle: Token.Text.tertiary
         }
     }
 
@@ -195,6 +250,13 @@ struct CaptureView: View {
             }
             if !controller.recordsAudio {
                 Label("무음", systemImage: "mic.slash.fill")
+                    .font(.caption2)
+                    .foregroundStyle(Token.State.warning)
+            }
+            // 포즈가 예산을 넘겼는지를 실기기에서 읽을 유일한 단서다.
+            // 0이면 띄우지 않는다 — 표시줄은 이미 빽빽하다.
+            if controller.droppedFrames > 0 {
+                Label("드롭 \(controller.droppedFrames)", systemImage: "exclamationmark.triangle.fill")
                     .font(.caption2)
                     .foregroundStyle(Token.State.warning)
             }

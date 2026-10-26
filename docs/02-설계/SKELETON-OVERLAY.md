@@ -339,11 +339,13 @@ Metal 렌더 경로를 **그대로 재사용**합니다. 화면 대신 오프스
 Projects/
 ├── TeniVision/Sources/
 │   ├── Pose/
-│   │   ├── PoseEstimator.swift          # DetectHumanBodyPoseRequest 래핑
-│   │   ├── PoseSkeleton.swift           # Bone 정의
-│   │   ├── OneEuroFilter.swift          # 떨림 제거
-│   │   ├── PoseSmoother.swift           # 관절별 필터 관리
-│   │   └── JointAngle.swift             # 각도 계산 → 교정 판정 입력
+│   │   ├── BodyPoseObservable.swift     # ★ 경계 프로토콜 — 관측을 합성할 수 없어서
+│   │   ├── PoseFrameAdapter.swift       # ★ 관측 → PoseFrame (관절 6개)
+│   │   ├── PoseEstimator.swift          # ★ DetectHumanBodyPoseRequest 래핑 + 사람 선택
+│   │   ├── PoseSkeleton.swift           # Bone 정의 (미구현)
+│   │   ├── OneEuroFilter.swift          # 떨림 제거 (미구현 — 실기기에서 떨림을 보고 넣는다)
+│   │   ├── PoseSmoother.swift           # 관절별 필터 관리 (미구현)
+│   │   └── JointAngle.swift             # 각도 계산 → 교정 판정 입력 (미구현)
 │   ├── Swing/
 │   │   ├── PoseFrame.swift              # 트리거 입력 — 관절 6개 + 신뢰도
 │   │   ├── SwingTriggerProfile.swift    # 임계·간격. 상황별로 갈린다
@@ -364,11 +366,18 @@ Projects/
 │       ├── Shaders.metal
 │       └── SkeletonStyle.swift          # 컬러·굵기 토큰
 │
-└── Features/Capture/Sources/
-    ├── View/
-    │   └── MetalCameraView.swift        # UIViewRepresentable → MTKView
-    └── Overlay/
-        └── GuideOverlay.swift           # SwiftUI. 가이드·경고·각도 라벨
+└── Presentation/Sources/Capture/
+    ├── CaptureScreen.swift              # 세션·프리뷰·방향 잠금 소유
+    ├── CaptureFeature.swift             # 가이드 → 촬영 단계
+    ├── CameraController.swift           # 세션 구성·포맷·노출·녹화·분석 수명
+    ├── CaptureView.swift                # 촬영 중 오버레이 (포즈 지표 포함)
+    ├── ReadyFrame.swift                 # ★ CMReadySampleBuffer 래퍼 (iOS 26+ 경계)
+    ├── FrameIntake.swift                # ★ AVCaptureVideoDataOutput 델리게이트
+    ├── FrameDecimator.swift             # ★ 포즈를 몇 프레임에 한 번 돌릴지
+    ├── FrameDownscaler.swift            # ★ 분석 입력 640×360 (VTPixelTransferSession)
+    ├── PoseAnalyzer.swift               # ★ 단일 Task — 스트림 소비
+    ├── MetalCameraView.swift            # UIViewRepresentable → MTKView (미구현)
+    └── GuideOverlay.swift               # SwiftUI. 가이드·경고·각도 라벨 (미구현)
 ```
 
 `TeniVision`은 SwiftUI를 import하지 않으므로 샘플 영상 기반 회귀 테스트가 가능합니다. `OffscreenRenderer`를 쓰면 **렌더 결과 자체를 스냅샷 테스트**할 수도 있습니다.
