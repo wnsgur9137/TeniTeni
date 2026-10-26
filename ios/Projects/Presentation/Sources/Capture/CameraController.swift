@@ -66,6 +66,13 @@ final class CameraController: NSObject {
     /// 실기기에서 읽을 유일한 단서다.
     private(set) var droppedFrames: UInt64 = 0
 
+    /// 트리거가 발화한 횟수. 클립 수와 다르다 — 겹치는 후보는 한 클립으로
+    /// 병합되므로 랠리 20번이 클립 1~2개가 된다. 화면이 읽는 것은 이쪽이다.
+    private(set) var swingCount = 0
+
+    /// 늦게 도착한 스냅샷을 걸러내는 기준. 표시가 아니라 판단용이다.
+    @ObservationIgnored private var lastSnapshotAt: TimeInterval?
+
     /// 이번 녹화에서 저장된 스윙 클립 수. **6m 밖에서 읽히는 수치**다 —
     /// 목업이 이 자리에 스윙 카운트를 두었다(IA-FLOW 10.5).
     private(set) var swingClipCount = 0
@@ -111,6 +118,12 @@ final class CameraController: NSObject {
     /// 세션 저장소. 생성 실패도 값으로 들고 온다 — `SessionStorage`.
     private let storage: SessionStorage
     private var pipeline: SwingPipeline?
+    /// 세션 열기·닫기를 **순서대로** 돌린다.
+    ///
+    /// 둘 다 메인에서 비구조 `Task`로 들어가는데 그 실행 순서는 보장되지
+    /// 않는다. 눌렀다 바로 정지하면 닫기가 먼저 돌아 아무것도 하지 않고,
+    /// 뒤늦게 열기가 돌아 **세션이 열린 채 영구히 잠긴다.**
+    private var sessionWork: Task<Void, Never>?
     /// 촬영이 무엇을 찍는지. 화면이 알려준다.
     private var context: CaptureContext?
 
@@ -124,6 +137,15 @@ final class CameraController: NSObject {
         self.storage = storage
         super.init()
         self.storageFailure = storage.failure
+    }
+
+    /// 이전 작업이 끝난 뒤에 돌린다. 열기와 닫기가 뒤바뀌지 않게 한다.
+    private func enqueueSessionWork(_ work: @escaping @Sendable () async -> Void) {
+        let previous = sessionWork
+        sessionWork = Task {
+            await previous?.value
+            await work()
+        }
     }
 
     /// 무엇을 찍는지 알려준다. `start()` 전에 불러야 한다 — 주 사용 손이
@@ -289,22 +311,34 @@ final class CameraController: NSObject {
         let sink: @Sendable (ReadyFrame, PoseOutcome) async -> Void = { [weak self] frame, outcome in
             var pose: PoseFrame?
             if case .detected(let detected) = outcome { pose = detected }
-            await pipeline.handle(frame, pose: pose)
-            let clips = await pipeline.clipCount
-            let failure = await pipeline.failure
+            // 처리하고 결과를 **한 번에** 받아 온다. 카운트와 실패를 따로
+            // 물으면 프레임당 actor 홉이 셋이 된다 — 60fps면 초당 180회다.
+            let snapshot = await pipeline.handle(frame, pose: pose)
             Task { @MainActor [weak self] in
                 self?.apply(outcome)
-                self?.applyPipeline(clipCount: clips, failure: failure)
+                self?.apply(snapshot)
             }
         }
         poseTask = Task { await analyzer.run(onOutcome: sink) }
     }
 
-    /// 파이프라인이 올려 보낸 수치를 표시에 반영한다. 같은 값이면 덮지
-    /// 않는다 — `@Observable`의 setter는 값을 비교하지 않는다.
-    private func applyPipeline(clipCount: Int, failure: String?) {
-        if swingClipCount != clipCount { swingClipCount = clipCount }
-        if let failure, storageFailure != failure { storageFailure = failure }
+    /// 파이프라인이 올려 보낸 수치를 표시에 반영한다.
+    ///
+    /// 늦게 도착한 과거 스냅샷을 버린다 — 비구조 `Task`는 생성 순서대로
+    /// 실행되지 않으므로, 막지 않으면 스윙 수가 3 → 2로 되감긴다.
+    ///
+    /// 같은 값이면 덮지 않는다 — `@Observable`의 setter는 값을 비교하지
+    /// 않아 매 프레임 뷰가 무효화된다.
+    private func apply(_ snapshot: SwingSnapshot) {
+        if let lastSnapshotAt, snapshot.seconds < lastSnapshotAt { return }
+        lastSnapshotAt = snapshot.seconds
+        if swingCount != snapshot.swingCount { swingCount = snapshot.swingCount }
+        if swingClipCount != snapshot.clipCount { swingClipCount = snapshot.clipCount }
+        // 사유가 사라졌으면 배너도 내린다. 안 내리면 한 프레임짜리 오류
+        // 문구가 다음 녹화 내내 붙어 있다. 저장소 자체가 없는 경우는
+        // 파이프라인이 모르므로 그 사유는 보존한다.
+        let next = snapshot.failure ?? storage.failure
+        if storageFailure != next { storageFailure = next }
     }
 
     private func stopAnalysis() {
@@ -511,14 +545,37 @@ final class CameraController: NSObject {
 
     /// 백그라운드 진입. 녹화 중이면 먼저 정상 종료해 파일 손상을 막는다.
     func suspend() {
-        stopAnalysis()
-        rotationObservation?.invalidate()
-        rotationObservation = nil
         if movieOutput.isRecording {
             movieOutput.stopRecording()
             message = "백그라운드 진입으로 녹화를 종료했습니다"
         }
+        // **분석을 내리기 전에** 파이프라인을 손에 들고 세션을 닫는다.
+        // `stopAnalysis()`가 먼저 돌면 `pipeline`이 `nil`이 되어 그 세션의
+        // `SessionBuilder.finish()`가 영원히 불리지 않는다 — 클립 파일만
+        // 남고 레코드가 없는 고아가 된다. 오류도 배너도 없이.
+        let closing = pipeline
+        stopAnalysis()
+        rotationObservation?.invalidate()
+        rotationObservation = nil
         if session.isRunning { session.stopRunning() }
+
+        if let closing {
+            enqueueSessionWork { [weak self] in
+                let saved = await closing.end(at: Date())
+                let snapshot = SwingSnapshot(
+                    swingCount: await closing.swingCount,
+                    clipCount: await closing.clipCount,
+                    failure: await closing.failure,
+                    seconds: .infinity
+                )
+                await MainActor.run { [weak self] in
+                    self?.apply(snapshot)
+                    if saved == nil, self?.storage.isUnavailable == false {
+                        self?.message = "세션을 남기지 못했습니다"
+                    }
+                }
+            }
+        }
     }
 
     /// 포그라운드 복귀. 세션을 재시작하고 포맷·노출을 다시 적용한다.
@@ -585,10 +642,14 @@ final class CameraController: NSObject {
         // 녹화 버튼이 세션의 시작과 끝이다. 세션 시계의 원점은 **첫 분석
         // 프레임의 PTS**이므로 파이프라인이 그때 세션을 만든다.
         swingClipCount = 0
+        swingCount = 0
+        lastSnapshotAt = nil
         if let pipeline, let context {
-            let startedAt = Date()
+            // 메타데이터와 세션이 **같은 벽시계**를 쓴다. 따로 찍으면 같은
+            // 녹화에 시각이 둘 생긴다.
+            let startedAt = pendingMetadata?.recordedAt ?? Date()
             let fps = Int(actualFPS.rounded())
-            Task {
+            enqueueSessionWork {
                 await pipeline.begin(
                     at: startedAt,
                     handedness: context.handedness,
@@ -629,16 +690,29 @@ final class CameraController: NSObject {
     }
 
     /// 세션을 닫아 저장한다. 스윙 0개여도 저장한다 — 0개도 결과다.
-    private func closeSession() async {
-        guard let pipeline, await pipeline.isRecording else { return }
-        let saved = await pipeline.end(at: Date())
-        swingClipCount = await pipeline.clipCount
-        if let failure = await pipeline.failure {
-            storageFailure = failure
-        } else if saved == nil, storage.isUnavailable == false {
-            // 저장소는 멀쩡한데 세션이 없다 — 프레임이 한 장도 오지
-            // 않았다는 뜻이다. 조용히 지나가면 "찍었는데 없다"가 된다.
-            message = "분석 프레임이 없어 세션을 남기지 못했습니다"
+    ///
+    /// 열기와 **같은 직렬 큐**에 올린다. 눌렀다 바로 정지하면 닫기가 먼저
+    /// 돌아 아무것도 하지 않고, 뒤늦게 열기가 돌아 세션이 영구히 잠긴다.
+    private func closeSession() {
+        guard let pipeline else { return }
+        enqueueSessionWork { [weak self] in
+            guard await pipeline.isRecording else { return }
+            let saved = await pipeline.end(at: Date())
+            let snapshot = SwingSnapshot(
+                swingCount: await pipeline.swingCount,
+                clipCount: await pipeline.clipCount,
+                failure: await pipeline.failure,
+                seconds: .infinity
+            )
+            await MainActor.run { [weak self] in
+                guard let self else { return }
+                self.apply(snapshot)
+                if saved == nil, self.storage.isUnavailable == false {
+                    // 저장소는 멀쩡한데 세션이 없다 — 프레임이 한 장도 오지
+                    // 않았다는 뜻이다. 조용히 지나가면 "찍었는데 없다"가 된다.
+                    self.message = "분석 프레임이 없어 세션을 남기지 못했습니다"
+                }
+            }
         }
     }
 
@@ -691,7 +765,7 @@ extension CameraController: AVCaptureFileOutputRecordingDelegate {
                 self.message = "녹화 실패: \(failure)"
                 // 세션을 열어 둔 채 두면 다음 녹화가 시작되지 않는다.
                 // 실패한 녹화의 클립도 이미 디스크에 있으므로 저장한다.
-                await self.closeSession()
+                self.closeSession()
                 return
             }
             if let metadata = self.pendingMetadata {
@@ -704,7 +778,7 @@ extension CameraController: AVCaptureFileOutputRecordingDelegate {
             }
             self.lastSavedURL = outputFileURL
             self.message = "저장됨: \(outputFileURL.lastPathComponent)"
-            await self.closeSession()
+            self.closeSession()
         }
     }
 }
