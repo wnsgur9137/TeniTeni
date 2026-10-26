@@ -35,6 +35,7 @@ Swift 6 strict concurrency 아래에서 격리 도메인을 어떻게 나눌지,
 | `PoseAnalyzer` | **단일 `Task` + `AsyncStream`** | 스무딩·세그멘테이션이 상태를 누적. **구현됨** ([SPEC-0096](../07-기획/SPEC-0096-pose-intake.md)) |
 | `FrameIntake` (`AVCaptureVideoDataOutput` 델리게이트) | `nonisolated` + 전용 큐 | 감싸고 셈하고 넘기기만 한다. **구현됨** |
 | `ClipRecorder` | `actor` | 링 버퍼와 `AVAssetWriter` 상태 보호. **구현됨** |
+| `SwingPipeline` | `actor` (순서는 **호출부의 단일 Task**가 지킨다) | 녹화 시작·정지가 메인에서 들어와 프레임 처리와 같은 상태를 만진다. 순서 보장은 `for await` 루프가 `await handle(...)`을 한 장씩 기다리는 데서 나온다. **구현됨** ([SPEC-0097](../07-기획/SPEC-0097-swing-wiring.md)) |
 | `Domain` UseCase, `TeniVision` 순수 계산 | `nonisolated` | 상태 없음 |
 
 ```
