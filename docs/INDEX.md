@@ -90,6 +90,7 @@ status: active
 | [SPEC-0096 카메라 프레임을 포즈로](./07-기획/SPEC-0096-pose-intake.md) | #96 | 비디오 데이터 출력, 다운스케일, Vision 어댑터, 경계 프로토콜 |
 | [SPEC-0097 스윙 검출 배선](./07-기획/SPEC-0097-swing-wiring.md) | #97 | 트리거·레코더·세션 조립, 저장소 배선, 프레임 시계 원점 |
 | [SPEC-0107 발열·시스템 압력 대응](./07-기획/SPEC-0107-thermal-response.md) | #107 | 압력 수준별 자동 조정, fps 강등 기록, 설계 충돌 해소 |
+| [SPEC-0110 세션 요약과 스윙 0개 진단](./07-기획/SPEC-0110-session-summary.md) | #110 | 촬영 직후 요약, EmptySession 진단, 1-D 의존 분리 |
 
 ## 08-레퍼런스
 
