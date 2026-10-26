@@ -127,11 +127,15 @@ public struct AppFeature {
                 return .none
 
             case .home(.delegate(.start(let situation, let observable))):
+                // 주 사용 손이 없으면 스윙을 잡을 수 없다. 온보딩을 거치지
+                // 않으면 도달할 수 없는 경로지만 상태로도 막는다.
+                guard let hand = state.preferences.handedness else { return .none }
                 // 고른 것을 그대로 넘긴다. 촬영 중에는 바꿀 수 없다 —
                 // 바꾸려면 삼각대를 옮겨야 하는 선택이다.
                 state.capture = CaptureFeature.State(
                     situation: situation,
-                    observable: observable
+                    observable: observable,
+                    handedness: hand
                 )
                 return .none
 

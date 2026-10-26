@@ -315,7 +315,7 @@ struct CaptureFlowTests {
 
         await store.send(.home(.startTapped))
         await store.receive(.home(.delegate(.start(.ballMachine, .swing)))) {
-            $0.capture = CaptureFeature.State(situation: .ballMachine, observable: .swing)
+            $0.capture = CaptureFeature.State(situation: .ballMachine, observable: .swing, handedness: .right)
         }
 
         #expect(store.state.capture?.phase == .framing, "촬영은 프레이밍 가이드에서 시작한다")
@@ -335,18 +335,34 @@ struct CaptureFlowTests {
 
         await store.send(.home(.startTapped))
         await store.receive(.home(.delegate(.start(.match, .lineCall)))) {
-            $0.capture = CaptureFeature.State(situation: .match, observable: .lineCall)
+            $0.capture = CaptureFeature.State(situation: .match, observable: .lineCall, handedness: .right)
         }
 
         #expect(store.state.capture?.observable == .lineCall)
         #expect(store.state.capture?.guidance.frame == .line, "배치가 다르면 가이드도 달라야 한다")
     }
 
+    /// 주 사용 손이 없으면 어느 손목을 볼지 정할 수 없어 스윙이 하나도
+    /// 잡히지 않는다. 온보딩을 거치지 않으면 도달할 수 없는 경로지만
+    /// 상태로도 막는다.
+    @Test("주 사용 손이 없으면 촬영이 열리지 않는다")
+    func 손_없으면_안_열린다() async {
+        let repo = InMemoryRepository(UserPreferences())
+        let store = TestStore(initialState: AppFeature.State(
+            preferences: UserPreferences()
+        )) { AppFeature(repository: repo) }
+
+        await store.send(.home(.startTapped))
+        await store.receive(.home(.delegate(.start(.ballMachine, .swing))))
+
+        #expect(store.state.capture == nil)
+    }
+
     @Test("촬영을 닫으면 홈으로 돌아온다")
     func 닫으면_홈으로() async {
         let repo = InMemoryRepository(UserPreferences(handedness: .right))
         var initial = AppFeature.State(preferences: UserPreferences(handedness: .right))
-        initial.capture = CaptureFeature.State(situation: .rally, observable: .swing)
+        initial.capture = CaptureFeature.State(situation: .rally, observable: .swing, handedness: .right)
         let store = TestStore(initialState: initial) { AppFeature(repository: repo) }
 
         await store.send(.capture(.presented(.closeTapped)))
@@ -358,7 +374,7 @@ struct CaptureFlowTests {
     @Test("촬영 시작을 누르면 가이드에서 촬영으로 넘어간다")
     func 단계_전이() async {
         let store = TestStore(
-            initialState: CaptureFeature.State(situation: .wall, observable: .swing)
+            initialState: CaptureFeature.State(situation: .wall, observable: .swing, handedness: .right)
         ) { CaptureFeature() }
 
         await store.send(.startTapped) { $0.phase = .capturing }
