@@ -66,6 +66,12 @@ final class CameraController: NSObject {
     /// 실기기에서 읽을 유일한 단서다.
     private(set) var droppedFrames: UInt64 = 0
 
+    /// 세션이 스스로 멈춘 사유. 중단이 끝나면 지운다.
+    ///
+    /// `message`와 따로 두는 이유: `message`는 다음 안내에 덮이는데, 중단은
+    /// **상태**다. 덮이면 사용자는 왜 멈춰 있는지 알 수 없다.
+    private(set) var interruptionMessage: String?
+
     /// 소급분 상한에 걸려 버린 프레임 수. 0이 아니면 **클립의 머리가
     /// 잘린다** — 되감을 구간이 `preRoll`보다 짧다는 뜻이다(#103).
     private(set) var droppedBacklog = 0
@@ -116,6 +122,9 @@ final class CameraController: NSObject {
     private var pendingMetadata: ClipMetadata?
     private var rotationCoordinator: AVCaptureDevice.RotationCoordinator?
     private var rotationObservation: NSKeyValueObservation?
+    /// 중단·재개 알림 관측자. `scenePhase`는 이 경로를 받지 못한다 —
+    /// 전화나 다른 앱의 카메라 선점은 **포그라운드인 채로** 벌어진다.
+    private var interruptionObservers: [any NSObjectProtocol] = []
 
     // MARK: 저장 경로
 
@@ -202,6 +211,7 @@ final class CameraController: NSObject {
         session.startRunning()
         applyFormat()
         startTrackingRotation(for: camera)
+        startObservingInterruptions()
         startAnalysis()
         status = .ready
         // applyFormat이 이미 경고를 띄웠으면 덮지 않는다 — "120fps 포맷을 찾을 수 없습니다"가
@@ -263,6 +273,95 @@ final class CameraController: NSObject {
         }
 
         configureAnalysisOutput()
+    }
+
+    // MARK: 중단
+
+    /// 세션이 스스로 멈췄다 돌아오는 경로를 듣는다.
+    ///
+    /// 이것이 없으면 전화 한 통에 분석이 영구히 죽는다 — 세션은 돌아오지만
+    /// `startAnalysis()`를 아무도 부르지 않으므로 포즈도 트리거도 멈춘 채
+    /// 녹화만 이어진다. 화면은 마지막 표시를 그대로 들고 있다.
+    private func startObservingInterruptions() {
+        guard interruptionObservers.isEmpty else { return }
+        let center = NotificationCenter.default
+
+        // `Notification`은 Sendable이 아니다. 필요한 값만 꺼내 넘긴다.
+        let interrupted = center.addObserver(
+            forName: AVCaptureSession.wasInterruptedNotification,
+            object: session,
+            queue: .main
+        ) { [weak self] note in
+            let raw = (note.userInfo?[AVCaptureSessionInterruptionReasonKey] as? NSNumber)?.intValue
+            Task { @MainActor [weak self] in
+                self?.handleInterruption(
+                    CaptureInterruption.make(
+                        reason: raw.flatMap(AVCaptureSession.InterruptionReason.init(rawValue:))
+                    )
+                )
+            }
+        }
+
+        let ended = center.addObserver(
+            forName: AVCaptureSession.interruptionEndedNotification,
+            object: session,
+            queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor [weak self] in await self?.handleInterruptionEnded() }
+        }
+
+        interruptionObservers = [interrupted, ended]
+    }
+
+    private func stopObservingInterruptions() {
+        let center = NotificationCenter.default
+        interruptionObservers.forEach(center.removeObserver)
+        interruptionObservers.removeAll()
+    }
+
+    private func handleInterruption(_ interruption: CaptureInterruption) {
+        interruptionMessage = interruption.message
+        guard interruption.endsRecording else { return }
+        // 녹화를 마무리하고 세션을 닫는다. 순서는 `suspend()`와 같은 이유로
+        // 중요하다 — 분석을 먼저 내리면 그 세션이 통째로 사라진다.
+        if movieOutput.isRecording { movieOutput.stopRecording() }
+        teardownAnalysis()
+    }
+
+    /// 중단이 끝났다. **세션이 이미 돌고 있어도** 분석을 다시 세운다 —
+    /// `AVCaptureSession`은 스스로 재개하므로 "멈춰 있으면 세운다"는
+    /// 조건으로는 분석이 되살아나지 않는다.
+    private func handleInterruptionEnded() async {
+        interruptionMessage = nil
+        guard device != nil else { return }
+        if case .failed = status { return }
+        if !session.isRunning { session.startRunning() }
+        applyFormat()
+        if let device { startTrackingRotation(for: device) }
+        startAnalysis()
+    }
+
+    /// 분석을 내린다. **세션을 먼저 닫고** 내린다.
+    private func teardownAnalysis() {
+        let closing = pipeline
+        stopAnalysis()
+        guard let closing else { return }
+        enqueueSessionWork { [weak self] in
+            let saved = await closing.end(at: Date())
+            let snapshot = SwingSnapshot(
+                swingCount: await closing.swingCount,
+                clipCount: await closing.clipCount,
+                failure: await closing.failure,
+                droppedBacklog: await closing.droppedBacklog,
+                seconds: .infinity
+            )
+            await MainActor.run { [weak self] in
+                self?.apply(snapshot)
+                if saved == nil, self?.storage.isUnavailable == false {
+                    self?.message = "세션을 남기지 못했습니다"
+                }
+            }
+        }
     }
 
     /// 분석용 출력을 더한다. **실패해도 중단하지 않는다** — 녹화는 그대로
@@ -555,33 +654,14 @@ final class CameraController: NSObject {
             message = "백그라운드 진입으로 녹화를 종료했습니다"
         }
         // **분석을 내리기 전에** 파이프라인을 손에 들고 세션을 닫는다.
-        // `stopAnalysis()`가 먼저 돌면 `pipeline`이 `nil`이 되어 그 세션의
+        // 순서가 바뀌면 `pipeline`이 `nil`이 되어 그 세션의
         // `SessionBuilder.finish()`가 영원히 불리지 않는다 — 클립 파일만
         // 남고 레코드가 없는 고아가 된다. 오류도 배너도 없이.
-        let closing = pipeline
-        stopAnalysis()
+        teardownAnalysis()
+        stopObservingInterruptions()
         rotationObservation?.invalidate()
         rotationObservation = nil
         if session.isRunning { session.stopRunning() }
-
-        if let closing {
-            enqueueSessionWork { [weak self] in
-                let saved = await closing.end(at: Date())
-                let snapshot = SwingSnapshot(
-                    swingCount: await closing.swingCount,
-                    clipCount: await closing.clipCount,
-                    failure: await closing.failure,
-                    droppedBacklog: await closing.droppedBacklog,
-                    seconds: .infinity
-                )
-                await MainActor.run { [weak self] in
-                    self?.apply(snapshot)
-                    if saved == nil, self?.storage.isUnavailable == false {
-                        self?.message = "세션을 남기지 못했습니다"
-                    }
-                }
-            }
-        }
     }
 
     /// 포그라운드 복귀. 세션을 재시작하고 포맷·노출을 다시 적용한다.
@@ -600,8 +680,12 @@ final class CameraController: NSObject {
             session.startRunning()
             applyFormat()
             if let device { startTrackingRotation(for: device) }
-            startAnalysis()
         }
+        // 세션이 **이미 돌고 있어도** 분석을 세운다. 중단이 끝나면
+        // `AVCaptureSession`은 스스로 재개하므로, `isRunning` 안에 두면
+        // 세션은 살아 있고 분석만 죽은 상태가 영구히 남는다.
+        startObservingInterruptions()
+        startAnalysis()
     }
 
     // MARK: 녹화
