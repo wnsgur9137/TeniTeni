@@ -119,9 +119,14 @@ actor SwingPipeline {
     /// 쓰기가 한 번 깨지면 매 프레임 같은 오류가 반복된다. 멈춘다.
     private var writesDisabled = false
 
-    init(directory: URL = URL.documentsDirectory, storage: SessionStorage) {
+    init(
+        directory: URL = URL.documentsDirectory,
+        storage: SessionStorage,
+        effectiveFPS: EffectiveFPS = EffectiveFPS()
+    ) {
         self.directory = directory
         self.storage = storage
+        self.effectiveFPS = effectiveFPS
     }
 
     var isRecording: Bool { pending != nil || recorder != nil }
@@ -141,6 +146,8 @@ actor SwingPipeline {
         clipCount = 0
         failure = nil
         writesDisabled = false
+        // 세션 시작 시점의 실제값. 포맷을 아직 못 읽었으면 요청값으로 둔다.
+        if effectiveFPS.value == nil { effectiveFPS.set(fps) }
         pending = Pending(
             startedAt: startedAt,
             handedness: handedness,
@@ -205,7 +212,7 @@ actor SwingPipeline {
             do {
                 if let clip = try await recorder.finish() {
                     if let builder = closing.builder, token == generation {
-                        await builder.add(clip)
+                        await builder.add(clip, fps: effectiveFPS.value)
                         clipCount += clip.swings.count
                     }
                 }
@@ -264,7 +271,7 @@ actor SwingPipeline {
 
     private func store(_ clip: RecordedClip, token: Int) async {
         guard let builder else { return }
-        await builder.add(clip)
+        await builder.add(clip, fps: effectiveFPS.value)
         // 돌아왔을 때 세션이 바뀌었으면 셈하지 않는다 — 닫힌 세션의 클립이
         // 다음 녹화의 수치에 섞인다.
         guard token == generation else { return }
@@ -284,6 +291,16 @@ actor SwingPipeline {
     /// 상한에 걸려 버린 소급 프레임 수. 레코더가 사라진 뒤에도 마지막
     /// 값을 들고 있어야 화면이 그 사실을 계속 보여줄 수 있다.
     private(set) var droppedBacklog = 0
+
+    /// 지금 실제로 적용된 촬영 fps. 발열 강등이 이 값을 바꾼다.
+    ///
+    /// 세션의 `fps`와 따로 든다 — 세션은 시작 시점의 값이고, 클립은 **그
+    /// 클립이 찍힌 시점의 값**이어야 한다.
+    ///
+    /// 메인이 쓰고 이 actor가 읽는다. 공유 상자를 쓰는 이유는
+    /// `EffectiveFPS`에 적었다 — 비구조 Task로 넘기면 순서가 보장되지 않아
+    /// 경계 클립의 fps가 어느 값인지 알 수 없다.
+    private let effectiveFPS: EffectiveFPS
 
     /// 파일명 접두사. 포매팅을 밖에 두면 테스트가 결정론적이다.
     static func stamp(for date: Date) -> String {

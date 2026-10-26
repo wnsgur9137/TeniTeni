@@ -67,7 +67,13 @@ struct CaptureView: View {
     /// 정상이면 없음, 경고가 있으면 오렌지. IA-FLOW 10.5의 "이상 상태" 표현이다.
     @ViewBuilder
     private var statusBorder: some View {
-        if controller.message != nil {
+        if controller.pressureNotice != nil {
+            // 압력 고지가 있으면 빨강이다 — IA-FLOW의 `.critical` 규칙.
+            Rectangle()
+                .strokeBorder(Token.State.error, lineWidth: 3)
+                .ignoresSafeArea()
+                .allowsHitTesting(false)
+        } else if controller.message != nil {
             Rectangle()
                 .strokeBorder(Token.State.warning, lineWidth: 3)
                 .ignoresSafeArea()
@@ -109,6 +115,7 @@ struct CaptureView: View {
             elapsedTime
             swingCount
             interruptionBanner
+            pressureBanner
             storageWarning
             poseIndicator
             warningBanner
@@ -240,6 +247,33 @@ struct CaptureView: View {
                 }
                 .padding(.leading, 24)
                 .padding(.bottom, 20)
+            }
+            .allowsHitTesting(false)
+        }
+    }
+
+    /// 발열·압력으로 조정했다는 **사후 고지**. 버튼이 없다 — 6m 밖에서는
+    /// 묻는 행위 자체가 비용이고, 답을 기다리는 사이에 캡처 시스템이
+    /// 세션을 스스로 내린다(ADR-0005).
+    @ViewBuilder
+    private var pressureBanner: some View {
+        if let notice = controller.pressureNotice {
+            VStack {
+                Spacer()
+                HStack(spacing: 9) {
+                    Image(systemName: "thermometer.high")
+                        .font(.system(size: 19))
+                        .foregroundStyle(Token.State.error)
+                    Text(notice)
+                        .font(.system(size: 19, weight: .semibold))
+                        .foregroundStyle(Token.Text.primary)
+                }
+                .padding(.horizontal, 18)
+                .padding(.vertical, 12)
+                .background(Token.Background.scrim, in: .capsule)
+                .overlay { Capsule().strokeBorder(Token.State.error, lineWidth: 2) }
+                .accessibilityElement(children: .combine)
+                .padding(.bottom, 188)
             }
             .allowsHitTesting(false)
         }
