@@ -249,6 +249,8 @@ struct CaptureFeature {
 
 > 시스템 압력이 과도해지면 **캡처 시스템이 자동으로 세션을 종료**합니다. 그 전에 대응해야 합니다.
 
+> **이 절이 발열 대응의 정본입니다.** [IA-FLOW](../06-디자인/IA-FLOW.md)가 `ProcessInfo.thermalState` 기준으로 `.serious`에서 사용자에게 제안하도록 적고 있었는데, 묻고 답을 기다리는 사이에 위 종료가 벌어지고 6m 밖 사용자는 답할 수도 없습니다. IA-FLOW와 `ThermalWarning` 목업을 이 표에 맞춰 고쳤습니다 — [SPEC-0107](../07-기획/SPEC-0107-thermal-response.md).
+
 | 압력 수준 | 조치 | 사용자 고지 |
 |---|---|---|
 | `.nominal` / `.fair` | 유지 | 없음 |

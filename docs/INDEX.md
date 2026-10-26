@@ -89,6 +89,7 @@ status: active
 | [SPEC-0091 스윙 구간 클립 저장](./07-기획/SPEC-0091-swing-clip-recording.md) | #91 | 겹침 병합, postRoll 플러시, H.264, 합성 픽셀 버퍼 검증 |
 | [SPEC-0096 카메라 프레임을 포즈로](./07-기획/SPEC-0096-pose-intake.md) | #96 | 비디오 데이터 출력, 다운스케일, Vision 어댑터, 경계 프로토콜 |
 | [SPEC-0097 스윙 검출 배선](./07-기획/SPEC-0097-swing-wiring.md) | #97 | 트리거·레코더·세션 조립, 저장소 배선, 프레임 시계 원점 |
+| [SPEC-0107 발열·시스템 압력 대응](./07-기획/SPEC-0107-thermal-response.md) | #107 | 압력 수준별 자동 조정, fps 강등 기록, 설계 충돌 해소 |
 
 ## 08-레퍼런스
 
