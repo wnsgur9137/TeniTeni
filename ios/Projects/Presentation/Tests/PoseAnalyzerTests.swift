@@ -41,7 +41,7 @@ struct PoseAnalyzerTests {
         let analyzer = PoseAnalyzer(estimator: StubEstimator([.pose(pose)]))
         let outcomes = Outcomes()
 
-        let task = Task { await analyzer.run { outcomes.append($0) } }
+        let task = Task { await analyzer.run { _, outcome in outcomes.append(outcome) } }
         analyzer.submit(try makeReadyFrame(seconds: 7.5))
         analyzer.finish()
         await task.value
@@ -61,7 +61,7 @@ struct PoseAnalyzerTests {
         let analyzer = PoseAnalyzer(estimator: StubEstimator([.noPerson, .unusable]))
         let outcomes = Outcomes()
 
-        let task = Task { await analyzer.run { outcomes.append($0) } }
+        let task = Task { await analyzer.run { _, outcome in outcomes.append(outcome) } }
         analyzer.submit(try makeReadyFrame(seconds: 1))
         // 버퍼가 1장이라 두 장을 한꺼번에 넣으면 앞이 버려질 수 있다.
         // 순서가 아니라 분류를 보는 테스트이므로 결과 수로 판정하지 않는다.
@@ -78,7 +78,7 @@ struct PoseAnalyzerTests {
         let analyzer = PoseAnalyzer(estimator: FailingEstimator())
         let outcomes = Outcomes()
 
-        let task = Task { await analyzer.run { outcomes.append($0) } }
+        let task = Task { await analyzer.run { _, outcome in outcomes.append(outcome) } }
         analyzer.submit(try makeReadyFrame(seconds: 3))
         analyzer.finish()
         await task.value
@@ -104,7 +104,7 @@ struct PoseAnalyzerTests {
         let analyzer = PoseAnalyzer()
         let outcomes = Outcomes()
 
-        let task = Task { await analyzer.run { outcomes.append($0) } }
+        let task = Task { await analyzer.run { _, outcome in outcomes.append(outcome) } }
         analyzer.submit(try makeReadyFrame(seconds: 0))
         analyzer.finish()
         await task.value
@@ -121,7 +121,7 @@ struct PoseAnalyzerTests {
     @Test("스트림이 끝나면 분석도 끝난다")
     func 종료() async {
         let analyzer = PoseAnalyzer(estimator: StubEstimator([.noPerson]))
-        let task = Task { await analyzer.run { _ in } }
+        let task = Task { await analyzer.run { _, _ in } }
         analyzer.finish()
         // 끝나지 않으면 이 await가 돌아오지 않는다 — 그것이 이 테스트의 내용이다.
         await task.value

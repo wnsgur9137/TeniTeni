@@ -17,9 +17,13 @@ struct TeniTeniApp: App {
         AppFeature()
     }
 
+    /// 세션 저장소는 앱 수명 내내 하나다. 실패하면 사유를 들고 간다 —
+    /// 던지면 앱이 안 뜨고 촬영조차 못 한다.
+    private static let storage = SessionStorageFactory.make()
+
     var body: some Scene {
         WindowGroup {
-            AppView(store: Self.store)
+            AppView(store: Self.store, storage: Self.storage)
                 .preferredColorScheme(.dark)
         }
     }

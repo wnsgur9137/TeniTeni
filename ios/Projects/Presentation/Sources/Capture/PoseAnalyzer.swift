@@ -75,7 +75,12 @@ final class PoseAnalyzer: Sendable {
     }
 
     /// 스트림이 끝날 때까지 돈다. **한 번만** 호출한다 — 둘이 돌면 순서가 깨진다.
-    func run(onOutcome: @Sendable (PoseOutcome) -> Void) async {
+    ///
+    /// 처리를 `async`로 받는다. 그래야 `actor ClipRecorder`를 **이 루프 안에서
+    /// 한 장씩 끝까지** `await`할 수 있다 — 콜백에서 `Task`를 띄우면 비구조
+    /// Task가 생성 순서대로 실행되지 않아 트리거의 순서가 깨진다.
+    /// 프레임도 함께 넘긴다. 클립에 쓸 픽셀은 포즈가 아니라 프레임에 있다.
+    func run(onOutcome: @Sendable (ReadyFrame, PoseOutcome) async -> Void) async {
         let downscaler = FrameDownscaler()
 
         for await frame in stream {
@@ -94,14 +99,14 @@ final class PoseAnalyzer: Sendable {
                     orientation: orientation.withLock { $0 }
                 )
                 switch reading {
-                case .pose(let pose): onOutcome(.detected(pose))
-                case .noPerson: onOutcome(.noPerson(at: seconds))
-                case .unusable: onOutcome(.unusable(at: seconds))
+                case .pose(let pose): await onOutcome(frame, .detected(pose))
+                case .noPerson: await onOutcome(frame, .noPerson(at: seconds))
+                case .unusable: await onOutcome(frame, .unusable(at: seconds))
                 }
             } catch is CancellationError {
                 return
             } catch {
-                onOutcome(.failed(error.localizedDescription, at: seconds))
+                await onOutcome(frame, .failed(error.localizedDescription, at: seconds))
             }
         }
     }

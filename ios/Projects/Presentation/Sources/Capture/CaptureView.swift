@@ -107,6 +107,8 @@ struct CaptureView: View {
             }
 
             elapsedTime
+            swingCount
+            storageWarning
             poseIndicator
             warningBanner
             recordButton
@@ -203,6 +205,63 @@ struct CaptureView: View {
     private var recordingSummary: String {
         let base = "녹화 중 · \(Int(controller.actualFPS))fps · \(controller.exposure.title)"
         return controller.recordsAudio ? base : base + " · 무음"
+    }
+
+    // MARK: 스윙 카운트 — 6m에서 읽혀야 하는 결과
+
+    /// 경과 시간 아래에 둔다. 사용자가 알고 싶은 것은 "몇 분 찍었나"가
+    /// 아니라 **"몇 개 잡혔나"**다 — 하나도 안 잡히면 자리가 틀렸다는
+    /// 뜻이고, 그걸 끝난 뒤에 알면 다시 찍어야 한다.
+    ///
+    /// **클립 수가 아니라 트리거 발화 수**를 센다. `ClipPlanner`가 겹치는
+    /// 후보를 한 클립으로 병합하므로 랠리 20번이 클립 1~2개가 되고, 클립은
+    /// 구간이 닫힐 때(마지막 트리거 + postRoll)에야 저장된다 — 그 값을
+    /// 띄우면 랠리가 이어지는 동안 0이 떠 있어서, 자리를 잘못 잡은
+    /// 사용자와 제대로 치고 있는 사용자가 **둘 다 0을 본다.**
+    @ViewBuilder
+    private var swingCount: some View {
+        if isRecording {
+            VStack {
+                Spacer()
+                HStack {
+                    HStack(alignment: .firstTextBaseline, spacing: 8) {
+                        Text("\(controller.swingCount)")
+                            .font(.system(size: 56, weight: .bold, design: .rounded))
+                            .monospacedDigit()
+                            .foregroundStyle(Token.Text.primary)
+                        Text("스윙")
+                            .font(.system(size: 20, weight: .medium))
+                            .foregroundStyle(Token.Text.secondary)
+                    }
+                    .accessibilityElement(children: .combine)
+                    .accessibilityLabel("스윙 \(controller.swingCount)개")
+                    Spacer()
+                }
+                .padding(.leading, 24)
+                .padding(.bottom, 20)
+            }
+            .allowsHitTesting(false)
+        }
+    }
+
+    /// 저장이 막혔으면 녹화 중에도 계속 보여준다. 배너는 덮이고,
+    /// 끝난 뒤에 알면 다시 찍을 수 없다.
+    @ViewBuilder
+    private var storageWarning: some View {
+        if let failure = controller.storageFailure {
+            VStack {
+                Spacer()
+                Text(failure)
+                    .font(.system(size: 15, weight: .medium))
+                    .foregroundStyle(Token.Text.primary)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 10)
+                    .background(Token.State.warning.opacity(0.9), in: .capsule)
+                    .padding(.bottom, 92)
+            }
+            .allowsHitTesting(false)
+        }
     }
 
     private var formattedElapsed: String {
