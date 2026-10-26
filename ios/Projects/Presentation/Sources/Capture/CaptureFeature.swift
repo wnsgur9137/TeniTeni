@@ -16,6 +16,9 @@ public struct CaptureFeature {
         /// 삼각대를 옮겨야 하는 선택이다.
         public let situation: CaptureSituation
         public let observable: ObservationTarget
+        /// 라켓을 든 손. 이것이 없으면 어느 손목을 볼지 정할 수 없어
+        /// 스윙이 하나도 잡히지 않는다 — 온보딩에서 받는다.
+        public let handedness: Handedness
         public var phase: Phase
 
         public var guidance: FramingGuidance { .make(for: observable) }
@@ -26,10 +29,12 @@ public struct CaptureFeature {
         public init(
             situation: CaptureSituation,
             observable: ObservationTarget,
+            handedness: Handedness,
             phase: Phase = .framing
         ) {
             self.situation = situation
             self.observable = observable
+            self.handedness = handedness
             self.phase = phase
         }
     }

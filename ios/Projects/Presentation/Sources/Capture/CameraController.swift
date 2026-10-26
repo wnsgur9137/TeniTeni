@@ -1,5 +1,6 @@
-import DesignSystem
 import AVFoundation
+import DesignSystem
+import Domain
 import ImageIO
 import Observation
 import TeniVision
@@ -65,6 +66,13 @@ final class CameraController: NSObject {
     /// 실기기에서 읽을 유일한 단서다.
     private(set) var droppedFrames: UInt64 = 0
 
+    /// 이번 녹화에서 저장된 스윙 클립 수. **6m 밖에서 읽히는 수치**다 —
+    /// 목업이 이 자리에 스윙 카운트를 두었다(IA-FLOW 10.5).
+    private(set) var swingClipCount = 0
+
+    /// 저장 경로가 막혔으면 사유. 끝난 뒤에 알면 다시 찍을 수 없다.
+    private(set) var storageFailure: String?
+
     enum PoseIndicator: Equatable {
         /// 아직 프레임이 들어오지 않았다.
         case idle
@@ -97,6 +105,32 @@ final class CameraController: NSObject {
     private var pendingMetadata: ClipMetadata?
     private var rotationCoordinator: AVCaptureDevice.RotationCoordinator?
     private var rotationObservation: NSKeyValueObservation?
+
+    // MARK: 저장 경로
+
+    /// 세션 저장소. 생성 실패도 값으로 들고 온다 — `SessionStorage`.
+    private let storage: SessionStorage
+    private var pipeline: SwingPipeline?
+    /// 촬영이 무엇을 찍는지. 화면이 알려준다.
+    private var context: CaptureContext?
+
+    struct CaptureContext: Equatable, Sendable {
+        let handedness: Handedness
+        let situation: CaptureSituation
+        let observable: ObservationTarget
+    }
+
+    init(storage: SessionStorage) {
+        self.storage = storage
+        super.init()
+        self.storageFailure = storage.failure
+    }
+
+    /// 무엇을 찍는지 알려준다. `start()` 전에 불러야 한다 — 주 사용 손이
+    /// 없으면 어느 손목을 볼지 정할 수 없다.
+    func configure(_ context: CaptureContext) {
+        self.context = context
+    }
 
     // MARK: 분석 경로
 
@@ -243,17 +277,40 @@ final class CameraController: NSObject {
 
         self.analyzer = analyzer
         self.intake = intake
+        // 파이프라인은 분석 Task와 수명을 맞춘다. 녹화 상태는 그 안에 있다.
+        let pipeline = SwingPipeline(storage: storage)
+        self.pipeline = pipeline
+
         // 포획은 한 번만 한다. Task 안에서 다시 `[weak self]`를 쓰면 바깥의
         // 포획 변수를 동시 실행 코드에서 읽는 꼴이 된다.
-        let sink: @Sendable (PoseOutcome) -> Void = { [weak self] outcome in
-            Task { @MainActor in self?.apply(outcome) }
+        //
+        // 처리가 `async`라 **스윙 배선이 이 루프 안에서 순서대로** 돌아간다.
+        // 표시 갱신만 메인으로 보낸다.
+        let sink: @Sendable (ReadyFrame, PoseOutcome) async -> Void = { [weak self] frame, outcome in
+            var pose: PoseFrame?
+            if case .detected(let detected) = outcome { pose = detected }
+            await pipeline.handle(frame, pose: pose)
+            let clips = await pipeline.clipCount
+            let failure = await pipeline.failure
+            Task { @MainActor [weak self] in
+                self?.apply(outcome)
+                self?.applyPipeline(clipCount: clips, failure: failure)
+            }
         }
         poseTask = Task { await analyzer.run(onOutcome: sink) }
+    }
+
+    /// 파이프라인이 올려 보낸 수치를 표시에 반영한다. 같은 값이면 덮지
+    /// 않는다 — `@Observable`의 setter는 값을 비교하지 않는다.
+    private func applyPipeline(clipCount: Int, failure: String?) {
+        if swingClipCount != clipCount { swingClipCount = clipCount }
+        if let failure, storageFailure != failure { storageFailure = failure }
     }
 
     private func stopAnalysis() {
         poseTask?.cancel()
         poseTask = nil
+        pipeline = nil
         analyzer?.finish()
         analyzer = nil
         videoOutput.setSampleBufferDelegate(nil, queue: nil)
@@ -524,6 +581,23 @@ final class CameraController: NSObject {
         movieOutput.startRecording(to: url, recordingDelegate: self)
         status = .recording
         startElapsedTimer()
+
+        // 녹화 버튼이 세션의 시작과 끝이다. 세션 시계의 원점은 **첫 분석
+        // 프레임의 PTS**이므로 파이프라인이 그때 세션을 만든다.
+        swingClipCount = 0
+        if let pipeline, let context {
+            let startedAt = Date()
+            let fps = Int(actualFPS.rounded())
+            Task {
+                await pipeline.begin(
+                    at: startedAt,
+                    handedness: context.handedness,
+                    situation: context.situation,
+                    observable: context.observable,
+                    fps: fps
+                )
+            }
+        }
     }
 
     // MARK: 경과 시간
@@ -552,6 +626,20 @@ final class CameraController: NSObject {
 
     private func stopRecording() {
         movieOutput.stopRecording()
+    }
+
+    /// 세션을 닫아 저장한다. 스윙 0개여도 저장한다 — 0개도 결과다.
+    private func closeSession() async {
+        guard let pipeline, await pipeline.isRecording else { return }
+        let saved = await pipeline.end(at: Date())
+        swingClipCount = await pipeline.clipCount
+        if let failure = await pipeline.failure {
+            storageFailure = failure
+        } else if saved == nil, storage.isUnavailable == false {
+            // 저장소는 멀쩡한데 세션이 없다 — 프레임이 한 장도 오지
+            // 않았다는 뜻이다. 조용히 지나가면 "찍었는데 없다"가 된다.
+            message = "분석 프레임이 없어 세션을 남기지 못했습니다"
+        }
     }
 
     private func fraction(_ time: CMTime) -> String {
@@ -601,6 +689,9 @@ extension CameraController: AVCaptureFileOutputRecordingDelegate {
             self.status = .ready
             if let failure {
                 self.message = "녹화 실패: \(failure)"
+                // 세션을 열어 둔 채 두면 다음 녹화가 시작되지 않는다.
+                // 실패한 녹화의 클립도 이미 디스크에 있으므로 저장한다.
+                await self.closeSession()
                 return
             }
             if let metadata = self.pendingMetadata {
@@ -613,6 +704,7 @@ extension CameraController: AVCaptureFileOutputRecordingDelegate {
             }
             self.lastSavedURL = outputFileURL
             self.message = "저장됨: \(outputFileURL.lastPathComponent)"
+            await self.closeSession()
         }
     }
 }

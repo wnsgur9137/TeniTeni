@@ -13,12 +13,14 @@ public struct CaptureScreen: View {
 
     private let store: StoreOf<CaptureFeature>
 
-    public init(store: StoreOf<CaptureFeature>) {
+    public init(store: StoreOf<CaptureFeature>, storage: SessionStorage) {
         self.store = store
+        // 저장소는 진입점이 만들어 내려보낸다 — 프레임 경로는 TCA 바깥이다.
+        _controller = State(initialValue: CameraController(storage: storage))
     }
 
     @Environment(\.scenePhase) private var scenePhase
-    @State private var controller = CameraController()
+    @State private var controller: CameraController
 
     /// 프리뷰를 그릴 수 있는 상태인가. 아니면 그 자리에 사유가 들어간다.
     private var hasPreview: Bool {
@@ -48,7 +50,18 @@ public struct CaptureScreen: View {
                 CaptureView(controller: controller) { store.send(.closeTapped) }
             }
         }
-        .task { await controller.start() }
+        .task {
+            // 무엇을 찍는지 먼저 알려준다. 주 사용 손이 없으면 어느 손목을
+            // 볼지 정할 수 없다.
+            controller.configure(
+                CameraController.CaptureContext(
+                    handedness: store.state.handedness,
+                    situation: store.state.situation,
+                    observable: store.state.observable
+                )
+            )
+            await controller.start()
+        }
         .onChange(of: scenePhase) { _, phase in
             switch phase {
             case .active: Task { await controller.resume() }

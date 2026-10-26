@@ -107,6 +107,8 @@ struct CaptureView: View {
             }
 
             elapsedTime
+            swingCount
+            storageWarning
             poseIndicator
             warningBanner
             recordButton
@@ -203,6 +205,57 @@ struct CaptureView: View {
     private var recordingSummary: String {
         let base = "녹화 중 · \(Int(controller.actualFPS))fps · \(controller.exposure.title)"
         return controller.recordsAudio ? base : base + " · 무음"
+    }
+
+    // MARK: 스윙 카운트 — 6m에서 읽혀야 하는 결과
+
+    /// 경과 시간 아래에 둔다. 사용자가 알고 싶은 것은 "몇 분 찍었나"가
+    /// 아니라 **"몇 개 잡혔나"**다 — 하나도 안 잡히면 자리가 틀렸다는
+    /// 뜻이고, 그걸 끝난 뒤에 알면 다시 찍어야 한다.
+    @ViewBuilder
+    private var swingCount: some View {
+        if isRecording {
+            VStack {
+                Spacer()
+                HStack {
+                    HStack(alignment: .firstTextBaseline, spacing: 8) {
+                        Text("\(controller.swingClipCount)")
+                            .font(.system(size: 56, weight: .bold, design: .rounded))
+                            .monospacedDigit()
+                            .foregroundStyle(Token.Text.primary)
+                        Text("스윙")
+                            .font(.system(size: 20, weight: .medium))
+                            .foregroundStyle(Token.Text.secondary)
+                    }
+                    .accessibilityElement(children: .combine)
+                    .accessibilityLabel("스윙 \(controller.swingClipCount)개")
+                    Spacer()
+                }
+                .padding(.leading, 24)
+                .padding(.bottom, 20)
+            }
+            .allowsHitTesting(false)
+        }
+    }
+
+    /// 저장이 막혔으면 녹화 중에도 계속 보여준다. 배너는 덮이고,
+    /// 끝난 뒤에 알면 다시 찍을 수 없다.
+    @ViewBuilder
+    private var storageWarning: some View {
+        if let failure = controller.storageFailure {
+            VStack {
+                Spacer()
+                Text(failure)
+                    .font(.system(size: 15, weight: .medium))
+                    .foregroundStyle(Token.Text.primary)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 10)
+                    .background(Token.State.warning.opacity(0.9), in: .capsule)
+                    .padding(.bottom, 92)
+            }
+            .allowsHitTesting(false)
+        }
     }
 
     private var formattedElapsed: String {
