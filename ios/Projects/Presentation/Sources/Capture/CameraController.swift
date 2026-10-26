@@ -78,6 +78,13 @@ final class CameraController: NSObject {
     @ObservationIgnored private var pendingPressure: SystemPressureResponse?
     @ObservationIgnored private var pressureObservation: NSKeyValueObservation?
 
+    /// 마지막으로 **저장에 성공한** 세션의 id. 촬영을 닫을 때 요약으로 넘긴다.
+    ///
+    /// id만 넘기고 요약이 저장소에서 다시 읽는다 — 그래야 촬영 직후와
+    /// 보관함이 같은 경로가 되고, 저장이 실제로 됐는지도 그 읽기로
+    /// 드러난다(SPEC-0110 선택지 1).
+    private(set) var lastSavedSessionID: UUID?
+
     /// 세션이 스스로 멈춘 사유. 중단이 끝나면 지운다.
     ///
     /// `message`와 따로 두는 이유: `message`는 다음 안내에 덮이는데, 중단은
@@ -441,6 +448,7 @@ final class CameraController: NSObject {
             )
             await MainActor.run { [weak self] in
                 self?.apply(snapshot)
+                if let saved { self?.lastSavedSessionID = saved.id }
                 if saved == nil, self?.storage.isUnavailable == false {
                     self?.message = "세션을 남기지 못했습니다"
                 }
@@ -956,6 +964,7 @@ final class CameraController: NSObject {
             await MainActor.run { [weak self] in
                 guard let self else { return }
                 self.apply(snapshot)
+                if let saved { self.lastSavedSessionID = saved.id }
                 if saved == nil, self.storage.isUnavailable == false {
                     // 저장소는 멀쩡한데 세션이 없다 — 프레임이 한 장도 오지
                     // 않았다는 뜻이다. 조용히 지나가면 "찍었는데 없다"가 된다.

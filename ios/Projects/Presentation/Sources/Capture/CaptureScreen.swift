@@ -44,10 +44,13 @@ public struct CaptureScreen: View {
                     subject: store.state.subject,
                     canStart: hasPreview,
                     onStart: { store.send(.startTapped) },
-                    onBack: { store.send(.closeTapped) }
+                    onBack: { store.send(.closeTapped(savedSessionID: nil)) }
                 )
             case .capturing:
-                CaptureView(controller: controller) { store.send(.closeTapped) }
+                CaptureView(controller: controller) {
+                    // 저장에 성공한 세션이 있으면 요약으로 간다.
+                    store.send(.closeTapped(savedSessionID: controller.lastSavedSessionID))
+                }
             }
         }
         .task {

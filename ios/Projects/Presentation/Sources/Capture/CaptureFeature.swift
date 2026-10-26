@@ -1,5 +1,6 @@
 import ComposableArchitecture
 import Domain
+import Foundation
 
 /// 촬영 한 번. **프레이밍 가이드에서 시작해** 촬영으로 넘어간다.
 ///
@@ -46,11 +47,14 @@ public struct CaptureFeature {
 
     public enum Action: Equatable {
         case startTapped
-        case closeTapped
+        /// 닫기. 저장에 성공한 세션이 있으면 그 id를 들고 올라간다.
+        case closeTapped(savedSessionID: UUID?)
         case delegate(Delegate)
 
         public enum Delegate: Equatable {
-            case finished
+            /// `sessionID`가 있으면 요약으로 간다. 없으면(저장 실패·프레임
+            /// 0장) 홈으로 간다 — 보여줄 것이 없는데 요약을 열지 않는다.
+            case finished(sessionID: UUID?)
         }
     }
 
@@ -66,8 +70,8 @@ public struct CaptureFeature {
                 state.phase = .capturing
                 return .none
 
-            case .closeTapped:
-                return .send(.delegate(.finished))
+            case .closeTapped(let sessionID):
+                return .send(.delegate(.finished(sessionID: sessionID)))
 
             case .delegate:
                 return .none

@@ -33,6 +33,11 @@ public struct AppView: View {
         .fullScreenCover(item: $store.scope(state: \.capture, action: \.capture)) { captureStore in
             CaptureScreen(store: captureStore, storage: storage)
         }
+        // 요약도 탭바를 덮는다. 흐름 중간이라 탭 이동이 세션을 끊는다
+        // (IA-FLOW 10.2). 촬영과 같은 층이어야 그것이 성립한다.
+        .fullScreenCover(item: $store.scope(state: \.summary, action: \.summary)) { summaryStore in
+            SessionSummaryView(store: summaryStore)
+        }
     }
 
     private var tabs: some View {

@@ -23,6 +23,9 @@ public struct AppFeature {
         @Presents public var settings: SettingsFeature.State?
         /// `nil`이면 촬영이 닫혀 있다. 홈에서 '시작'을 누를 때만 생긴다.
         @Presents public var capture: CaptureFeature.State?
+        /// `nil`이면 요약이 닫혀 있다. 촬영이 **저장된 세션을 들고** 끝날
+        /// 때만 생긴다 — 보여줄 것이 없는데 열지 않는다.
+        @Presents public var summary: SessionSummaryFeature.State?
 
         public var hasCompletedOnboarding: Bool { preferences.hasCompletedOnboarding }
 
@@ -72,9 +75,13 @@ public struct AppFeature {
         case home(HomeFeature.Action)
         case settings(PresentationAction<SettingsFeature.Action>)
         case capture(PresentationAction<CaptureFeature.Action>)
+        case summary(PresentationAction<SessionSummaryFeature.Action>)
     }
 
     private let repository: any UserPreferencesRepository
+    /// 요약이 세션을 **다시 읽는다.** 넘겨받은 값을 그리면 저장 실패를
+    /// 영원히 모른다(SPEC-0110 선택지 1).
+    private let sessionRepository: any SessionRepository
 
     /// 기본 저장소는 실행 인자를 보고 정해진다 — UI 테스트로 실행하면
     /// **빈 상태**에서 시작한다. 진입점은 `Application`만 알아야 하므로
@@ -82,9 +89,11 @@ public struct AppFeature {
     public init(
         repository: any UserPreferencesRepository = UserDefaultsUserPreferencesRepository(
             defaults: LaunchDefaults.resolve()
-        )
+        ),
+        sessionRepository: any SessionRepository = UnavailableSessionRepository()
     ) {
         self.repository = repository
+        self.sessionRepository = sessionRepository
     }
 
     public var body: some ReducerOf<Self> {
@@ -139,8 +148,30 @@ public struct AppFeature {
                 )
                 return .none
 
-            case .capture(.presented(.delegate(.finished))):
+            case .capture(.presented(.delegate(.finished(let sessionID)))):
+                // 촬영을 **먼저 닫는다.** 그래야 카메라 세션이 내려가고,
+                // 요약을 보는 동안 카메라가 떠 있지 않는다 — D-03의
+                // "Application 경유"가 이 순서를 가능하게 한다.
                 state.capture = nil
+                // 저장된 세션이 없으면(저장 실패·프레임 0장) 홈으로 간다.
+                guard let sessionID else { return .none }
+                state.summary = SessionSummaryFeature.State(sessionID: sessionID)
+                return .none
+
+            case .summary(.presented(.delegate(.closed))):
+                state.summary = nil
+                return .none
+
+            case .summary(.presented(.delegate(.reframe))):
+                // 진단의 "배치 다시 보기" — 요약을 닫고 촬영을 다시 연다.
+                // 고른 상황은 그대로 쓴다.
+                state.summary = nil
+                guard let hand = state.preferences.handedness else { return .none }
+                state.capture = CaptureFeature.State(
+                    situation: state.preferences.lastSituation,
+                    observable: state.preferences.lastObservable,
+                    handedness: hand
+                )
                 return .none
 
             case .settings(.presented(.delegate(.handednessChanged(let hand)))):
@@ -157,11 +188,12 @@ public struct AppFeature {
                 state.settings = nil
                 return .none
 
-            case .onboarding, .home, .settings, .capture:
+            case .onboarding, .home, .settings, .capture, .summary:
                 return .none
             }
         }
         .ifLet(\.$settings, action: \.settings) { SettingsFeature() }
         .ifLet(\.$capture, action: \.capture) { CaptureFeature() }
+        .ifLet(\.$summary, action: \.summary) { SessionSummaryFeature(repository: sessionRepository) }
     }
 }

@@ -365,10 +365,60 @@ struct CaptureFlowTests {
         initial.capture = CaptureFeature.State(situation: .rally, observable: .swing, handedness: .right)
         let store = TestStore(initialState: initial) { AppFeature(repository: repo) }
 
-        await store.send(.capture(.presented(.closeTapped)))
-        await store.receive(.capture(.presented(.delegate(.finished)))) {
+        await store.send(.capture(.presented(.closeTapped(savedSessionID: nil))))
+        await store.receive(.capture(.presented(.delegate(.finished(sessionID: nil))))) {
             $0.capture = nil
         }
+    }
+
+    /// 저장된 세션이 없으면(저장 실패·프레임 0장) 요약을 열지 않는다 —
+    /// 보여줄 것이 없는데 화면을 띄우면 사용자는 빈 화면을 본다.
+    @Test("저장된 세션이 있으면 요약이 열린다")
+    func 요약_열림() async {
+        let repo = InMemoryRepository(UserPreferences(handedness: .right))
+        var initial = AppFeature.State(preferences: UserPreferences(handedness: .right))
+        initial.capture = CaptureFeature.State(
+            situation: .rally, observable: .swing, handedness: .right
+        )
+        let store = TestStore(initialState: initial) { AppFeature(repository: repo) }
+
+        let id = UUID()
+        await store.send(.capture(.presented(.closeTapped(savedSessionID: id))))
+        await store.receive(.capture(.presented(.delegate(.finished(sessionID: id))))) {
+            $0.capture = nil
+            $0.summary = SessionSummaryFeature.State(sessionID: id)
+        }
+        #expect(store.state.capture == nil, "촬영을 닫아야 카메라가 내려간다")
+    }
+
+    @Test("요약을 닫으면 홈으로 돌아온다")
+    func 요약_닫힘() async {
+        let repo = InMemoryRepository(UserPreferences(handedness: .right))
+        var initial = AppFeature.State(preferences: UserPreferences(handedness: .right))
+        initial.summary = SessionSummaryFeature.State(sessionID: UUID())
+        let store = TestStore(initialState: initial) { AppFeature(repository: repo) }
+
+        await store.send(.summary(.presented(.closeTapped)))
+        await store.receive(.summary(.presented(.delegate(.closed)))) { $0.summary = nil }
+    }
+
+    /// 진단의 "배치 다시 보기"는 요약을 닫고 촬영을 다시 연다.
+    @Test("배치 다시 보기는 촬영을 다시 연다")
+    func 배치_다시() async {
+        let prefs = UserPreferences(handedness: .left, lastSituation: .wall, lastObservable: .swing)
+        let repo = InMemoryRepository(prefs)
+        var initial = AppFeature.State(preferences: prefs)
+        initial.summary = SessionSummaryFeature.State(sessionID: UUID())
+        let store = TestStore(initialState: initial) { AppFeature(repository: repo) }
+
+        await store.send(.summary(.presented(.reframeTapped)))
+        await store.receive(.summary(.presented(.delegate(.reframe)))) {
+            $0.summary = nil
+            $0.capture = CaptureFeature.State(
+                situation: .wall, observable: .swing, handedness: .left
+            )
+        }
+        #expect(store.state.capture?.phase == .framing, "배치부터 다시 본다")
     }
 
     @Test("촬영 시작을 누르면 가이드에서 촬영으로 넘어간다")
