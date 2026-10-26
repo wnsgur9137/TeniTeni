@@ -27,11 +27,35 @@ public struct TimedRingBuffer<Element>: Sendable where Element: Sendable {
 
     /// 들고 있을 시간. 이보다 오래된 것은 넣을 때 버린다.
     public let window: TimeInterval
+
+    /// 들고 있을 **장 수** 상한. `nil`이면 시간만으로 자른다.
+    ///
+    /// ## 왜 시간만으로는 부족한가
+    ///
+    /// 담는 것이 순수한 값이면 시간 상한이면 충분하다. 그런데 카메라
+    /// 프레임은 **캡처 풀의 버퍼를 붙든다** — 한 장을 들고 있으면
+    /// `AVCaptureVideoDataOutput`이 그 한 장을 재사용하지 못한다. 풀은
+    /// 수십 장 규모이므로 3초(60fps면 180장)를 들고 있으면 고갈되고,
+    /// 그때부터 프레임이 통째로 드롭돼 **분석이 끊긴다.**
+    ///
+    /// 시간 창은 "얼마나 되감을 수 있는가"라는 **의도**를 적는 자리이고,
+    /// 장 수 상한은 "자원을 얼마나 붙들어도 되는가"라는 **현실**을 적는
+    /// 자리다. 둘은 단위가 달라서 하나로 합칠 수 없다.
+    ///
+    /// 근거: docs/07-기획/SPEC-0097-swing-wiring.md 선택지 2의 정정
+    public let capacity: Int?
+
     private var entries: [Entry] = []
 
-    public init(window: TimeInterval) {
+    /// 장 수 상한에 걸려 버린 수. **조용히 사라지지 않게** 센다 —
+    /// 되감을 수 있는 구간이 의도보다 짧아졌다는 사실을 호출부가 알아야 한다.
+    public private(set) var droppedByCapacity = 0
+
+    public init(window: TimeInterval, capacity: Int? = nil) {
         precondition(window > 0, "window는 0보다 커야 한다")
+        precondition(capacity.map { $0 > 0 } ?? true, "capacity는 0보다 커야 한다")
         self.window = window
+        self.capacity = capacity
     }
 
     public var count: Int { entries.count }
@@ -64,6 +88,7 @@ public struct TimedRingBuffer<Element>: Sendable where Element: Sendable {
         )
         entries.append(Entry(timestamp: timestamp, value: value))
         evict(now: timestamp)
+        evictOverCapacity()
     }
 
     /// 마지막 `seconds`초를 오래된 것부터 돌려준다.
@@ -91,7 +116,23 @@ public struct TimedRingBuffer<Element>: Sendable where Element: Sendable {
         return entries.filter { $0.timestamp >= from && $0.timestamp <= to }
     }
 
-    public mutating func removeAll() { entries.removeAll() }
+    public mutating func removeAll() {
+        entries.removeAll()
+        droppedByCapacity = 0
+    }
+
+    /// 상한을 넘은 만큼 **오래된 것부터** 버린다.
+    ///
+    /// 최신을 버리지 않는 이유: 소급 구간의 머리(테이크백)보다 임팩트
+    /// 직전이 중요하다. 머리가 잘린 클립은 짧아질 뿐이지만, 임팩트가
+    /// 빠진 클립은 쓸 데가 없다.
+    private mutating func evictOverCapacity() {
+        guard let capacity, entries.count > capacity else { return }
+        let excess = entries.count - capacity
+        entries.removeFirst(excess)
+        droppedByCapacity += excess
+
+    }
 
     private mutating func evict(now: TimeInterval) {
         let cutoff = now - window

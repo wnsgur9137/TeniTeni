@@ -66,6 +66,10 @@ final class CameraController: NSObject {
     /// 실기기에서 읽을 유일한 단서다.
     private(set) var droppedFrames: UInt64 = 0
 
+    /// 소급분 상한에 걸려 버린 프레임 수. 0이 아니면 **클립의 머리가
+    /// 잘린다** — 되감을 구간이 `preRoll`보다 짧다는 뜻이다(#103).
+    private(set) var droppedBacklog = 0
+
     /// 트리거가 발화한 횟수. 클립 수와 다르다 — 겹치는 후보는 한 클립으로
     /// 병합되므로 랠리 20번이 클립 1~2개가 된다. 화면이 읽는 것은 이쪽이다.
     private(set) var swingCount = 0
@@ -334,6 +338,7 @@ final class CameraController: NSObject {
         lastSnapshotAt = snapshot.seconds
         if swingCount != snapshot.swingCount { swingCount = snapshot.swingCount }
         if swingClipCount != snapshot.clipCount { swingClipCount = snapshot.clipCount }
+        if droppedBacklog != snapshot.droppedBacklog { droppedBacklog = snapshot.droppedBacklog }
         // 사유가 사라졌으면 배너도 내린다. 안 내리면 한 프레임짜리 오류
         // 문구가 다음 녹화 내내 붙어 있다. 저장소 자체가 없는 경우는
         // 파이프라인이 모르므로 그 사유는 보존한다.
@@ -566,6 +571,7 @@ final class CameraController: NSObject {
                     swingCount: await closing.swingCount,
                     clipCount: await closing.clipCount,
                     failure: await closing.failure,
+                    droppedBacklog: await closing.droppedBacklog,
                     seconds: .infinity
                 )
                 await MainActor.run { [weak self] in
@@ -702,6 +708,7 @@ final class CameraController: NSObject {
                 swingCount: await pipeline.swingCount,
                 clipCount: await pipeline.clipCount,
                 failure: await pipeline.failure,
+                droppedBacklog: await pipeline.droppedBacklog,
                 seconds: .infinity
             )
             await MainActor.run { [weak self] in

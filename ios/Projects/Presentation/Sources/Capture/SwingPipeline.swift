@@ -29,6 +29,22 @@ extension CaptureSituation {
     }
 }
 
+/// 소급분으로 들고 있을 장 수 상한.
+///
+/// ## 이 숫자는 잠정값이다
+///
+/// `AVCaptureVideoDataOutput`은 풀 크기를 공개하지 않는다. 실기기에서
+/// 드롭 수를 보며 올려야 하고(#103), 그 측정 없이는 "안전한 최대"를 알 수
+/// 없다. 그래서 **의심스러울 때 작은 쪽**으로 둔다 — 상한이 작으면 클립의
+/// 머리가 잘리지만, 크면 분석이 통째로 끊긴다. 둘의 대가가 다르다.
+///
+/// 24장 = 분석 60fps 기준 **0.4초**다. 기본 `preRoll`(2초)보다 훨씬 짧으므로
+/// 클립에서 테이크백 대부분이 빠진다 — 이것은 **임시 타협**이고, 소급분을
+/// 캡처 풀 밖으로 옮기는 설계(#103)가 회복한다.
+///
+/// 잘린 장 수는 세어 화면에 올린다. 조용히 짧아지지 않게 한다.
+private let backlogFrameCapacity = 24
+
 /// 파이프라인이 한 프레임을 처리한 결과. 화면이 읽는 값만 담는다.
 ///
 /// 프레임마다 actor를 세 번 찾아가는(처리·카운트·실패) 대신 **한 번에 받아
@@ -40,6 +56,8 @@ struct SwingSnapshot: Sendable, Equatable {
     /// 저장된 클립 수.
     let clipCount: Int
     let failure: String?
+    /// 상한에 걸려 버린 소급 프레임 수. 0이 아니면 클립의 머리가 잘린다.
+    let droppedBacklog: Int
     /// 이 결과가 가리키는 프레임 시각. 늦게 도착한 과거 스냅샷을 걸러낸다.
     let seconds: TimeInterval
 }
@@ -142,6 +160,7 @@ actor SwingPipeline {
         let token = generation
         do {
             if let clip = try await recorder.enqueue(frame) {
+                droppedBacklog = await recorder.droppedBacklogCount
                 guard token == generation else { return snapshot(at: frame.seconds) }
                 await store(clip, token: token)
             }
@@ -180,6 +199,7 @@ actor SwingPipeline {
         trigger = nil
 
         guard let recorder = closing.recorder else { return nil }
+        droppedBacklog = await recorder.droppedBacklogCount
 
         if !writesDisabled {
             do {
@@ -216,7 +236,10 @@ actor SwingPipeline {
         recorder = ClipRecorder(
             profile: profile,
             directory: directory,
-            stamp: Self.stamp(for: pending.startedAt)
+            stamp: Self.stamp(for: pending.startedAt),
+            // 소급분이 캡처 풀을 붙든다. 상한 없이는 풀이 고갈돼
+            // 분석이 끊긴다 — #103.
+            backlogCapacity: backlogFrameCapacity
         )
         if let repository = storage.repository {
             builder = SessionBuilder(
@@ -250,9 +273,17 @@ actor SwingPipeline {
 
     private func snapshot(at seconds: TimeInterval) -> SwingSnapshot {
         SwingSnapshot(
-            swingCount: swingCount, clipCount: clipCount, failure: failure, seconds: seconds
+            swingCount: swingCount,
+            clipCount: clipCount,
+            failure: failure,
+            droppedBacklog: droppedBacklog,
+            seconds: seconds
         )
     }
+
+    /// 상한에 걸려 버린 소급 프레임 수. 레코더가 사라진 뒤에도 마지막
+    /// 값을 들고 있어야 화면이 그 사실을 계속 보여줄 수 있다.
+    private(set) var droppedBacklog = 0
 
     /// 파일명 접두사. 포매팅을 밖에 두면 테스트가 결정론적이다.
     static func stamp(for date: Date) -> String {

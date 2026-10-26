@@ -182,3 +182,54 @@ struct TimedRingBufferTests {
         #expect(copy.count == 2)
     }
 }
+
+@Suite("장 수 상한")
+struct TimedRingBufferCapacityTests {
+
+    /// 카메라 프레임은 캡처 풀의 버퍼를 붙든다. 시간 창만 믿으면 60fps에서
+    /// 180장을 들고 있게 되고 풀이 고갈된다 — #103.
+    @Test("상한을 넘기면 오래된 것부터 버린다")
+    func 상한_초과() {
+        var buffer = TimedRingBuffer<Int>(window: 10, capacity: 3)
+        for i in 0..<5 { buffer.append(i, at: Double(i) * 0.1) }
+        #expect(buffer.count == 3)
+        #expect(buffer.droppedByCapacity == 2)
+        // 최신 셋이 남는다 — 임팩트 직전이 테이크백보다 중요하다.
+        #expect(buffer.suffix(seconds: 10) == [2, 3, 4])
+    }
+
+    @Test("상한이 없으면 시간 창만으로 자른다")
+    func 상한_없음() {
+        var buffer = TimedRingBuffer<Int>(window: 10)
+        for i in 0..<100 { buffer.append(i, at: Double(i) * 0.01) }
+        #expect(buffer.count == 100)
+        #expect(buffer.droppedByCapacity == 0)
+    }
+
+    @Test("상한 안이면 아무것도 버리지 않는다")
+    func 상한_이내() {
+        var buffer = TimedRingBuffer<Int>(window: 10, capacity: 10)
+        for i in 0..<5 { buffer.append(i, at: Double(i) * 0.1) }
+        #expect(buffer.count == 5)
+        #expect(buffer.droppedByCapacity == 0)
+    }
+
+    @Test("시간 창과 상한이 함께 걸리면 둘 다 적용된다")
+    func 둘_다() {
+        var buffer = TimedRingBuffer<Int>(window: 0.25, capacity: 10)
+        for i in 0..<20 { buffer.append(i, at: Double(i) * 0.1) }
+        // 창(0.25초)이 더 좁으므로 상한에는 닿지 않는다.
+        #expect(buffer.count <= 3)
+        #expect(buffer.droppedByCapacity == 0)
+    }
+
+    @Test("비우면 버린 수도 0으로 돌아간다")
+    func 초기화() {
+        var buffer = TimedRingBuffer<Int>(window: 10, capacity: 2)
+        for i in 0..<5 { buffer.append(i, at: Double(i) * 0.1) }
+        #expect(buffer.droppedByCapacity == 3)
+        buffer.removeAll()
+        #expect(buffer.droppedByCapacity == 0)
+        #expect(buffer.isEmpty)
+    }
+}
