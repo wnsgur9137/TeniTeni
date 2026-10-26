@@ -70,7 +70,11 @@ status: active
 
 **채택**: 다운스케일한 사본. 설계가 "분석 입력은 반드시 다운스케일한다"를 이미 정했고, 수명 문제가 거기서 함께 풀린다.
 
-> **구현에서 드러난 것 — `sending` 간극.** `CMReadySampleBuffer.init(unsafeWithPixelBuffer:)`는 `sending CMSampleBuffer`를 요구하는데, AVFoundation의 델리게이트 인자는 `sending`으로 선언돼 있지 않다(SDK 헤더 확인). `CMSampleBufferCreateCopy`로 사본을 만들어도 "입력에서 파생됐다"는 사실이 남아 영역 검사를 통과하지 못한다. 그래서 **사본을 만들고 그 한 줄에서만 `nonisolated(unsafe)`로 검사를 끊었다** — 끊어도 되는 근거가 복사다. 이것이 `@unchecked Sendable`을 쓰지 않으면서 경계를 넘는 유일한 길이었다.
+> **구현에서 드러난 것 — `sending` 간극.** `CMReadySampleBuffer.init(unsafeWithPixelBuffer:)`는 `sending CMSampleBuffer`를 요구하는데, AVFoundation의 델리게이트 인자는 `sending`으로 선언돼 있지 않다(SDK 헤더 확인). `CMSampleBufferCreateCopy`로 사본을 만들어도 "입력에서 파생됐다"는 사실이 남아 영역 검사를 통과하지 못한다. 그래서 **사본을 만들고 그 한 줄에서만 `nonisolated(unsafe)`로 검사를 끊었다.** `@unchecked Sendable`을 쓰지 않으면서 경계를 넘는 유일한 길이었다.
+>
+> 끊어도 되는 근거는 **"사본이 우리 것이니 원본은 풀로 돌아간다"가 아니다.** 그 복사는 얕고 `CVImageBuffer`를 공유한다. 실제 근거는 전달 뒤 AVFoundation도 이 함수도 그 픽셀을 다시 쓰지 않는다는 것이고, 대신 **`ReadyFrame` 한 장이 캡처 풀 버퍼 한 장을 점유한다.** 공짜가 아니다 — 전 프레임을 링 버퍼에 담는 [#97](https://github.com/wnsgur9137/TeniTeni/issues/97)은 상한을 명시적으로 걸어야 한다.
+>
+> 또 `init(unsafeWithPixelBuffer:)`는 **실패 가능 생성자가 아니고 내용을 검사하지도 않는다.** 샘플에 이미지 버퍼가 없으면 잘못된 프레임이 만들어져 분석 Task 깊은 곳에서 터진다. 동적 내용으로 감싼 뒤(`init(unsafeBuffer:)`) 실패 가능 다운캐스트(`init?(_:)`)로 걸러낸다.
 >
 > 또 `PoseEstimator.frame(in:)`의 버퍼 인자를 `sending`으로 받지 않는다. 받으면 호출부가 루프에서 그 버퍼를 들고 있는 것조차 "전달 후 사용"이 되어 컴파일되지 않는다. 양쪽이 모두 `nonisolated`이므로 넘길 경계가 없다.
 
@@ -103,11 +107,13 @@ status: active
 - [x] `PoseFrameAdapter`가 가짜 관측으로 검증된다 — 관절 6개 매핑, 좌표 원점 보존, 관절 결손, **신뢰도는 그대로 전달**
       — 기획 단계에서 "신뢰도 임계 미만 제외"로 적었던 것은 틀렸다. 어댑터가 걸러내면 같은 판단이 `PoseFrame.point(_:minimumConfidence:)`와 두 곳에 생기고, 둘이 어긋나면 트리거가 조용히 신호를 잃는다. 임계는 프로파일의 일이다.
 - [x] `PoseEstimator`의 **사람 선택 규칙**이 가짜 관측 여러 개로 검증된다
-- [x] `FrameDownscaler`가 합성 `CVPixelBuffer`로 검증된다 — 출력 크기, 반복 호출 시 풀 재사용, 입력 크기가 바뀌어도 깨지지 않는다
-- [x] 데시메이션이 검증된다 — 120fps 입력에서 포즈 호출이 절반
+- [x] `FrameDownscaler`가 합성 `CVPixelBuffer`로 검증된다 — 출력 크기, **전송된 픽셀 값**, 풀을 세운 횟수(재사용), 입력 크기가 바뀌어도 깨지지 않는다
+- [x] 데시메이션이 검증된다 — `FrameIntake.intake(_:)`를 카메라 없이 불러 **실제 호출 횟수**를 센다. 간격 산술은 따로 보되 119.88fps(NTSC)와 목표 배수 근처 값까지 포함한다
 - [x] `ReadyFrame`이 `ClipFrame`을 준수한다(컴파일로 보장) — #97이 그대로 쓴다
 - [x] 클린 빌드(`CLEAN_BUILD=1`) 경고 **0**
-- [x] 촬영 화면이 "사람이 보입니다 / 안 보입니다"를 표시한다
+- [x] 촬영 화면이 포즈 상태를 표시한다 — "사람이 보입니다 / 안 보입니다 / **자세가 잘 안 보입니다**". 셋째 상태를 둔 이유는 측면으로 선 사용자가 프레임 안에 멀쩡히 있는데도 자리를 옮기기 때문이다
+- [x] 표시 판정이 **프레임 시계**로 이뤄진다 — 벽시계로 재면 메인이 수백 ms 막혔다 풀릴 때 멀쩡한 상태에서 "끊겼다"가 뜬다
+- [x] 드롭된 프레임을 센다 — 포즈가 예산을 넘겼는지 실기기에서 읽을 유일한 단서다
 
 ## 검증 방법
 

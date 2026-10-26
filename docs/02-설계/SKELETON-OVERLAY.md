@@ -367,6 +367,10 @@ Projects/
 │       └── SkeletonStyle.swift          # 컬러·굵기 토큰
 │
 └── Presentation/Sources/Capture/
+    ├── CaptureScreen.swift              # 세션·프리뷰·방향 잠금 소유
+    ├── CaptureFeature.swift             # 가이드 → 촬영 단계
+    ├── CameraController.swift           # 세션 구성·포맷·노출·녹화·분석 수명
+    ├── CaptureView.swift                # 촬영 중 오버레이 (포즈 지표 포함)
     ├── ReadyFrame.swift                 # ★ CMReadySampleBuffer 래퍼 (iOS 26+ 경계)
     ├── FrameIntake.swift                # ★ AVCaptureVideoDataOutput 델리게이트
     ├── FrameDecimator.swift             # ★ 포즈를 몇 프레임에 한 번 돌릴지
