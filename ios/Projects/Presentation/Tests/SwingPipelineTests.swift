@@ -359,39 +359,57 @@ struct SwingPipelineTests {
         #expect(repository.sessions.contains { $0.fps == 120 }, "두 번째 세션이 자기 설정으로 남는다")
     }
 
-    /// 세션의 값을 덮으면 강등 전 클립이 60fps로 기록되고, 분석이 프레임
-    /// 간격을 잘못 가정한다 — ADR-0005.
-    @Test("강등 뒤 저장된 클립은 그때의 실제 fps로 기록된다")
+    /// ADR-0005의 핵심 결과는 "한 세션이 강등을 걸치면 **클립마다 fps가
+    /// 다르다**"다. 프레임을 흘리기 전에 값을 바꿔 두면 그것을 검증하지
+    /// 못한다 — 중간에 바꿔 두 클립의 값이 갈리는지 본다.
+    @Test("세션이 강등을 걸치면 클립마다 fps가 다르다")
     func 강등_fps() async throws {
         let repository = SpyRepository()
+        let fps = EffectiveFPS()
+        fps.set(120)
         let pipeline = SwingPipeline(
-            directory: try directory(), storage: SessionStorage(repository: repository)
+            directory: try directory(),
+            storage: SessionStorage(repository: repository),
+            effectiveFPS: fps
         )
         let startedAt = Date()
         await pipeline.begin(
             at: startedAt, handedness: .right, situation: .rally, observable: .swing, fps: 120
         )
-        // 발열로 60으로 내려갔다.
-        await pipeline.update(effectiveFPS: 60)
 
+        // 첫 스윙 — 120fps로 찍힌다.
         for frame in swingFrames(startingAt: 0) {
             await pipeline.handle(try makeReadyFrame(seconds: frame.timestamp), pose: frame)
         }
-        _ = await pipeline.end(at: startedAt.addingTimeInterval(2))
+        // postRoll(2초)을 채워 첫 구간을 닫는다. 구간이 겹치지 않게 멀리 둔다.
+        for step in 0..<180 {
+            await pipeline.handle(try makeReadyFrame(seconds: 0.4 + Double(step) / 60), pose: nil)
+        }
+
+        // 발열 강등. 이 시점 이후의 클립은 60fps다.
+        fps.set(60)
+
+        for frame in swingFrames(startingAt: 6.0) {
+            await pipeline.handle(try makeReadyFrame(seconds: frame.timestamp), pose: frame)
+        }
+        _ = await pipeline.end(at: startedAt.addingTimeInterval(9))
 
         let stored = try #require(repository.sessions.first)
-        // 세션은 시작 시점의 값을 들고 있다.
-        #expect(stored.fps == 120)
-        // 클립은 그 클립이 찍힌 시점의 값이다.
-        let clip = try #require(stored.clips.first)
-        #expect(clip.fps == 60, "강등을 반영하지 않으면 분석이 프레임 간격을 잘못 가정한다")
+        #expect(stored.fps == 120, "세션은 시작 시점의 값을 들고 있다")
+        try #require(stored.clips.count == 2)
+        #expect(stored.clips[0].fps == 120)
+        #expect(stored.clips[1].fps == 60, "강등을 반영하지 않으면 분석이 프레임 간격을 잘못 가정한다")
     }
 
     @Test("강등이 없으면 클립도 세션과 같은 fps다")
     func 강등_없음() async throws {
         let repository = SpyRepository()
+        let fps = EffectiveFPS()
+        fps.set(120)
         let pipeline = SwingPipeline(
-            directory: try directory(), storage: SessionStorage(repository: repository)
+            directory: try directory(),
+            storage: SessionStorage(repository: repository),
+            effectiveFPS: fps
         )
         let startedAt = Date()
         await pipeline.begin(
@@ -404,6 +422,28 @@ struct SwingPipelineTests {
 
         let clip = try #require(repository.sessions.first?.clips.first)
         #expect(clip.fps == 120)
+    }
+
+    /// 포맷을 아직 못 읽었으면 요청값을 쓴다 — 조용히 0이 되지 않는다.
+    @Test("실제값을 모르면 세션의 요청값으로 기록한다")
+    func fps_미지() async throws {
+        let repository = SpyRepository()
+        let pipeline = SwingPipeline(
+            directory: try directory(),
+            storage: SessionStorage(repository: repository),
+            effectiveFPS: EffectiveFPS()
+        )
+        let startedAt = Date()
+        await pipeline.begin(
+            at: startedAt, handedness: .right, situation: .rally, observable: .swing, fps: 60
+        )
+        for frame in swingFrames(startingAt: 0) {
+            await pipeline.handle(try makeReadyFrame(seconds: frame.timestamp), pose: frame)
+        }
+        _ = await pipeline.end(at: startedAt.addingTimeInterval(2))
+
+        let clip = try #require(repository.sessions.first?.clips.first)
+        #expect(clip.fps == 60)
     }
 
     /// 소급분이 캡처 풀을 붙들므로 상한이 없으면 풀이 고갈돼 분석이
