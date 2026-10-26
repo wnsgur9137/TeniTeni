@@ -45,6 +45,10 @@ final class FrameDownscaler {
     private var pool: CVPixelBufferPool?
     private var poolTarget: CMVideoDimensions?
 
+    /// 풀을 세운 횟수. 재사용이 실제로 되는지 확인할 유일한 수단이다 —
+    /// "throw하지 않는다"는 재사용의 증거가 아니다.
+    private(set) var poolBuildCount = 0
+
     init(longEdge: Int = 640) {
         self.longEdge = longEdge
     }
@@ -105,11 +109,17 @@ final class FrameDownscaler {
         let status = VTPixelTransferSessionCreate(allocator: nil, pixelTransferSessionOut: &created)
         guard status == noErr, let created else { throw Failure.cannotCreateSession(status) }
         // 늘리지 않는다 — 종횡비가 바뀌면 각도가 틀어진다.
-        VTSessionSetProperty(
+        //
+        // 실패해도 치명적이지 않다. **종횡비의 실제 보장은 `target(for:)`**이고,
+        // 그것이 원본 비율에서 목표를 뽑으므로 `Normal`과 `Letterbox`의 결과가
+        // 같다. 이 설정은 비율이 다른 포맷이 들어올 때의 2차 방어선이다 —
+        // 그래서 상태를 확인만 하고 생성을 실패시키지는 않는다.
+        let modeStatus = VTSessionSetProperty(
             created,
             key: kVTPixelTransferPropertyKey_ScalingMode,
             value: kVTScalingMode_Letterbox
         )
+        scalingModeStatus = modeStatus
         session = created
         return created
     }
@@ -125,8 +135,13 @@ final class FrameDownscaler {
         var created: CVPixelBufferPool?
         let status = CVPixelBufferPoolCreate(nil, nil, attributes as CFDictionary, &created)
         guard status == kCVReturnSuccess, let created else { throw Failure.cannotCreatePool(status) }
+        poolBuildCount += 1
         return created
     }
+
+    /// `kVTScalingMode_Letterbox` 설정 결과. `noErr`이 아니면 2차 방어선만
+    /// 빠진 것이고 종횡비는 `target(for:)`이 지킨다.
+    private(set) var scalingModeStatus: OSStatus = noErr
 
     private func even(_ value: Int) -> Int { value - (value % 2) }
 }

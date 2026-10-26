@@ -28,10 +28,32 @@ struct FrameDecimatorTests {
         #expect(FrameDecimator(captureFPS: -1).stride == 1)
     }
 
-    @Test("간격이 목표를 넘기지 않도록 내림한다")
-    func 내림() {
-        // 90 / 60 = 1.5 → 1. 올리면 45fps로 떨어져 목표보다 느려진다.
-        #expect(FrameDecimator(captureFPS: 90).stride == 1)
+    /// 내림하면 1.998이 1이 되어 데시메이션이 통째로 풀린다. 오류 없이
+    /// 포즈가 초당 120회 돈다 — 기기에서 왜 느린지 알 단서가 없다.
+    @Test("119.88fps(NTSC)에서도 데시메이션이 풀리지 않는다")
+    func ntsc_프레임레이트() {
+        #expect(FrameDecimator(captureFPS: 119.88).stride == 2)
+        #expect(FrameDecimator(captureFPS: 239.76).stride == 4)
+    }
+
+    @Test("59.94fps는 전부 분석한다 — 허용오차가 1로 떨어뜨린다")
+    func ntsc_육십() {
+        #expect(FrameDecimator(captureFPS: 59.94).stride == 1)
+        #expect(FrameDecimator(captureFPS: 29.97).stride == 1)
+    }
+
+    /// 허용오차가 지키는 자리다. `120.12 / 60 = 2.002`를 그냥 올리면 3이
+    /// 되어 분석이 40fps로 떨어진다 — 목표보다 느려진다.
+    @Test("fps가 목표의 배수보다 미세하게 높아도 간격이 늘지 않는다")
+    func 배수_근처() {
+        #expect(FrameDecimator(captureFPS: 120.12).stride == 2)
+        #expect(FrameDecimator(captureFPS: 60.06).stride == 1)
+    }
+
+    @Test("분석 목표를 넘기지 않는 쪽으로 올린다")
+    func 올림() {
+        // 90 / 60 = 1.5. 내리면 분석이 90fps로 돌아 목표를 50% 넘긴다.
+        #expect(FrameDecimator(captureFPS: 90).stride == 2)
     }
 
     @Test("stride 2는 짝수 번째만 통과시킨다")

@@ -23,12 +23,22 @@ struct FrameDecimator: Sendable {
     /// 촬영 fps에서 간격을 뽑는다. 분석 목표를 **넘지 않는** 가장 촘촘한 간격이다.
     ///
     /// 촬영이 분석 목표보다 느리면 1이다 — 없는 프레임을 만들 수는 없다.
+    ///
+    /// ## 왜 내림이 아닌가
+    ///
+    /// `actualFPS`는 `1 / activeVideoMinFrameDuration`에서 나오고, 그 값은
+    /// 요청한 120이 아니라 기기가 정규화한 값이다 — **119.88(NTSC 계열)
+    /// 포맷이 실존한다.** 내림하면 `119.88 / 60 = 1.998` → 1이 되어
+    /// 데시메이션이 통째로 풀린다. 포즈가 초당 120회 돌고, **오류는 하나도
+    /// 나지 않는다** — 기기에서 왜 느린지 알 단서가 없다.
+    ///
+    /// 그래서 2% 허용오차를 두고 올린다. 119.88 → 2, 59.94 → 1, 90 → 2.
     init(captureFPS: Double, analysisFPS: Double = 60) {
-        guard captureFPS > 0, analysisFPS > 0, captureFPS > analysisFPS else {
+        guard captureFPS > 0, analysisFPS > 0 else {
             self.stride = 1
             return
         }
-        self.stride = max(1, Int((captureFPS / analysisFPS).rounded(.down)))
+        self.stride = max(1, Int((captureFPS / analysisFPS - 0.02).rounded(.up)))
     }
 
     func includes(_ sequence: UInt64) -> Bool {

@@ -95,17 +95,34 @@ struct FrameDownscalerTests {
         }
     }
 
-    @Test("원본을 목적지로 전송한다")
+    /// 픽셀을 **실제로** 본다. 크기만 보면 `VTPixelTransferSessionTransferImage`가
+    /// `noErr`만 돌려주고 아무것도 쓰지 않아도 통과한다 — 픽셀을 만지는
+    /// 유일한 코드의 유일한 테스트가 픽셀을 보지 않는 셈이 된다.
+    @Test("원본 픽셀이 목적지에 쓰인다")
     func 전송() throws {
         let downscaler = FrameDownscaler()
         let source = try makeBuffer(width: 1920, height: 1080)
-        let destination = try downscaler.makeDestination(for: CMVideoDimensions(width: 1920, height: 1080))
+        try fillLuma(source, with: 200)
+
+        let destination = try downscaler.makeDestination(
+            for: CMVideoDimensions(width: 1920, height: 1080)
+        )
+        try fillLuma(destination, with: 0)
+        #expect(centerLuma(destination) == 0)
+
         try downscaler.transfer(from: source, to: destination)
+
         #expect(CVPixelBufferGetWidth(destination) == 640)
+        // 균일한 평면을 축소하면 가운데는 원본 값이어야 한다. 보간 오차를
+        // 감안해 범위로 본다.
+        let luma = try #require(centerLuma(destination))
+        #expect(abs(Int(luma) - 200) <= 2)
     }
 
-    @Test("같은 다운스케일러로 여러 장을 연달아 전송한다")
-    func 연속_전송() throws {
+    /// "5번 돌려도 throw하지 않는다"는 재사용의 증거가 아니다. 풀이 매
+    /// 호출 재생성돼도 통과하기 때문이다. 세운 횟수를 직접 본다.
+    @Test("같은 크기로 연달아 요청하면 풀을 다시 세우지 않는다")
+    func 풀_재사용() throws {
         let downscaler = FrameDownscaler()
         let source = try makeBuffer(width: 1920, height: 1080)
         for _ in 0..<5 {
@@ -114,5 +131,50 @@ struct FrameDownscalerTests {
             )
             try downscaler.transfer(from: source, to: destination)
         }
+        #expect(downscaler.poolBuildCount == 1)
     }
+
+    @Test("크기가 바뀌면 풀을 다시 세운다")
+    func 풀_재생성() throws {
+        let downscaler = FrameDownscaler()
+        _ = try downscaler.makeDestination(for: CMVideoDimensions(width: 1920, height: 1080))
+        _ = try downscaler.makeDestination(for: CMVideoDimensions(width: 1280, height: 960))
+        _ = try downscaler.makeDestination(for: CMVideoDimensions(width: 1280, height: 960))
+        #expect(downscaler.poolBuildCount == 2)
+    }
+
+    @Test("종횡비 보존 설정이 실제로 적용된다")
+    func 스케일링_모드() throws {
+        let downscaler = FrameDownscaler()
+        let source = try makeBuffer(width: 1920, height: 1080)
+        let destination = try downscaler.makeDestination(
+            for: CMVideoDimensions(width: 1920, height: 1080)
+        )
+        try downscaler.transfer(from: source, to: destination)
+        #expect(downscaler.scalingModeStatus == noErr)
+    }
+}
+
+// MARK: - 픽셀 검사
+
+/// Y 평면을 한 값으로 채운다. 4:2:0의 첫 평면이 휘도다.
+private func fillLuma(_ buffer: CVPixelBuffer, with value: UInt8) throws {
+    #expect(CVPixelBufferLockBaseAddress(buffer, []) == kCVReturnSuccess)
+    defer { CVPixelBufferUnlockBaseAddress(buffer, []) }
+    let base = try #require(CVPixelBufferGetBaseAddressOfPlane(buffer, 0))
+    let bytesPerRow = CVPixelBufferGetBytesPerRowOfPlane(buffer, 0)
+    let height = CVPixelBufferGetHeightOfPlane(buffer, 0)
+    memset(base, Int32(value), bytesPerRow * height)
+}
+
+/// 가운데 픽셀의 휘도.
+private func centerLuma(_ buffer: CVPixelBuffer) -> UInt8? {
+    guard CVPixelBufferLockBaseAddress(buffer, .readOnly) == kCVReturnSuccess else { return nil }
+    defer { CVPixelBufferUnlockBaseAddress(buffer, .readOnly) }
+    guard let base = CVPixelBufferGetBaseAddressOfPlane(buffer, 0) else { return nil }
+    let bytesPerRow = CVPixelBufferGetBytesPerRowOfPlane(buffer, 0)
+    let width = CVPixelBufferGetWidthOfPlane(buffer, 0)
+    let height = CVPixelBufferGetHeightOfPlane(buffer, 0)
+    let row = base.advanced(by: bytesPerRow * (height / 2))
+    return row.assumingMemoryBound(to: UInt8.self)[width / 2]
 }
