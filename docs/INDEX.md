@@ -92,6 +92,7 @@ status: active
 | [SPEC-0107 발열·시스템 압력 대응](./07-기획/SPEC-0107-thermal-response.md) | #107 | 압력 수준별 자동 조정, fps 강등 기록, 설계 충돌 해소 |
 | [SPEC-0110 세션 요약과 스윙 0개 진단](./07-기획/SPEC-0110-session-summary.md) | #110 | 촬영 직후 요약, EmptySession 진단, 1-D 의존 분리 |
 | [SPEC-0116 보관함 세션 목록](./07-기획/SPEC-0116-session-library.md) | #116 | 과거 세션 목록, 빈 상태·읽기 실패 구분, `loadAll()` 첫 호출자 |
+| [SPEC-0121 리플레이 오버레이 레이어](./07-기획/SPEC-0121-replay-overlay.md) | #121 | 배타적 모드, 사이드카, 라켓 헤드 추정과 단축 보정 |
 
 ## 08-레퍼런스
 
@@ -120,6 +121,8 @@ status: active
 | ↳ [ADR-0002](./05-결정/adr/ADR-0002-monorepo.md) | 모노레포 채택 (Accepted) |
 | ↳ [ADR-0003](./05-결정/adr/ADR-0003-rule-based-evaluation.md) | 자세 평가는 룰 엔진 우선 (Accepted) |
 | ↳ [ADR-0004](./05-결정/adr/ADR-0004-line-call-mode.md) | 관찰 대상 분리와 실시간 라인 판정 (Accepted) |
+| ↳ [ADR-0005](./05-결정/adr/ADR-0005-thermal-auto-adjust.md) | 발열 대응은 묻지 않고 자동으로 조정한다 (Accepted) |
+| ↳ [ADR-0006](./05-결정/adr/ADR-0006-replay-overlay-layers.md) | 오버레이는 촬영 중이 아니라 리플레이에서 그린다 (Accepted) |
 
 ---
 

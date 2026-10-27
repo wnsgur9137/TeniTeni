@@ -24,7 +24,7 @@ status: active
 | [D-03](./stack/D-03-architecture-pattern.md) | 아키텍처 | **Clean + TCA** | 촬영 화면 상태 얽힘을 Reducer 합성으로 분해 |
 | [D-04](./stack/D-04-concurrency.md) | 비동기 | **Swift Concurrency** | 오버레이는 최신성, 궤적은 연속성 → 스트림 분리 |
 | [D-06](./stack/D-06-pose-engine.md) | 포즈 엔진 | **Apple Vision** | 의존성 0 + ANE. 발끝은 발목으로 근사 |
-| [D-07](./stack/D-07-overlay-rendering.md) | 오버레이 렌더링 | **Metal** | 프리뷰 직접 렌더로 지연 0. Phase 0 +1~2주 |
+| [D-07](./stack/D-07-overlay-rendering.md) | 오버레이 렌더링 | ⚠️ **대체됨** | [ADR-0006](./adr/ADR-0006-replay-overlay-layers.md) — 오버레이가 리플레이로 옮겨가 지연 근거가 사라졌다 |
 | [D-08](./stack/D-08-local-db.md) | 로컬 DB | **SwiftData** | 시계열은 파일로 빼 DB 부하가 낮음 |
 | [D-09](./stack/D-09-serialization.md) | 시계열 직렬화 | **Protobuf** | Swift·Python 스키마 공유. 좌표 5,700개/스윙 |
 | [D-10](./stack/D-10-swing-classifier.md) | 스윙 분류 | **Create ML** | keypoints 직결. 데이터 적은 초기엔 단순 모델이 유리 |
@@ -78,7 +78,7 @@ status: active
 | ID | 항목 | 잠정안 / **확정안** | 확정 시점 | 상태 |
 |---|---|---|---|---|
 | [D-06](./stack/D-06-pose-engine.md) | 포즈 추정 엔진 | **Apple Vision** | 2026-09-10 | ✅ |
-| [D-07](./stack/D-07-overlay-rendering.md) | 오버레이 렌더링 | **Metal (직접 렌더)** | 2026-09-10 | ✅ |
+| [D-07](./stack/D-07-overlay-rendering.md) | 오버레이 렌더링 | ~~Metal (직접 렌더)~~ → [ADR-0006](./adr/ADR-0006-replay-overlay-layers.md) | 2026-10-27 | ⚠️ |
 | [D-08](./stack/D-08-local-db.md) | 로컬 데이터베이스 | **SwiftData** | 2026-09-10 | ✅ |
 | [D-09](./stack/D-09-serialization.md) | 포즈 시계열 직렬화 | **Protobuf** | 2026-09-10 | ✅ |
 | [D-10](./stack/D-10-swing-classifier.md) | 스윙 분류 모델 | **Create ML Action Classifier** | 2026-09-10 | ✅ |
@@ -139,6 +139,7 @@ D-14 ~ D-21 (백엔드) ← Phase 2 착수 직전에 확정해도 늦지 않음
 | [ADR-0003](./adr/ADR-0003-rule-based-evaluation.md) | 자세 평가는 룰 엔진 우선 | Accepted |
 | [ADR-0004](./adr/ADR-0004-line-call-mode.md) | 관찰 대상 분리와 실시간 라인 판정 | Accepted |
 | [ADR-0005](./adr/ADR-0005-thermal-auto-adjust.md) | 발열 대응은 묻지 않고 자동으로 조정한다 | Accepted |
+| [ADR-0006](./adr/ADR-0006-replay-overlay-layers.md) | 오버레이는 촬영 중이 아니라 리플레이에서 그린다 | Accepted |
 
 ADR 상태: **Proposed**(제안) / **Accepted**(채택) / **Superseded by ADR-XXXX** / **Deprecated**
 
