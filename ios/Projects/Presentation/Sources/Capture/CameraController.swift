@@ -135,12 +135,26 @@ final class CameraController: NSObject {
     // MARK: 세션
 
     let session = AVCaptureSession()
+
+    /// 프리뷰 레이어. **컨트롤러가 소유한다.**
+    ///
+    /// `RotationCoordinator`는 **생성 시점에** 프리뷰 레이어를 받아야
+    /// `videoRotationAngleForHorizonLevelPreview`를 낸다. 뷰가 레이어를
+    /// 만들면 좌표기를 세우는 `start()` 시점에 레이어가 아직 없어 그 각이
+    /// 영원히 기본값으로 남는다 — #82.
+    let previewLayer = AVCaptureVideoPreviewLayer()
+
     private var device: AVCaptureDevice?
     private let movieOutput = AVCaptureMovieFileOutput()
     private var elapsedTimer: Timer?
     private var pendingMetadata: ClipMetadata?
     private var rotationCoordinator: AVCaptureDevice.RotationCoordinator?
     private var rotationObservation: NSKeyValueObservation?
+    /// 프리뷰 각은 녹화 각과 **다르다.** 레이어가 화면에서 어떻게 놓였는지가
+    /// 들어가므로 하나의 관측으로 묶을 수 없다.
+    private var previewRotationObservation: NSKeyValueObservation?
+    /// 화면 단계 전이. 비동기 재개가 동기 중단을 덮어쓰지 못하게 한다.
+    private var lifecycle = LifecycleGate()
     /// 중단·재개 알림 관측자. `scenePhase`는 이 경로를 받지 못한다 —
     /// 전화나 다른 앱의 카메라 선점은 **포그라운드인 채로** 벌어진다.
     private var interruptionObservers: [any NSObjectProtocol] = []
@@ -169,6 +183,8 @@ final class CameraController: NSObject {
         self.storage = storage
         super.init()
         self.storageFailure = storage.failure
+        previewLayer.session = session
+        previewLayer.videoGravity = .resizeAspectFill
     }
 
     /// 이전 작업이 끝난 뒤에 돌린다. 열기와 닫기가 뒤바뀌지 않게 한다.
@@ -201,6 +217,12 @@ final class CameraController: NSObject {
 
     func start() async {
         guard status == .idle || status == .permissionDenied else { return }
+        // 이 경로가 세션을 직접 켠다. 의도를 켜 두지 않으면 맨 아래 검사가
+        // **정상 기동을 백그라운드 진입으로 오해한다** — 화면 진입만으로는
+        // `scenePhase`가 바뀌지 않아 `enterForeground()`가 불리지 않는다.
+        // 가드 **뒤**에 둔다. 앞에 두면 일찍 돌아가는 호출이 비행 중인
+        // 재개를 무효로 만들고 아무도 세션을 켜지 않는다.
+        _ = lifecycle.enterForeground()
         status = .configuring
 
         let plan = await resolvePermissions()
@@ -239,6 +261,11 @@ final class CameraController: NSObject {
         if !recordsAudio, message == nil {
             message = "마이크 권한이 없어 무음으로 녹화합니다"
         }
+        // 권한 다이얼로그가 떠 있는 동안 백그라운드로 내려갔을 수 있다.
+        // 그러면 방금 켠 세션을 내린다 — 보이지 않는 채로 카메라가 돈다.
+        // `status`는 `.ready`로 남겨 둔다. 돌아올 때 `resume()`이 다시 켜고,
+        // `.idle`로 되돌리면 화면이 프리뷰 대신 안내문에 갇힌다.
+        if !lifecycle.wantsRunning { suspend() }
     }
 
     /// 카메라를 먼저 해소한다. 카메라가 막히면 어차피 촬영이 없으므로 마이크는 묻지 않는다 —
@@ -614,12 +641,18 @@ final class CameraController: NSObject {
 
     // MARK: 회전
 
-    /// 녹화 영상의 방향 메타데이터를 기기 방향에 맞춘다.
-    /// 이게 없으면 0-C 오프라인 분석에서 좌표계가 틀어진다.
+    /// 녹화 영상의 방향 메타데이터와 **프리뷰 상**을 기기 방향에 맞춘다.
+    ///
+    /// 녹화 각이 없으면 0-C 오프라인 분석에서 좌표계가 틀어진다. 프리뷰 각이
+    /// 없으면 프레이밍 가이드가 엉뚱한 축을 잰다 — 구도 밴드가
+    /// `size.height * 0.38`로 잡혀 **프리뷰가 똑바로 서 있다**고 전제한다(#82).
     private func startTrackingRotation(for device: AVCaptureDevice) {
-        let coordinator = AVCaptureDevice.RotationCoordinator(device: device, previewLayer: nil)
+        let coordinator = AVCaptureDevice.RotationCoordinator(
+            device: device, previewLayer: previewLayer
+        )
         rotationCoordinator = coordinator
         applyRotation(coordinator.videoRotationAngleForHorizonLevelCapture)
+        applyPreviewRotation(coordinator.videoRotationAngleForHorizonLevelPreview)
 
         rotationObservation = coordinator.observe(
             \.videoRotationAngleForHorizonLevelCapture, options: [.new]
@@ -629,6 +662,29 @@ final class CameraController: NSObject {
                 self?.applyRotation(angle)
             }
         }
+
+        // 두 각을 하나의 관측으로 묶지 않는다. 프리뷰 각에는 레이어가 화면에서
+        // 어떻게 놓였는지가 들어가므로 **녹화 각과 값이 다르고**, 레이어가
+        // 뷰 계층에 붙는 순간 프리뷰 각만 따로 갱신된다.
+        previewRotationObservation = coordinator.observe(
+            \.videoRotationAngleForHorizonLevelPreview, options: [.new]
+        ) { [weak self] _, change in
+            guard let angle = change.newValue else { return }
+            Task { @MainActor [weak self] in
+                self?.applyPreviewRotation(angle)
+            }
+        }
+    }
+
+    /// 프리뷰 상을 세운다.
+    ///
+    /// **녹화와 달리 녹화 중에도 바꾼다.** 화면은 파일이 아니므로 중간에
+    /// 각이 바뀌어도 이미 쓴 것이 망가지지 않는다. 오히려 녹화 중에 묶어
+    /// 두면 기기를 돌렸을 때 프리뷰가 누운 채 남는다.
+    private func applyPreviewRotation(_ angle: CGFloat) {
+        guard let connection = previewLayer.connection,
+              connection.isVideoRotationAngleSupported(angle) else { return }
+        connection.videoRotationAngle = angle
     }
 
     /// 분석 버퍼가 세워진 방향. Vision에 넘기면 **좌표까지 맞춰** 돌려준다 —
@@ -803,8 +859,21 @@ final class CameraController: NSObject {
 
     // MARK: 생명주기
 
+    /// 포그라운드 진입. **동기로** 의도를 적고 재개를 띄운다.
+    ///
+    /// 화면이 `Task { await resume() }`를 직접 만들면 그 본문이 실행되기
+    /// 전에 `suspend()`가 끝나버려 **백그라운드에서 세션이 도는 상태**가
+    /// 남는다. 세대를 여기서 발급해 재개가 들고 가게 한다 — #82.
+    func enterForeground() {
+        let generation = lifecycle.enterForeground()
+        Task { await resume(generation: generation) }
+    }
+
     /// 백그라운드 진입. 녹화 중이면 먼저 정상 종료해 파일 손상을 막는다.
     func suspend() {
+        // **맨 먼저** 의도를 내린다. 비행 중인 재개가 아래 정리를 되돌리지
+        // 못하게 하는 유일한 수단이다.
+        lifecycle.leaveForeground()
         if movieOutput.isRecording {
             movieOutput.stopRecording()
             message = "백그라운드 진입으로 녹화를 종료했습니다"
@@ -819,6 +888,8 @@ final class CameraController: NSObject {
         pressureObservation = nil
         rotationObservation?.invalidate()
         rotationObservation = nil
+        previewRotationObservation?.invalidate()
+        previewRotationObservation = nil
         if session.isRunning { session.stopRunning() }
     }
 
@@ -827,9 +898,18 @@ final class CameraController: NSObject {
     ///
     /// 차단 화면에서 설정 앱으로 나갔다 돌아온 경우를 여기서 받는다. 다시 묻지 않으면
     /// 허용하고 돌아와도 차단 화면에 머문다 — 사용자는 앱이 고장났다고 판단한다.
-    func resume() async {
+    ///
+    /// - Parameter generation: `enterForeground()`가 발급한 세대. 그 사이에
+    ///   중단이 끼어들었거나 더 새로운 재개가 떴으면 **아무것도 하지 않는다.**
+    func resume(generation: Int) async {
+        guard lifecycle.admits(generation) else { return }
         if status == .permissionDenied {
             await start()
+            // `start()`는 권한을 묻는 await를 품는다. 그 사이에 백그라운드로
+            // 내려갔으면 방금 켠 세션을 다시 내린다. 세대가 아니라
+            // `wantsRunning`으로 판정한다 — 더 새로운 재개가 떴을 때까지
+            // 내려버리면 그 재개가 켜 둔 세션을 죽인다.
+            if !lifecycle.wantsRunning { suspend() }
             return
         }
         guard device != nil else { return }
