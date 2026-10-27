@@ -113,78 +113,122 @@ jobs:
           python-version: '3.12'
       - run: ./scripts/verify-docs.sh
 
-  ios:
+  # iOS 검증을 세 잡으로 쪼개 **병렬로** 돌린다.
+  #
+  # ⚠️ 전에는 잡 하나가 전부를 직렬로 돌렸다. 성공한 실행이 20.7분·20.8분
+  # 이었는데 상한이 30분이라 여유가 9분뿐이었고, macOS 러너의 변동폭이
+  # 그것을 먹었다. #110의 실행은 30분 30초에 **취소**됐고(실패가 아니다)
+  # `gate`가 그 취소를 실패로 집계해 병합이 막혔다 — 코드에는 문제가 없었다.
+  # 상한을 45분으로 올려 당장은 풀었지만 그것은 증상 완화였다.
+  #
+  # 쪼개면 각 잡의 상한을 다시 좁게 잡을 수 있고, **어느 축이 느려지는지**도
+  # 드러난다. 근거: #113
+  #
+  # | 잡 | 내용 | 시뮬레이터 |
+  # |---|---|---|
+  # | `ios-build` | 앱 빌드 + iOS 단위 테스트 3타깃 | 필요 |
+  # | `ios-ui`    | UI 테스트 | 필요 |
+  # | `macos`     | TeniTool · TeniVision | 불필요 |
+  #
+  # 세 잡이 각각 전체 빌드를 치르므로 **총 CPU 시간은 늘어난다.** 그것을
+  # 받아들이는 이유는 (1) 벽시계 시간이 줄고 (2) 전체 빌드라서 경고 집계가
+  # 여전히 사각 없이 나오기 때문이다 — 캐시로 줄이면 그 사각이 돌아온다.
+  ios-build:
     needs: detect
     if: needs.detect.outputs.ios == 'true'
     # ⚠️ macos-15는 Xcode 16.4(Swift 6.1)이고 iOS 26 SDK가 없다.
     # 우리 타깃은 iOS 26이므로 게이트가 표현할 수 없는 플랫폼을 검증해 왔다.
     # 1-A에서 로컬(Xcode 26.6)은 통과하는데 CI만 깨지며 드러났다.
     runs-on: macos-26
-    # ⚠️ 상한을 30 → 45로 올렸다. 실측이 상한에 닿았기 때문이다.
-    #
-    # 성공한 실행이 20.7분·20.8분이었는데 상한이 30분이라 여유가 9분뿐이고,
-    # macOS 러너의 변동폭이 그것을 먹는다. #110의 실행이 30분 30초에
-    # **취소**됐고(실패가 아니다) `gate`가 그 취소를 실패로 집계해 병합이
-    # 막혔다 — 코드에는 문제가 없었다.
-    #
-    # 올리는 것은 증상 완화다. 이 잡 하나가 iOS 빌드·테스트·UI 테스트와
-    # macOS 테스트(TeniTool 약 3분)를 **직렬로** 돌리므로, 테스트가 늘수록
-    # 다시 닿는다. 잡을 쪼개 병렬로 돌리는 것이 근본 조치다 — 별도 이슈.
-    timeout-minutes: 45
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
         with:
           lfs: true
-
-      - name: mise 설치
-        run: |
-          curl https://mise.run | sh
-          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
-
-      - name: 툴체인 설치
-        run: |
-          mise trust
-          mise install
-
-      - name: Xcode 선택
-        run: |
-          # 러너에 여러 Xcode가 깔려 있으면 가장 높은 것을 고른다.
-          # /Applications/Xcode.app 심링크는 이미지 기본값이라 우리가
-          # 요구하는 SDK가 없을 수 있다.
-          latest="$(ls -d /Applications/Xcode*.app | sort -V | tail -1)"
-          echo "선택: $latest"
-          sudo xcode-select -s "$latest"
-
-      - name: 게이트 실행
-        run: mise exec -- ./scripts/verify-ios.sh
-
+      - uses: ./.github/actions/setup-ios
+      - name: 게이트 실행 (빌드 + 단위 테스트)
+        run: mise exec -- ./scripts/verify-ios.sh --phase=ios
       - name: 빌드 로그 업로드
         if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: build-log
-          path: /tmp/teniteni-build-*.log
+          name: build-log-ios
+          path: /tmp/teniteni-*.log
+          retention-days: 7
+
+  ios-ui:
+    needs: detect
+    if: needs.detect.outputs.ios == 'true'
+    runs-on: macos-26
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          lfs: true
+      - uses: ./.github/actions/setup-ios
+      - name: 게이트 실행 (UI 테스트)
+        run: mise exec -- ./scripts/verify-ios.sh --phase=ui
+      - name: 빌드 로그 업로드
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-log-ui
+          path: /tmp/teniteni-*.log
+          retention-days: 7
+
+  macos:
+    needs: detect
+    if: needs.detect.outputs.ios == 'true'
+    runs-on: macos-26
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          lfs: true
+      - uses: ./.github/actions/setup-ios
+      - name: 게이트 실행 (macOS)
+        run: mise exec -- ./scripts/verify-ios.sh --phase=macos
+      - name: 빌드 로그 업로드
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-log-macos
+          path: /tmp/teniteni-*.log
           retention-days: 7
 
   # ★ 브랜치 보호의 required status check로 지정할 잡.
   # 항상 실행되며, 건너뛴 잡은 성공으로 간주하고 실패한 잡만 잡아낸다.
+  #
+  # `cancelled`를 실패로 보는 것은 **의도한 것이다.** 취소된 검증을 통과로
+  # 둘 수는 없다. 고칠 곳은 집계가 아니라 타임아웃에 닿는 구조였다.
   gate:
-    needs: [detect, docs, ios]
+    needs: [detect, docs, ios-build, ios-ui, macos]
     if: always()
     runs-on: ubuntu-latest
     timeout-minutes: 3
     steps:
       - name: 결과 집계
+        # ⚠️ 하이픈이 들어간 잡 id는 **대괄호로 읽는다.**
+        # `needs.ios-build.result`는 표현식 문법에서 뺄셈으로 읽힐 수 있다.
+        env:
+          DETECT: ${{ needs.detect.result }}
+          DOCS: ${{ needs.docs.result }}
+          IOS_BUILD: ${{ needs['ios-build'].result }}
+          IOS_UI: ${{ needs['ios-ui'].result }}
+          MACOS: ${{ needs.macos.result }}
         run: |
           # size는 경고 전용이므로 판정에 넣지 않는다.
-          printf 'detect: %s\ndocs:   %s\nios:    %s\n' \
-            "${{ needs.detect.result }}" "${{ needs.docs.result }}" "${{ needs.ios.result }}"
-
           fail=0
-          for r in "${{ needs.detect.result }}" "${{ needs.docs.result }}" "${{ needs.ios.result }}"; do
-            case "$r" in
+          for pair in "detect=$DETECT" "docs=$DOCS" \
+                      "ios-build=$IOS_BUILD" "ios-ui=$IOS_UI" "macos=$MACOS"; do
+            name="${pair%%=*}"
+            result="${pair#*=}"
+            printf '%-10s %s\n' "$name" "$result"
+            case "$result" in
               success|skipped) ;;
-              *) fail=1 ;;
+              # cancelled도 여기로 온다. **의도한 것이다** — 취소된 검증을
+              # 통과로 둘 수는 없다.
+              *) fail=1; echo "::error::$name: $result" ;;
             esac
           done
 
