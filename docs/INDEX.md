@@ -91,6 +91,7 @@ status: active
 | [SPEC-0097 스윙 검출 배선](./07-기획/SPEC-0097-swing-wiring.md) | #97 | 트리거·레코더·세션 조립, 저장소 배선, 프레임 시계 원점 |
 | [SPEC-0107 발열·시스템 압력 대응](./07-기획/SPEC-0107-thermal-response.md) | #107 | 압력 수준별 자동 조정, fps 강등 기록, 설계 충돌 해소 |
 | [SPEC-0110 세션 요약과 스윙 0개 진단](./07-기획/SPEC-0110-session-summary.md) | #110 | 촬영 직후 요약, EmptySession 진단, 1-D 의존 분리 |
+| [SPEC-0116 보관함 세션 목록](./07-기획/SPEC-0116-session-library.md) | #116 | 과거 세션 목록, 빈 상태·읽기 실패 구분, `loadAll()` 첫 호출자 |
 
 ## 08-레퍼런스
 
