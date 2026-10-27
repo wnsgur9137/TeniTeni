@@ -1,0 +1,34 @@
+name: iOS 러너 준비
+description: mise · 툴체인 · Xcode 선택. 쪼갠 iOS 잡 셋이 같은 준비를 쓴다.
+
+# ⚠️ 체크아웃은 여기 넣을 수 없다. 로컬 경로(`./.github/actions/...`)
+# 액션은 **저장소가 이미 체크아웃된 뒤에야** 해석되므로, 호출하는 잡이
+# `actions/checkout`을 먼저 돌려야 한다. 셋이 같은 준비를 복사해 두면
+# 하나만 고치고 둘을 잊는 날이 온다 — 그래서 준비만 떼어냈다.
+#
+# 근거: 이슈 #113
+
+runs:
+  using: composite
+  steps:
+    - name: mise 설치
+      shell: bash
+      run: |
+        curl https://mise.run | sh
+        echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+
+    - name: 툴체인 설치
+      shell: bash
+      run: |
+        mise trust
+        mise install
+
+    - name: Xcode 선택
+      shell: bash
+      run: |
+        # 러너에 여러 Xcode가 깔려 있으면 가장 높은 것을 고른다.
+        # /Applications/Xcode.app 심링크는 이미지 기본값이라 우리가
+        # 요구하는 SDK가 없을 수 있다.
+        latest="$(ls -d /Applications/Xcode*.app | sort -V | tail -1)"
+        echo "선택: $latest"
+        sudo xcode-select -s "$latest"
