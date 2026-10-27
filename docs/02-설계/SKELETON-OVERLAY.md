@@ -14,51 +14,64 @@ status: active
 
 포즈 추정 결과를 화면에 그리는 설계입니다. 이 화면이 앱의 첫인상이자 신뢰도 그 자체이므로 별도 문서로 다룹니다.
 
-"그냥 선 긋기"로 접근하면 반드시 실패하는 지점이 세 군데 있습니다: **지연**, **좌표 변환**, **떨림**.
+> [!IMPORTANT]
+> **2026-10-27에 그리는 자리가 바뀌었습니다.** 오버레이는 **촬영 중이 아니라 리플레이에서** 그립니다 — [ADR-0006](../05-결정/adr/ADR-0006-replay-overlay-layers.md).
+>
+> 그 결과 "그냥 선 긋기로 접근하면 실패하는 세 지점" 중 **지연이 빠집니다.** 리플레이는 파일 재생이므로 프레임과 오버레이 데이터를 임의로 맞춰 둘 수 있습니다. 남는 것은 **좌표 변환**과 **떨림**이고, 둘 다 그대로 유효합니다.
 
 ## 4.1 렌더링 구조
 
-✅ **확정** — Metal 프리뷰 직접 렌더 ([D-07](../05-결정/stack/D-07-overlay-rendering.md))
-
-`AVCaptureVideoPreviewLayer`를 **사용하지 않습니다.** 같은 `CMSampleBuffer`에서 영상 텍스처와 스켈레톤·궤적을 함께 그립니다.
+✅ **확정** — 리플레이에서 SwiftUI Canvas ([ADR-0006](../05-결정/adr/ADR-0006-replay-overlay-layers.md))
 
 ```
-ZStack
-├─ MetalCameraView   (UIViewRepresentable → MTKView)   ← 영상 + 스켈레톤 + 궤적
-└─ GuideOverlay      (SwiftUI)                          ← 프레이밍 가이드, 흔들림·발열 경고
+촬영 중   CameraPreview (AVCaptureVideoPreviewLayer)   ← 오버레이 없음
+          + GuideOverlay (SwiftUI)                     ← 가이드, 인식 상태, 경고
+
+리플레이  ZStack
+          ├─ AVPlayerLayer  (UIViewRepresentable)       ← 영상
+          └─ Canvas         (SwiftUI)                   ← 레이어 하나를 골라 그린다
 ```
 
-가이드와 경고는 60fps가 필요 없으므로 SwiftUI로 남겨둡니다. [D-02](../05-결정/stack/D-02-ui-framework.md)에서 예상한 `UIViewRepresentable` 경계가 여기입니다.
+**촬영 중에는 오버레이가 없습니다.** "잡히고 있나"는 `PoseIndicator`(상태 표시)가 답합니다 — [IA-FLOW 10.5](../06-디자인/IA-FLOW.md).
 
-### 렌더 패스
+리플레이는 슬로우 모션(0.25×)이 기본이므로 초당 15~30프레임만 그립니다. 관절 19개 + 본 20개 + 궤적 점 수십 개는 Canvas로 충분합니다.
 
-| 패스 | 내용 |
-|---|---|
-| `CameraTexturePass` | `CVMetalTextureCache`로 `CMSampleBuffer` → Metal 텍스처, 풀스크린 quad |
-| `SkeletonPass` | 본 20개를 라인, 관절 19개를 인스턴싱 원 |
-| `TrajectoryPass` | 궤적 점 시퀀스를 스트립으로, 알파 페이드 |
+### 레이어 — 한 번에 하나만
 
-## 4.2 지연 문제 — Metal이 해결하는 것
+| 레이어 | 입력 | 선행 |
+|---|---|---|
+| 스켈레톤 | `DetectHumanBodyPoseRequest` | 없음 |
+| 라켓 궤적 | `detectsHands` 손 관절 + 어깨너비 스케일 | 없음 |
+| 볼 궤적 | `DetectTrajectoriesRequest` | 0-C 게이트 |
+| 라인 | 호모그래피 | 1-F 2·3 |
 
-`AVCaptureVideoPreviewLayer`는 프레임을 **즉시** 화면에 띄웁니다. 반면 Vision 추론 결과는 3~15ms 뒤에 나옵니다. 버퍼 큐까지 더하면 스켈레톤이 **1~3프레임 늦게** 따라옵니다.
+독립 토글 4개는 조합 16가지로 난잡해집니다. 배타적 모드로 둡니다 — 근거는 [SPEC-0121](../07-기획/SPEC-0121-replay-overlay.md).
 
-일상 동작에서는 보이지 않지만, **초당 30m로 움직이는 테니스 스윙에서는 팔이 스켈레톤 밖으로 완전히 튀어나갑니다.**
+## 4.2 데이터를 미리 굽는다 — 지연 문제가 없어진 자리
 
-Metal 직접 렌더는 이 문제를 구조적으로 없앱니다.
+전에는 이 절이 "지연 문제 — Metal이 해결하는 것"이었습니다. `AVCaptureVideoPreviewLayer`가 프레임을 즉시 띄우는데 Vision 결과는 3~15ms 뒤에 나오므로 스켈레톤이 1~3프레임 늦고, **초당 30m로 움직이는 테니스 스윙에서는 팔이 스켈레톤 밖으로 튀어나간다**는 것이었습니다. 해법은 영상 표시를 추론에 맞춰 지연시키는 것이었습니다.
+
+**리플레이에서는 그 문제가 생기지 않습니다.** 오버레이 데이터를 클립 저장 직후 한 번 계산해 사이드카에 두고, 재생 시각으로 찾아 그립니다.
 
 ```
-CMSampleBuffer (t)
-  ├─→ 포즈 추정 ──→ 포즈(t)
-  └─→ 텍스처 보관
-                    ↓ 둘이 준비되면 함께 draw
-                  프레임(t) 렌더  ← 영상과 스켈레톤이 같은 시각
+녹화 종료 → 클립 .mov
+            ↓ 백그라운드 1회 (촬영 중에는 돌리지 않는다)
+    AVAssetReader → CMSampleBuffer 순차
+      ├─ DetectHumanBodyPoseRequest(detectsHands)
+      └─ DetectTrajectoriesRequest            ← 0-C 게이트 통과 시
+            ↓
+    <clip>.overlay.json   프레임별 관절 + 신뢰도
+            ↓
+    리플레이: 재생 시각 → 가장 가까운 프레임 → Canvas
 ```
 
-**영상 표시를 추론 결과에 맞춰 지연시키는 방식**입니다. 화면 전체가 3~15ms 늦어지지만, 영상과 오버레이가 어긋나지 않습니다. 사람은 절대 지연보다 **둘 사이의 어긋남**을 훨씬 잘 인지합니다.
+`CGImage`로 변환하면 타임스탬프가 사라져 `timeRange`가 `nil`이 됩니다 — [DetectTrajectories 4절](../08-레퍼런스/ml/DetectTrajectories.md)이 이미 겪은 함정입니다.
 
-### 프레임 예산 초과 시
+**덤으로 측정되지 않은 위험 하나가 사라집니다.** 같은 문서 5절이 "`minimumLatencyFrameCount` 실측 — 0-D 지연 예산에 필요하다. **오프라인에서는 문제가 없어 재지 않았다**"로 남겨둔 항목입니다.
 
-분석이 밀리면 [D-04](../05-결정/stack/D-04-concurrency.md)의 스트림 분리 정책을 따릅니다. 오버레이 스트림은 `.bufferingNewest(1)`이므로 오래된 프레임이 버려지고, 렌더는 **가장 최근에 포즈가 준비된 프레임**을 그립니다.
+### 사이드카가 아직 없을 때
+
+**없는 것이 정상 상태 중 하나입니다.** 세션이 끝나야 큐가 비고, 실패할 수도 있습니다. 리플레이는 "분석 중" / "분석하지 못했습니다" / "분석 전"을 구분해 보여줍니다 — 조용히 오버레이를 빼면 사용자는 기능이 고장났다고 읽습니다.
 
 ## 4.3 좌표 변환 — 단일 변환 행렬
 
@@ -327,11 +340,15 @@ confidence가 임계값 아래로 떨어진 관절은 필터를 갱신하지 않
 2. 골반(root) 기준 위치 정렬
 3. DTW로 시간축 정렬 (스윙 속도가 다르므로)
 
-## 4.8 녹화 영상 합성
+## 4.8 녹화 영상 합성 — 보류
 
-Metal 렌더 경로를 **그대로 재사용**합니다. 화면 대신 오프스크린 텍스처에 그려 `AVAssetWriterInputPixelBufferAdaptor`로 넘깁니다.
+⚠️ **[ADR-0006](../05-결정/adr/ADR-0006-replay-overlay-layers.md)이 이것을 미뤘습니다.**
 
-이것이 [D-07](../05-결정/stack/D-07-overlay-rendering.md)에서 Canvas 대신 Metal을 택한 두 번째 이유입니다. Canvas였다면 합성용 렌더러를 따로 만들어야 했습니다.
+전에는 Metal 렌더 경로를 그대로 재사용해(화면 대신 오프스크린 텍스처 → `AVAssetWriterInputPixelBufferAdaptor`) 오버레이를 **구운** 영상을 만들 계획이었습니다. 그것이 [D-07](../05-결정/stack/D-07-overlay-rendering.md)에서 Canvas 대신 Metal을 택한 **두 번째 이유**였습니다.
+
+리플레이를 Canvas로 그리면 이 경로를 쓸 수 없습니다. **그 비용을 알고 받아들였습니다** — 지금 이 기능이 없고, 없는 기능을 위해 구현 비용이 큰 경로를 먼저 깔지 않기로 했습니다.
+
+필요해지면 **그때 Metal 렌더러를 따로 만듭니다.** D-07이 피하려던 "두 번 작업"이 이 지점에서 실제로 발생합니다. D-07을 지우지 않고 남겨 둔 이유가 이것입니다 — 그때 다시 읽을 문서입니다.
 
 ## 4.9 파일 배치
 
