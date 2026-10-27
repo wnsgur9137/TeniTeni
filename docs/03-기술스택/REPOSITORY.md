@@ -38,8 +38,10 @@ status: active
 ```
 TeniTeni/
 ├── .github/
+│   ├── actions/
+│   │   └── setup-ios/action.yml    # mise · 툴체인 · Xcode 선택 (iOS 잡 셋이 공유)
 │   ├── workflows/
-│   │   ├── gate.yml                # 단일 게이트 (detect → docs/ios → gate)
+│   │   ├── gate.yml                # 단일 게이트 (detect → docs/iOS 3잡 → gate)
 │   │   └── release-ios.yml         # 태그 → Fastlane → TestFlight
 │   ├── ISSUE_TEMPLATE/
 │   │   ├── bug_report.md
@@ -208,12 +210,37 @@ gh pr create --draft --assignee wnsgur9137 ...
 
 ```
 detect  ─ 변경 경로 판정 (ios / docs 플래그)
-  ├─ docs  ─ if docs  → scripts/verify-docs.sh   (ubuntu)
-  ├─ ios   ─ if ios   → scripts/verify-ios.sh    (macos-15)
-  └─ gate  ─ if always() → 위 결과 집계          ★ required check
+  ├─ docs       ─ if docs → scripts/verify-docs.sh              (ubuntu)
+  ├─ ios-build  ─ if ios  → verify-ios.sh --phase=ios    30분   (macos-26)
+  ├─ ios-ui     ─ if ios  → verify-ios.sh --phase=ui     30분   (macos-26)
+  ├─ macos      ─ if ios  → verify-ios.sh --phase=macos  25분   (macos-26)
+  └─ gate       ─ if always() → 위 결과 집계                    ★ required check
 ```
 
 `gate` 잡은 **항상 실행**되며 건너뛴(`skipped`) 잡은 성공으로 간주하고 실패만 잡아냅니다. 브랜치 보호에는 이 잡 하나만 필수로 지정합니다.
+
+### ⚠️ iOS 잡을 셋으로 쪼갠 이유
+
+전에는 잡 하나가 전부를 **직렬로** 돌렸습니다. 성공한 실행이 20.7분·20.8분이었는데 상한이 30분이라 여유가 9분뿐이었고, macOS 러너의 변동폭이 그것을 먹었습니다. [#110](https://github.com/wnsgur9137/TeniTeni/issues/110)의 실행은 30분 30초에 **취소**됐고(실패가 아닙니다) `gate`가 그 취소를 실패로 집계해 병합이 막혔습니다 — 코드에는 문제가 없었습니다.
+
+| 잡 | 내용 | 시뮬레이터 |
+|---|---|---|
+| `ios-build` | 앱 빌드 + iOS 단위 테스트 3타깃 | 필요 |
+| `ios-ui` | UI 테스트 | 필요 |
+| `macos` | `TeniTool` · `TeniVision` | 불필요 |
+
+**총 CPU 시간은 늘어납니다.** 세 잡이 각각 전체 빌드를 치르기 때문입니다. 그것을 받아들이는 이유는 두 가지입니다.
+
+1. 벽시계 시간이 줄어 상한에 닿지 않습니다. 어느 축이 느려지는지도 드러납니다
+2. **전체 빌드라서 경고 집계에 사각이 없습니다.** 캐시로 CPU를 줄이면 증분 빌드가 되고, 바뀌지 않은 파일의 경고가 로그에서 사라집니다 — [동시성 6.8](../02-설계/CONCURRENCY.md)의 검증 항목이 조용히 무력화됩니다
+
+`cancelled`를 실패로 보는 집계는 **그대로 둡니다.** 취소된 검증을 통과로 둘 수는 없습니다. 고칠 곳은 집계가 아니라 타임아웃에 닿는 구조였습니다.
+
+준비 단계(mise·툴체인·Xcode 선택)는 `.github/actions/setup-ios`로 떼어 셋이 공유합니다. 체크아웃은 **거기에 넣을 수 없습니다** — 로컬 경로 액션은 저장소가 체크아웃된 뒤에야 해석되므로 호출하는 잡이 먼저 돌려야 합니다.
+
+### 로컬은 한 줄 그대로다
+
+`scripts/verify-ios.sh`의 `--phase` 기본값은 `all`입니다. **사람이 쓰는 방식은 달라지지 않습니다** — 쪼갠 것을 사람이 조립하게 만들면 "로컬에서는 통과했다"의 의미가 흐려집니다.
 
 ### 러너 분리
 
