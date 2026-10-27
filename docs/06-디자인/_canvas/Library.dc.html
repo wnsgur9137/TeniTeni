@@ -8,70 +8,80 @@ body{margin:0;font-family:-apple-system,"SF Pro Text",system-ui,sans-serif}
 a{color:#C6F24E}a:hover{color:#D9F87E}
 .num{font-variant-numeric:tabular-nums}
 </style></helmet>
+<!--
+  보관함 — 과거 세션 목록 (SPEC-0116).
+
+  ⚠️ 이 아트보드는 **유형 필터와 스윙 썸네일 그리드를 들고 있었다.** 둘 다
+  지웠다.
+
+  - 유형 필터(포핸드/백핸드/서브)는 **1-D 분류가 생긴 뒤**에야 축이 있다
+  - 썸네일의 점수(64·81·…)도 1-D가 만든다. 통영상에서 프레임을 꺼내는
+    일이기도 해서 목록 성능 문제를 같이 들고 온다
+
+  남은 것은 세션 한 줄이다. 레퍼런스 조사에서 반복된 불만은 "찾기 어렵다"가
+  아니라 **"사라졌다"**였으므로(SwingVision 레퍼런스 2026-10-27절), 이 화면의
+  첫 일은 탐색이 아니라 **찍은 것이 살아 있다는 증거**다.
+
+  fps를 줄마다 적는 이유: 발열로 강등되면 세션마다 다르다(ADR-0005).
+-->
 <div style="width:390px;height:844px;background:#0B0D0F;color:#F2F4F6;display:flex;flex-direction:column">
 
-  <div style="padding:24px 20px 14px;display:flex;flex-direction:column;gap:12px">
+  <div style="padding:24px 20px 14px;display:flex;flex-direction:column;gap:3px">
     <div style="font-size:28px;font-weight:700">보관함</div>
-    <div style="display:flex;gap:8px">
-      <span style="font-size:13px;font-weight:600;padding:7px 14px;border-radius:999px;background:#C6F24E;color:#0B0D0F">전체</span>
-      <span style="font-size:13px;font-weight:500;padding:7px 14px;border-radius:999px;background:#16191D;color:#9BA3AB">포핸드</span>
-      <span style="font-size:13px;font-weight:500;padding:7px 14px;border-radius:999px;background:#16191D;color:#9BA3AB">백핸드</span>
-      <span style="font-size:13px;font-weight:500;padding:7px 14px;border-radius:999px;background:#16191D;color:#9BA3AB">서브</span>
-    </div>
+    <div class="num" style="font-size:13px;color:#6B737B">세션 4개</div>
   </div>
 
-  <div style="flex:1;padding:0 20px;display:flex;flex-direction:column;gap:18px;overflow:hidden">
+  <div style="flex:1;padding:0 20px;display:flex;flex-direction:column;gap:1px;overflow:hidden">
 
-    <div style="display:flex;flex-direction:column;gap:10px">
-      <div style="display:flex;align-items:baseline;gap:8px">
-        <div style="font-size:13px;font-weight:600">오늘</div>
-        <div class="num" style="font-size:12px;color:#6B737B">34 스윙 · 12분</div>
-        <div style="flex:1"></div>
-        <div style="font-size:11px;font-weight:500;padding:3px 8px;border-radius:5px;background:#1F2429;color:#9BA3AB">연속</div>
+    <div style="background:#16191D;border-radius:13px 13px 0 0;padding:14px 16px;display:flex;align-items:center;gap:12px">
+      <div style="flex:1;display:flex;flex-direction:column;gap:4px">
+        <div class="num" style="font-size:15px;font-weight:600">10월 27일 · 14:32</div>
+        <div class="num" style="font-size:12px;color:#6B737B">볼머신 · 내 스윙 · 클립 3개 · 120fps</div>
       </div>
-      <div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px">
-        <div style="aspect-ratio:1;border-radius:10px;background:linear-gradient(140deg,#16281c,#0d1512);position:relative">
-          <div class="num" style="position:absolute;right:6px;bottom:6px;font-size:12px;font-weight:700">64</div>
-          <div style="position:absolute;left:6px;top:6px;width:6px;height:6px;border-radius:999px;background:#FF4D4D"></div>
-        </div>
-        <div style="aspect-ratio:1;border-radius:10px;background:linear-gradient(140deg,#16281c,#0d1512);position:relative">
-          <div class="num" style="position:absolute;right:6px;bottom:6px;font-size:12px;font-weight:700">81</div>
-          <div style="position:absolute;left:6px;top:6px;width:6px;height:6px;border-radius:999px;background:#3DDC84"></div>
-        </div>
-        <div style="aspect-ratio:1;border-radius:10px;background:linear-gradient(140deg,#16281c,#0d1512);position:relative">
-          <div class="num" style="position:absolute;right:6px;bottom:6px;font-size:12px;font-weight:700">70</div>
-        </div>
-        <div style="aspect-ratio:1;border-radius:10px;background:linear-gradient(140deg,#16281c,#0d1512);position:relative">
-          <div class="num" style="position:absolute;right:6px;bottom:6px;font-size:12px;font-weight:700">76</div>
-        </div>
-        <div style="aspect-ratio:1;border-radius:10px;background:linear-gradient(140deg,#16281c,#0d1512);position:relative">
-          <div class="num" style="position:absolute;right:6px;bottom:6px;font-size:12px;font-weight:700">59</div>
-          <div style="position:absolute;left:6px;top:6px;width:6px;height:6px;border-radius:999px;background:#FF4D4D"></div>
-        </div>
-        <div style="aspect-ratio:1;border-radius:10px;background:#16191D;display:flex;align-items:center;justify-content:center">
-          <span class="num" style="font-size:13px;font-weight:600;color:#9BA3AB">+29</span>
-        </div>
+      <div style="display:flex;flex-direction:column;align-items:flex-end;gap:2px">
+        <div class="num" style="font-size:20px;font-weight:700;font-feature-settings:'tnum'">12</div>
+        <div style="font-size:10px;color:#6B737B">스윙</div>
       </div>
+      <svg width="8" height="14" viewBox="0 0 8 14" fill="none"><path d="M1.5 1.5L6 7l-4.5 5.5" stroke="#6B737B" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
     </div>
 
-    <div style="display:flex;flex-direction:column;gap:10px">
-      <div style="display:flex;align-items:baseline;gap:8px">
-        <div style="font-size:13px;font-weight:600">9월 7일</div>
-        <div class="num" style="font-size:12px;color:#6B737B">22 스윙 · 9분</div>
-        <div style="flex:1"></div>
-        <div style="font-size:11px;font-weight:500;padding:3px 8px;border-radius:5px;background:#1F2429;color:#9BA3AB">랠리</div>
+    <div style="background:#16191D;padding:14px 16px;display:flex;align-items:center;gap:12px">
+      <div style="flex:1;display:flex;flex-direction:column;gap:4px">
+        <div class="num" style="font-size:15px;font-weight:600">10월 26일 · 19:04</div>
+        <div class="num" style="font-size:12px;color:#6B737B">랠리 · 내 스윙 · 클립 5개 · 120fps</div>
       </div>
-      <div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px">
-        <div style="aspect-ratio:1;border-radius:10px;background:linear-gradient(140deg,#1a2418,#0d1512);position:relative">
-          <div class="num" style="position:absolute;right:6px;bottom:6px;font-size:12px;font-weight:700">68</div>
-        </div>
-        <div style="aspect-ratio:1;border-radius:10px;background:linear-gradient(140deg,#1a2418,#0d1512);position:relative">
-          <div class="num" style="position:absolute;right:6px;bottom:6px;font-size:12px;font-weight:700">72</div>
-        </div>
-        <div style="aspect-ratio:1;border-radius:10px;background:#16191D;display:flex;align-items:center;justify-content:center">
-          <span class="num" style="font-size:13px;font-weight:600;color:#9BA3AB">+20</span>
-        </div>
+      <div style="display:flex;flex-direction:column;align-items:flex-end;gap:2px">
+        <div class="num" style="font-size:20px;font-weight:700">23</div>
+        <div style="font-size:10px;color:#6B737B">스윙</div>
       </div>
+      <svg width="8" height="14" viewBox="0 0 8 14" fill="none"><path d="M1.5 1.5L6 7l-4.5 5.5" stroke="#6B737B" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    </div>
+
+    <!-- 발열로 60fps로 강등된 세션. 줄마다 fps를 적는 이유가 이것이다. -->
+    <div style="background:#16191D;padding:14px 16px;display:flex;align-items:center;gap:12px">
+      <div style="flex:1;display:flex;flex-direction:column;gap:4px">
+        <div class="num" style="font-size:15px;font-weight:600">10월 24일 · 18:11</div>
+        <div class="num" style="font-size:12px;color:#6B737B">랠리 · 내 스윙 · 클립 4개 · <span style="color:#FF8A3D">60fps</span></div>
+      </div>
+      <div style="display:flex;flex-direction:column;align-items:flex-end;gap:2px">
+        <div class="num" style="font-size:20px;font-weight:700">17</div>
+        <div style="font-size:10px;color:#6B737B">스윙</div>
+      </div>
+      <svg width="8" height="14" viewBox="0 0 8 14" fill="none"><path d="M1.5 1.5L6 7l-4.5 5.5" stroke="#6B737B" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    </div>
+
+    <!-- 스윙 0개 세션도 목록에 남는다. 영상은 있으므로 지우지 않는다
+         (SPEC-0110). 누르면 요약이 아니라 진단(EmptySession)이 뜬다. -->
+    <div style="background:#16191D;border-radius:0 0 13px 13px;padding:14px 16px;display:flex;align-items:center;gap:12px">
+      <div style="flex:1;display:flex;flex-direction:column;gap:4px">
+        <div class="num" style="font-size:15px;font-weight:600">10월 22일 · 17:48</div>
+        <div class="num" style="font-size:12px;color:#6B737B">벽 · 내 스윙 · 클립 1개 · 120fps</div>
+      </div>
+      <div style="display:flex;flex-direction:column;align-items:flex-end;gap:2px">
+        <div class="num" style="font-size:20px;font-weight:700;color:#6B737B">0</div>
+        <div style="font-size:10px;color:#6B737B">스윙</div>
+      </div>
+      <svg width="8" height="14" viewBox="0 0 8 14" fill="none"><path d="M1.5 1.5L6 7l-4.5 5.5" stroke="#6B737B" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
     </div>
 
   </div>
