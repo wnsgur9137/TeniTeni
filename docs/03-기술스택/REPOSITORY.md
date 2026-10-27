@@ -238,6 +238,27 @@ detect  ─ 변경 경로 판정 (ios / docs 플래그)
 
 준비 단계(mise·툴체인·Xcode 선택)는 `.github/actions/setup-ios`로 떼어 셋이 공유합니다. 체크아웃은 **거기에 넣을 수 없습니다** — 로컬 경로 액션은 저장소가 체크아웃된 뒤에야 해석되므로 호출하는 잡이 먼저 돌려야 합니다.
 
+### 실패하면 결과 번들을 남긴다
+
+테스트 잡이 `-resultBundlePath`로 `.xcresult`를 만들고, 실패 시 로그와 함께 올립니다.
+
+**로그만 남기면 앱이 죽은 것인지 런너가 타임아웃한 것인지 구분할 수 없습니다.** [#88](https://github.com/wnsgur9137/TeniTeni/issues/88)에서 UI 런너가 비정상 종료했는데 로그에 남은 것은 `Restarting after unexpected exit, crash, or test timeout` 한 줄뿐이었고, 러너가 사라져 **크래시 리포트를 영영 확보하지 못했습니다.** 그 결과 원인을 닫지 못한 채 재현 조건만 찾다 끝났습니다.
+
+`xcrun xcresulttool get test-results summary --path <번들>`로 읽습니다. `testFailures`·`topInsights`·`devicesAndConfigurations`가 들어 있습니다.
+
+| 번들 | 크기 (통과한 실행 실측) |
+|---|---|
+| `ios-Application` | 396K |
+| `ios-Data` | 292K |
+| `ios-Presentation` | 1.0M |
+| `ios-ui` | 420K |
+| `macos-TeniTool` | 1.3M |
+| `macos-TeniVision` | 984K |
+
+성공할 때는 올리지 않습니다 — 통과한 실행에서 볼 것이 없습니다.
+
+> ⚠️ **크래시 리포트가 실제로 번들에 담기는지는 확인하지 못했습니다.** 통과한 실행에는 담길 크래시가 없고, #88의 비정상 종료는 재현되지 않았습니다. 번들이 만들어지고 읽힌다는 것까지가 확인된 범위입니다.
+
 ### 로컬은 한 줄 그대로다
 
 `scripts/verify-ios.sh`의 `--phase` 기본값은 `all`입니다. **사람이 쓰는 방식은 달라지지 않습니다** — 쪼갠 것을 사람이 조립하게 만들면 "로컬에서는 통과했다"의 의미가 흐려집니다.
