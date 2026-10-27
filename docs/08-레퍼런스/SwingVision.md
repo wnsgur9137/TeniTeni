@@ -4,9 +4,9 @@ aliases: ["SwingVision"]
 tags:
   - 문서유형/레퍼런스
   - 영역/제품
-researched: 2026-09-11
+researched: 2026-10-27
 created: 2026-09-10
-updated: 2026-09-11
+updated: 2026-10-27
 status: active
 ---
 
@@ -43,6 +43,40 @@ status: active
 
 스토어 페이지와 리뷰로 얻은 것입니다. **촬영 중 화면이 실제로 어떻게 생겼는지는 확인하지 못했습니다.** 시각적 모방을 하지 않으므로 그 이상 파지 않았습니다.
 
+## 2026-10-27 — 세션 보관함
+
+이슈 [#116](https://github.com/wnsgur9137/TeniTeni/issues/116) 착수 전 조사. **과거 세션 목록으로 범위를 좁혔습니다.** 경쟁 앱 네 개와 주변 앱을 함께 봤으므로 이 절에 모았습니다.
+
+### 사용자 불만 — "찾기 어렵다"가 아니라 "사라졌다"다
+
+찾으려던 것: 목록이 길어졌을 때의 탐색·정리 불만. **그것은 나오지 않았습니다.** 대신 전혀 다른 축이 반복됩니다.
+
+| 앱 | 불만 |
+|---|---|
+| TennisCut | 촬영이 **크래시하면 녹화가 통째로 사라진다** — 기기 안에 백업이 없다. 개발사 답변: 촬영 중 갤러리에도 저장하고 다음 실행에서 중단된 것을 복구한다 |
+| SwingVision | 업로드 중 크래시로 **데이터와 영상이 손상**됐다 |
+| SwingVision (릴리스 노트) | **녹화 전에 저장공간 경고**를 띄우도록 바꿨다 — "데이터 손실을 막기 위해" |
+| Hudl Technique | 서비스 종료 시 이관하지 않은 영상이 **삭제**됐다 ([HudlTechnique](HudlTechnique.md)) |
+| Dartfish | 기본 요금제의 보관 항목 상한 250개 |
+
+**보관함의 첫 일은 탐색이 아니라 "찍은 것이 살아 있다는 증거"입니다.** 사용자가 두려워하는 것은 목록이 길어지는 것이 아니라 비는 것입니다.
+
+이것이 [#116](https://github.com/wnsgur9137/TeniTeni/issues/116)의 범위 판단을 뒷받침합니다 — 유형 필터·썸네일을 미루고 **빈 상태와 읽기 실패를 구분해 보여주는 것**을 먼저 둡니다. 조용히 빈 목록을 띄우면 그것이 바로 "사라졌다"로 읽힙니다.
+
+SwingVision이 녹화 **전에** 저장공간을 경고하도록 바꾼 것도 같은 방향입니다. [IA-FLOW 10.6](../06-디자인/IA-FLOW.md)의 "저장공간 부족 — 촬영 시작 전"이 독립적으로 확인됐습니다.
+
+### 기능 범위 — 클립 정리는 있지만 "유형별"은 없다
+
+Tennis Coach Plus는 클립 이름 변경·자르기·분할·삭제를 제공하고, **많은 클립은 컴퓨터로 옮겨 관리하라**고 안내합니다. 즉 앱 안에서 대량 관리를 풀지 않았습니다.
+
+우리가 IA-FLOW 10.2에 적은 "세션 목록(유형 필터)"은 **1-D 분류가 생긴 뒤**에야 의미가 있습니다. 그전에는 필터할 축이 없으므로 미루는 것이 맞습니다.
+
+### 한계
+
+**스토어 리뷰·릴리스 노트·써드파티 기사로 얻은 것입니다.** 어느 앱의 보관함 화면도 실제로 보지 못했고, 시각적 모방을 하지 않으므로 그 이상 파지 않았습니다.
+
+**"탐색 불만이 없다"를 "탐색이 문제가 아니다"로 읽으면 안 됩니다.** 검색 두 번과 확장 검색 한 번으로 나오지 않았을 뿐이고, 스토어 리뷰는 심한 불만에 치우칩니다.
+
 ## 남은 조사 항목
 
 - **지표 정의** — 무엇을 측정하고 어떻게 이름 붙이는가
@@ -54,6 +88,9 @@ status: active
 - [App Store 리뷰](https://apps.apple.com/us/app/swingvision-tennis-pickleball/id989461317)
 - [Tennisnerd 리뷰·인터뷰](https://www.tennisnerd.net/tennis-tools/swingvision-review-and-interview/25702)
 - [Tennis.com 기사](https://www.tennis.com/news/articles/swingvision-delivers-pro-level-insights-for-recreational-players)
+- [TennisCut (Google Play)](https://play.google.com/store/apps/details?id=com.tenniscut.mobile&hl=en_US)
+- [Tennis Coach Plus (App Store)](https://apps.apple.com/us/app/-/id432272928)
+- [Hudl Technique 지원 페이지](https://www.hudl.com/support/technique)
 
 ## 관련 문서
 
