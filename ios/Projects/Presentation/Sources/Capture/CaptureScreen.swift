@@ -32,7 +32,7 @@ public struct CaptureScreen: View {
             Token.Background.base.ignoresSafeArea()
 
             if hasPreview {
-                CameraPreview(session: controller.session).ignoresSafeArea()
+                CameraPreview(previewLayer: controller.previewLayer).ignoresSafeArea()
             } else {
                 CapturePlaceholder(status: controller.status)
             }
@@ -71,7 +71,11 @@ public struct CaptureScreen: View {
         }
         .onChange(of: scenePhase) { _, phase in
             switch phase {
-            case .active: Task { await controller.resume() }
+            // `Task { await controller.resume() }`를 여기서 만들지 않는다.
+            // `scenePhase`는 `inactive → active → background`를 한 틱에
+            // 몰아 주는데, 그러면 비동기 재개가 **동기 중단 뒤에** 깨어나
+            // 백그라운드에서 카메라가 돈다 — #82.
+            case .active: controller.enterForeground()
             case .inactive, .background: controller.suspend()
             @unknown default: break
             }
