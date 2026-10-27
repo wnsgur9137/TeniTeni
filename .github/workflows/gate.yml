@@ -148,12 +148,19 @@ jobs:
       - uses: ./.github/actions/setup-ios
       - name: 게이트 실행 (빌드 + 단위 테스트)
         run: mise exec -- ./scripts/verify-ios.sh --phase=ios
-      - name: 빌드 로그 업로드
+      # 로그만 남기면 **앱이 죽은 것인지 런너가 타임아웃한 것인지
+      # 구분할 수 없다.** #88에서 UI 런너가 비정상 종료했는데 로그에
+      # 남은 것은 "Restarting after unexpected exit, crash, or test
+      # timeout" 한 줄뿐이었고, 러너가 사라져 크래시 리포트를 영영
+      # 확보하지 못했다. `.xcresult`에는 크래시 로그와 진단 파일이 있다.
+      - name: 빌드 로그·결과 번들 업로드
         if: failure()
         uses: actions/upload-artifact@v4
         with:
           name: build-log-ios
-          path: /tmp/teniteni-*.log
+          path: |
+            /tmp/teniteni-*.log
+            /tmp/teniteni-result-*.xcresult
           retention-days: 7
 
   ios-ui:
@@ -168,12 +175,19 @@ jobs:
       - uses: ./.github/actions/setup-ios
       - name: 게이트 실행 (UI 테스트)
         run: mise exec -- ./scripts/verify-ios.sh --phase=ui
-      - name: 빌드 로그 업로드
+      # 로그만 남기면 **앱이 죽은 것인지 런너가 타임아웃한 것인지
+      # 구분할 수 없다.** #88에서 UI 런너가 비정상 종료했는데 로그에
+      # 남은 것은 "Restarting after unexpected exit, crash, or test
+      # timeout" 한 줄뿐이었고, 러너가 사라져 크래시 리포트를 영영
+      # 확보하지 못했다. `.xcresult`에는 크래시 로그와 진단 파일이 있다.
+      - name: 빌드 로그·결과 번들 업로드
         if: failure()
         uses: actions/upload-artifact@v4
         with:
           name: build-log-ui
-          path: /tmp/teniteni-*.log
+          path: |
+            /tmp/teniteni-*.log
+            /tmp/teniteni-result-*.xcresult
           retention-days: 7
 
   macos:
@@ -188,12 +202,19 @@ jobs:
       - uses: ./.github/actions/setup-ios
       - name: 게이트 실행 (macOS)
         run: mise exec -- ./scripts/verify-ios.sh --phase=macos
-      - name: 빌드 로그 업로드
+      # 로그만 남기면 **앱이 죽은 것인지 런너가 타임아웃한 것인지
+      # 구분할 수 없다.** #88에서 UI 런너가 비정상 종료했는데 로그에
+      # 남은 것은 "Restarting after unexpected exit, crash, or test
+      # timeout" 한 줄뿐이었고, 러너가 사라져 크래시 리포트를 영영
+      # 확보하지 못했다. `.xcresult`에는 크래시 로그와 진단 파일이 있다.
+      - name: 빌드 로그·결과 번들 업로드
         if: failure()
         uses: actions/upload-artifact@v4
         with:
           name: build-log-macos
-          path: /tmp/teniteni-*.log
+          path: |
+            /tmp/teniteni-*.log
+            /tmp/teniteni-result-*.xcresult
           retention-days: 7
 
   # ★ 브랜치 보호의 required status check로 지정할 잡.
