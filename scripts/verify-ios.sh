@@ -10,6 +10,41 @@ step() { printf '\n\033[1m▸ %s\033[0m\n' "$1"; }
 fail() { printf '\033[31m✗ %s\033[0m\n' "$1" >&2; exit 1; }
 ok()   { printf '\033[32m✓ %s\033[0m\n' "$1"; }
 
+# 검증 단계. 잡 하나가 전부를 직렬로 돌면 타임아웃에 반복해 닿는다 —
+# 실측 20.7분·20.8분에 상한이 30분이었고 한 번은 30분 30초에 취소됐다
+# (이슈 #113). 단계를 쪼개면 CI가 병렬로 돌릴 수 있다.
+#
+# ⚠️ 기본값은 `all`이다. **사람이 쓰는 방식은 달라지지 않는다** — 로컬에서
+# 한 줄로 전부 도는 것이 이 스크립트의 원래 용도이고, 쪼갠 것을 사람이
+# 조립하게 만들면 "로컬에서는 통과했다"의 의미가 흐려진다.
+#
+# | 단계 | 내용 | 시뮬레이터 |
+# |---|---|---|
+# | `ios`   | 앱 빌드 + iOS 단위 테스트 | 필요 |
+# | `ui`    | UI 테스트 (앱을 test 액션이 빌드한다) | 필요 |
+# | `macos` | macOS 대상 스킴 | 불필요 |
+PHASE=all
+for arg in "$@"; do
+  case "$arg" in
+    --phase=*) PHASE="${arg#--phase=}" ;;
+    -h|--help)
+      printf '사용: %s [--phase=all|ios|ui|macos]\n' "$0"
+      printf '  all   (기본) 전부 — 로컬 게이트\n'
+      printf '  ios   앱 빌드 + iOS 단위 테스트\n'
+      printf '  ui    iOS UI 테스트\n'
+      printf '  macos macOS 대상 스킴\n'
+      exit 0 ;;
+    *) fail "모르는 인자: $arg (--help 참고)" ;;
+  esac
+done
+case "$PHASE" in
+  all|ios|ui|macos) ;;
+  *) fail "--phase는 all|ios|ui|macos 중 하나다 (받은 값: $PHASE)" ;;
+esac
+
+# 이 단계가 해당 작업을 하는가.
+wants() { [ "$PHASE" = all ] || [ "$PHASE" = "$1" ]; }
+
 [ -d "$IOS_DIR" ] || fail "ios/ 디렉터리가 없습니다"
 
 # 로컬과 CI의 툴체인이 다르면 같은 코드가 한쪽에서만 깨진다. 실제로 1-A에서
@@ -103,6 +138,10 @@ print((exact or candidates or [s for s in schemes if s not in skip] or schemes)[
 ok "컨테이너: ${CONTAINER_FLAG#* } / 스킴: $SCHEME"
 
 step "시뮬레이터 선택"
+# macOS 단계는 시뮬레이터를 쓰지 않는다. 고르기만 해도 `simctl`이 런타임을
+# 깨우느라 수십 초를 먹으므로 건너뛴다.
+DEST_ID=""
+if wants ios || wants ui; then
 DEST_ID="$(xcrun simctl list devices available -j \
   | python3 -c '
 import sys, json
@@ -119,21 +158,30 @@ for runtime, devices in d.items():
 print(best or "")' )"
 [ -n "$DEST_ID" ] || fail "iOS 26 iPhone 시뮬레이터를 찾을 수 없습니다"
 ok "시뮬레이터: $DEST_ID"
+else
+  printf "단계 %s — 시뮬레이터가 필요 없습니다\n" "$PHASE"
+fi
 
 step "멀티플랫폼 스킴 탐색"
 # macOS 대상을 선언한 프레임워크는 macOS로도 빌드해야 한다.
 # 0-C 오프라인 CLI가 같은 엔진을 쓰므로, iOS만 통과하면 그쪽이 뒤늦게 깨진다.
+#
+# 단계가 macos가 아니면 **빈 배열로 둔다.** 아래 루프가 자연히 돌지 않는다.
 MAC_SCHEMES=()
+if wants macos; then
 for manifest in Projects/*/Project.swift; do
   [ -f "$manifest" ] || continue
   # destinations 선언만 본다. 주석에 ".mac"이 있어도 오탐하지 않는다.
   grep -qE '^[[:space:]]*destinations:.*\.mac' "$manifest" || continue
   MAC_SCHEMES+=("$(basename "$(dirname "$manifest")")")
 done
+fi
 if [ ${#MAC_SCHEMES[@]} -gt 0 ]; then
   ok "macOS 대상: ${MAC_SCHEMES[*]}"
-else
+elif wants macos; then
   printf "macOS 대상 없음 — iOS만 검증합니다\n"
+else
+  printf "단계 %s — macOS 대상은 다른 단계가 본다\n" "$PHASE"
 fi
 
 LOGS=()
@@ -150,6 +198,7 @@ show_errors() {
   grep -E '(error|Error):' "$log" | grep -vE '^\s' | sed 's|.*/TeniTeni/||' | sort -u | head -20 | sed 's/^/    /'
 }
 
+if wants ios; then
 step "iOS 빌드 ($SCHEME)"
 IOS_LOG=/tmp/teniteni-build-ios.log
 # CLEAN_BUILD=1이면 clean을 먼저 넣어 전체 재컴파일한다 (경고 사각 제거)
@@ -164,18 +213,23 @@ xcodebuild $CONTAINER_FLAG -scheme "$SCHEME" \
 STATUS=${PIPESTATUS[0]}
 set -e
 [ "$STATUS" -eq 0 ] || { show_errors "$IOS_LOG"; fail "iOS 빌드 실패 — 전체 로그: $IOS_LOG"; }
+fi
 
 # ⚠️ 앱 스킴에는 테스트가 들어오지 않는다. Tuist는 모듈별 프로젝트의
 # 스킴에 그 모듈의 테스트를 넣는다. 앱만 빌드하면 iOS 테스트를 써도
 # 한 번도 실행되지 않은 채 "게이트 통과"가 찍힌다 — 규약 12.7이 경고하는
 # "돌지 않고 통과하는" 실패 양식이다.
+#
+# 단계가 ios가 아니면 **빈 배열로 둔다.** 아래 루프가 자연히 돌지 않는다.
 IOS_TEST_SCHEMES=()
+if wants ios; then
 for manifest in Projects/*/Project.swift; do
   grep -q 'product: \.unitTests' "$manifest" || continue
   # macOS 루프가 따로 도는 멀티플랫폼 모듈은 여기서 제외한다
   grep -qE 'destinations:.*\.mac' "$manifest" && continue
   IOS_TEST_SCHEMES+=("$(basename "$(dirname "$manifest")")")
 done
+fi
 
 for scheme in ${IOS_TEST_SCHEMES[@]+"${IOS_TEST_SCHEMES[@]}"}; do
   step "iOS 테스트 ($scheme)"
@@ -202,13 +256,19 @@ for scheme in ${IOS_TEST_SCHEMES[@]+"${IOS_TEST_SCHEMES[@]}"}; do
   ok "iOS 테스트 성공 ($scheme) — $SUMMARY"
   LOGS+=("$TEST_LOG")
 done
-LOGS+=("$IOS_LOG")
-ok "iOS 빌드 성공"
+if wants ios; then
+  LOGS+=("$IOS_LOG")
+  ok "iOS 빌드 성공"
+fi
 
 # UI 테스트는 앱 타깃에 붙는다 — 화면 전환과 방향 잠금은 모듈 테스트가
 # 닿지 않는 곳에서 일어난다 (이슈 #83). 위 루프는 Projects/*의 unitTests만
 # 모으므로 여기서 따로 돈다.
-if grep -q 'product: \.uiTests' Project.swift; then
+#
+# `ui` 단계는 앞의 평범한 빌드를 건너뛴다. `test` 액션이 앱과 러너를
+# 어차피 빌드하므로 두 번 빌드하면 쪼갠 이유가 사라진다. 그래서 이 단계의
+# 경고 집계는 **UI 테스트 로그에서** 나온다 — 거기에 앱 전체 빌드가 들어 있다.
+if wants ui && grep -q 'product: \.uiTests' Project.swift; then
   step "iOS UI 테스트 ($SCHEME)"
   UI_LOG=/tmp/teniteni-test-ios-ui.log
   set +e
@@ -283,6 +343,10 @@ fi
 # "warning:" 줄은 소스 품질과 무관하므로 파일:행:열 형태로 한정한다.
 WARN_PATTERN='^/.*:[0-9]+:[0-9]+: warning: '
 CONC_PATTERN='sendable|concurrency|actor-isolated|data race'
+# 로그가 하나도 없으면 집계가 "경고 0"을 찍는다. 그것은 **검증이 아니라
+# 아무것도 돌지 않았다는 뜻**이므로 구분해 끊는다 — 규약 12.7이 경고하는
+# "조용히 통과하는" 실패 양식이다.
+[ ${#LOGS[@]} -gt 0 ] || fail "이 단계($PHASE)가 로그를 하나도 남기지 않았습니다 — 아무것도 돌지 않았습니다"
 WARNINGS="$(grep -hE "$WARN_PATTERN" "${LOGS[@]}" || true)"
 WARN_COUNT=$(printf '%s' "$WARNINGS" | grep -c . || true)
 CONC_COUNT=$(printf '%s' "$WARNINGS" | grep -ciE "$CONC_PATTERN" || true)
@@ -292,4 +356,8 @@ if [ "$CONC_COUNT" -gt 0 ]; then
   printf '%s\n' "$WARNINGS" | grep -iE "$CONC_PATTERN" | head -10
 fi
 
-printf '\n\033[32m=== 게이트 통과 ===\033[0m\n'
+if [ "$PHASE" = all ]; then
+  printf '\n\033[32m=== 게이트 통과 ===\033[0m\n'
+else
+  printf '\n\033[32m=== 게이트 통과 (단계: %s) ===\033[0m\n' "$PHASE"
+fi
