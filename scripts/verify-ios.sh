@@ -55,7 +55,36 @@ wants() { [ "$PHASE" = all ] || [ "$PHASE" = "$1" ]; }
 # Xcode에서도 install·checkouts 치환·generate를 다 치르고 수 분 뒤에야
 # 끊긴다. checkouts 치환은 로컬 캐시 상태를 바꾸는 일이라 더 그렇다.
 step "툴체인"
-printf "  %s\n" "$(xcodebuild -version | tr '\n' ' ')"
+
+# ⚠️ `xcodebuild -version`을 **한 번만** 부른다. 그리고 그 실패를
+# `set -e`에 그대로 넘기지 않는다.
+#
+# 전에는 표시용과 판정용으로 두 번 불렀다. 두 번째가 러너에서 SIGABRT로
+# 죽으면(exit 134) 그것이 **명령 치환 대입**이라 `set -e`가 종료 코드만
+# 전파하고, 바로 아래의 사람이 읽을 메시지는 영원히 출력되지 않았다.
+# 게이트가 "Process completed with exit code 134" 한 줄만 남기고 끊겼다.
+#
+# 실측 2회: PR #112(2026-10-26) · PR #115(2026-10-27). 일회성이 아니다.
+# 잡을 셋으로 쪼갠 뒤에는 **한 실행에서 세 번 노출된다** — 아무 하나가
+# 걸려도 게이트가 막힌다. 근거: 이슈 #113
+#
+# 재시도는 실패를 숨기는 것이 아니다. 세 번 다 실패하면 사유와 함께
+# 끊는다 — 숨기는 것은 침묵하는 134 쪽이다.
+XCODE_RAW=""
+for attempt in 1 2 3; do
+  # `|| true`가 핵심이다. 없으면 치환 실패가 그대로 스크립트를 끊는다.
+  XCODE_RAW="$(xcodebuild -version 2>/dev/null || true)"
+  if [ -n "$XCODE_RAW" ]; then
+    break
+  fi
+  printf "  xcodebuild -version이 응답하지 않습니다 — 다시 시도 (%s/3)\n" "$attempt"
+  sleep 3
+done
+[ -n "$XCODE_RAW" ] || fail "xcodebuild를 찾을 수 없습니다 ($(xcode-select -p)).
+    Xcode가 설치돼 있는지, DEVELOPER_DIR이 올바른지 확인하세요.
+    세 번 시도했습니다 — 러너 쪽 일시 장애일 수 있습니다."
+
+printf "  %s\n" "$(printf '%s' "$XCODE_RAW" | tr '\n' ' ')"
 printf "  %s\n" "$(swift --version 2>&1 | head -1)"
 
 # ⚠️ 최소 버전을 여기서 끊는다. 낮은 Xcode에서는 외부 패키지 안쪽이
@@ -64,9 +93,10 @@ printf "  %s\n" "$(swift --version 2>&1 | head -1)"
 # 묶어 두면 "invalid redeclaration of 'IsolationCheck'"가 나온다.
 # 둘 다 우리 코드와 무관한데 우리 코드를 의심하게 만든다.
 MIN_XCODE="26.6"
-XCODE_VERSION="$(xcodebuild -version 2>/dev/null | head -1 | awk '{print $2}')"
-[ -n "$XCODE_VERSION" ] || fail "xcodebuild를 찾을 수 없습니다 ($(xcode-select -p)).
-    Xcode가 설치돼 있는지, DEVELOPER_DIR이 올바른지 확인하세요."
+# 위에서 받아 둔 출력을 쓴다. 다시 부르지 않는다.
+XCODE_VERSION="$(printf '%s\n' "$XCODE_RAW" | head -1 | awk '{print $2}')"
+[ -n "$XCODE_VERSION" ] || fail "xcodebuild -version의 출력에서 버전을 읽지 못했습니다.
+    받은 것: $XCODE_RAW"
 if [ "$(printf '%s\n%s\n' "$MIN_XCODE" "$XCODE_VERSION" | sort -V | head -1)" != "$MIN_XCODE" ]; then
   fail "Xcode $MIN_XCODE 이상이 필요합니다 (현재 $XCODE_VERSION, $(xcode-select -p)).
     DEVELOPER_DIR을 지정하거나 xcode-select로 바꾸세요."
