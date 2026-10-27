@@ -228,6 +228,26 @@ show_errors() {
   grep -E '(error|Error):' "$log" | grep -vE '^\s' | sed 's|.*/TeniTeni/||' | sort -u | head -20 | sed 's/^/    /'
 }
 
+# 테스트 결과 번들 경로를 돌려준다.
+#
+# ## 왜 필요한가
+#
+# 로그만 남기면 **앱이 죽은 것인지 런너가 타임아웃한 것인지 구분할 수
+# 없다.** 실제로 #88에서 UI 런너가 비정상 종료했는데 로그에 남은 것은
+# `Restarting after unexpected exit, crash, or test timeout` 한 줄뿐이었고,
+# 크래시 리포트를 확보하지 못해 원인을 못 닫았다. CI는 러너가 사라지므로
+# 그때 못 집으면 영영 못 집는다.
+#
+# `.xcresult`에는 크래시 로그·진단 파일·테스트별 활동이 들어 있다.
+#
+# ⚠️ `xcodebuild`는 경로가 **이미 있으면 거부한다.** 로컬에서 두 번 돌리면
+# 두 번째가 그 이유로 실패하므로 먼저 지운다.
+result_bundle() {
+  local path="/tmp/teniteni-result-$1.xcresult"
+  rm -rf "$path"
+  printf '%s' "$path"
+}
+
 if wants ios; then
 step "iOS 빌드 ($SCHEME)"
 IOS_LOG=/tmp/teniteni-build-ios.log
@@ -264,11 +284,13 @@ fi
 for scheme in ${IOS_TEST_SCHEMES[@]+"${IOS_TEST_SCHEMES[@]}"}; do
   step "iOS 테스트 ($scheme)"
   TEST_LOG="/tmp/teniteni-test-ios-$scheme.log"
+  TEST_BUNDLE="$(result_bundle "ios-$scheme")"
   set +e
   xcodebuild $CONTAINER_FLAG -scheme "$scheme" \
     -destination "id=$DEST_ID" \
     -configuration Debug \
     CODE_SIGNING_ALLOWED=NO \
+    -resultBundlePath "$TEST_BUNDLE" \
     test 2>&1 | tee "$TEST_LOG" | tail -30
   STATUS=${PIPESTATUS[0]}
   set -e
@@ -301,12 +323,17 @@ fi
 if wants ui && grep -q 'product: \.uiTests' Project.swift; then
   step "iOS UI 테스트 ($SCHEME)"
   UI_LOG=/tmp/teniteni-test-ios-ui.log
+  # ⚠️ **이것이 #88이 필요로 하는 번들이다.** UI 런너의 비정상 종료는
+  # 로그로는 "Restarting after unexpected exit, crash, or test timeout"
+  # 한 줄이고, 앱이 죽은 것인지 런너가 타임아웃한 것인지 구분할 수 없다.
+  UI_BUNDLE="$(result_bundle "ios-ui")"
   set +e
   xcodebuild $CONTAINER_FLAG -scheme "$SCHEME" \
     -destination "id=$DEST_ID" \
     -configuration Debug \
     CODE_SIGNING_ALLOWED=NO \
     -only-testing:TeniTeniUITests \
+    -resultBundlePath "$UI_BUNDLE" \
     test 2>&1 | tee "$UI_LOG" | tail -30
   STATUS=${PIPESTATUS[0]}
   set -e
@@ -333,10 +360,17 @@ for mac_scheme in ${MAC_SCHEMES[@]+"${MAC_SCHEMES[@]}"}; do
   set +e
   MAC_ACTION="$ACTION"
   [ "${CLEAN_BUILD:-0}" = "1" ] && MAC_ACTION="clean $ACTION"
+  # 테스트일 때만 번들을 남긴다. 빌드만 하는 스킴은 `.xcresult`에
+  # 로그 말고 들어갈 것이 없다.
+  MAC_BUNDLE_FLAG=""
+  if [ "$ACTION" = test ]; then
+    MAC_BUNDLE_FLAG="-resultBundlePath $(result_bundle "macos-$mac_scheme")"
+  fi
   xcodebuild $CONTAINER_FLAG -scheme "$mac_scheme" \
     -destination "platform=macOS,arch=$(uname -m)" \
     -configuration Debug \
     CODE_SIGNING_ALLOWED=NO \
+    $MAC_BUNDLE_FLAG \
     $MAC_ACTION 2>&1 | tee "$MAC_LOG" | tail -30
   STATUS=${PIPESTATUS[0]}
   set -e
