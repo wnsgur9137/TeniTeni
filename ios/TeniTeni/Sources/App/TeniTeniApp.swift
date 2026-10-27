@@ -1,5 +1,6 @@
 import Application
 import ComposableArchitecture
+import Presentation
 import SwiftUI
 import UIKit
 
@@ -12,14 +13,18 @@ struct TeniTeniApp: App {
     /// 제시된 화면의 방향은 컨테이너가 답하므로 창구가 필요하다.
     @UIApplicationDelegateAdaptor(AppDelegate.self) private var delegate
 
-    @MainActor
-    private static let store = Store(initialState: AppFeature.State()) {
-        AppFeature()
-    }
-
     /// 세션 저장소는 앱 수명 내내 하나다. 실패하면 사유를 들고 간다 —
     /// 던지면 앱이 안 뜨고 촬영조차 못 한다.
     private static let storage = SessionStorageFactory.make()
+
+    /// 촬영은 `storage`로 쓰고, 요약은 같은 저장소에서 **다시 읽는다.**
+    /// 저장소를 못 세운 경우에는 읽기가 사유를 들고 실패한다.
+    @MainActor
+    private static let store = Store(initialState: AppFeature.State()) {
+        AppFeature(
+            sessionRepository: storage.repository ?? UnavailableSessionRepository()
+        )
+    }
 
     var body: some Scene {
         WindowGroup {

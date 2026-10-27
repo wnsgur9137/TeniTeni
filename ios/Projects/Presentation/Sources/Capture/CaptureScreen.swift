@@ -44,10 +44,17 @@ public struct CaptureScreen: View {
                     subject: store.state.subject,
                     canStart: hasPreview,
                     onStart: { store.send(.startTapped) },
-                    onBack: { store.send(.closeTapped) }
+                    onBack: { store.send(.closeTapped(savedSessionID: nil)) }
                 )
             case .capturing:
-                CaptureView(controller: controller) { store.send(.closeTapped) }
+                CaptureView(controller: controller) {
+                    // 세션 저장은 비동기다. **기다린 뒤** 닫는다 — 정지
+                    // 직후 닫으면 저장은 되는데 id가 없어 요약을 못 본다.
+                    Task {
+                        let id = await controller.finishPendingSession()
+                        store.send(.closeTapped(savedSessionID: id))
+                    }
+                }
             }
         }
         .task {
