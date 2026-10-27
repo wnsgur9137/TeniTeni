@@ -63,15 +63,23 @@ public struct LibraryView: View {
         }
     }
 
-    private func header(count: Int) -> some View {
+    /// `count`가 `nil`이면 수를 적지 않는다.
+    ///
+    /// 빈 화면·실패 화면에서는 "세션 0개"가 **아래 문구와 겹친다** —
+    /// "아직 찍은 것이 없습니다" 위에 "세션 0개"를 또 쓸 이유가 없고,
+    /// 읽기 실패에서는 **거짓이다**(0개인지 모른다). 목업도 그 자리를
+    /// 비워 뒀다.
+    private func header(count: Int?) -> some View {
         VStack(alignment: .leading, spacing: 3) {
             Text("보관함")
                 .font(.system(size: 28, weight: .bold))
                 .foregroundStyle(Token.Text.primary)
-            Text("세션 \(count)개")
-                .font(.system(size: 13))
-                .monospacedDigit()
-                .foregroundStyle(Token.Text.tertiary)
+            if let count {
+                Text("세션 \(count)개")
+                    .font(.system(size: 13))
+                    .monospacedDigit()
+                    .foregroundStyle(Token.Text.tertiary)
+            }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.horizontal, 20)
@@ -123,7 +131,7 @@ public struct LibraryView: View {
     /// "없다"만 말하고 끝내면 사용자는 다음에 무엇을 할지 모른다.
     private var empty: some View {
         VStack(spacing: 0) {
-            header(count: 0)
+            header(count: nil)
             Spacer()
             VStack(spacing: 16) {
                 Image(systemName: "square.stack")
@@ -160,7 +168,7 @@ public struct LibraryView: View {
     /// **빈 목록으로 위장하지 않는다.** 사용자는 찍은 것이 사라졌다고 읽는다.
     private func failure(_ reason: String) -> some View {
         VStack(spacing: 0) {
-            header(count: 0)
+            header(count: nil)
             Spacer()
             VStack(spacing: 14) {
                 Image(systemName: "exclamationmark.triangle")
