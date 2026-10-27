@@ -62,7 +62,7 @@ public struct AppView: View {
         // 촬영 탭 루트는 홈(상황 선택)이다. '시작'을 누르면 촬영이
         // 탭 위로 덮인다 — `fullScreenCover`.
         case .capture: HomeView(store: store.scope(state: \.home, action: \.home))
-        case .library: LibraryPlaceholderView()
+        case .library: LibraryView(store: store.scope(state: \.library, action: \.library))
         case .progress: ProgressPlaceholderView()
         }
     }

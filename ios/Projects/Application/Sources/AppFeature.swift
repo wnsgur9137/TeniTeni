@@ -18,6 +18,9 @@ public struct AppFeature {
         public var tab: Tab
         public var onboarding: OnboardingFeature.State
         public var home: HomeFeature.State
+        /// 보관함은 탭 루트이므로 **항상 있다.** `@Presents`가 아니다 —
+        /// 띄우고 닫는 화면이 아니라 탭 하나다.
+        public var library: LibraryFeature.State
         /// `nil`이면 설정이 닫혀 있다. `@Presents`라야 `sheet(item:)`이
         /// 받는 `PresentationAction` 래핑이 생긴다.
         @Presents public var settings: SettingsFeature.State?
@@ -40,6 +43,7 @@ public struct AppFeature {
                 situation: preferences.lastSituation,
                 observable: preferences.lastObservable
             )
+            self.library = LibraryFeature.State()
             self.settings = nil
         }
     }
@@ -73,6 +77,7 @@ public struct AppFeature {
         case tabSelected(Tab)
         case onboarding(OnboardingFeature.Action)
         case home(HomeFeature.Action)
+        case library(LibraryFeature.Action)
         case settings(PresentationAction<SettingsFeature.Action>)
         case capture(PresentationAction<CaptureFeature.Action>)
         case summary(PresentationAction<SessionSummaryFeature.Action>)
@@ -99,6 +104,7 @@ public struct AppFeature {
     public var body: some ReducerOf<Self> {
         Scope(state: \.onboarding, action: \.onboarding) { OnboardingFeature() }
         Scope(state: \.home, action: \.home) { HomeFeature() }
+        Scope(state: \.library, action: \.library) { LibraryFeature(repository: sessionRepository) }
 
         Reduce { state, action in
             switch action {
@@ -112,7 +118,12 @@ public struct AppFeature {
 
             case .tabSelected(let tab):
                 state.tab = tab
-                return .none
+                // 보관함으로 **되돌아올** 때 다시 읽는다. 뷰의 `.task`는
+                // 처음 뜰 때만 돌고 탭을 오가도 다시 돌지 않으므로, 촬영하고
+                // 돌아오면 방금 세션이 없는 목록을 보게 된다 — 이 화면의
+                // 최악 실패다.
+                guard tab == .library else { return .none }
+                return .send(.library(.appeared))
 
             case .onboarding(.delegate(.completed(let hand))):
                 state.preferences.handedness = hand
@@ -158,6 +169,16 @@ public struct AppFeature {
                 state.summary = SessionSummaryFeature.State(sessionID: sessionID)
                 return .none
 
+            case .library(.delegate(.sessionTapped(let sessionID))):
+                // **같은 목적지로 보낸다.** 촬영 직후와 같은 Feature를 쓰고,
+                // 세션이 아니라 `id`를 넘긴다 — SPEC-0110 선택지 1.
+                state.summary = SessionSummaryFeature.State(sessionID: sessionID)
+                return .none
+
+            case .library(.delegate(.goToCapture)):
+                state.tab = .capture
+                return .none
+
             case .summary(.presented(.delegate(.closed))):
                 state.summary = nil
                 return .none
@@ -189,7 +210,7 @@ public struct AppFeature {
                 state.settings = nil
                 return .none
 
-            case .onboarding, .home, .settings, .capture, .summary:
+            case .onboarding, .home, .library, .settings, .capture, .summary:
                 return .none
             }
         }

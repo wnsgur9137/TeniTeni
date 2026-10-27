@@ -3,6 +3,7 @@ import ComposableArchitecture
 import Domain
 import Foundation
 import Presentation
+import Synchronization
 import Testing
 import UIKit
 @testable import Application
@@ -22,6 +23,26 @@ private final class InMemoryRepository: UserPreferencesRepository, @unchecked Se
     func save(_ preferences: UserPreferences) {
         lock.lock(); defer { lock.unlock() }
         stored = preferences
+    }
+}
+
+/// 세션 저장소 스텁. 보관함이 몇 번 읽었는지까지 센다 — 탭 전이가
+/// 조회를 일으키는지는 호출 횟수로만 확인된다.
+private final class StubSessionRepository: SessionRepository, Sendable {
+    private let stored: [Session]
+    private let loadAlls = Mutex(0)
+
+    init(_ stored: [Session]) { self.stored = stored }
+
+    var loadAllCount: Int { loadAlls.withLock { $0 } }
+
+    func save(_ session: Session) async throws {}
+    func load(id: UUID) async throws -> Session? { stored.first { $0.id == id } }
+    func delete(id: UUID) async throws {}
+
+    func loadAll() async throws -> [Session] {
+        loadAlls.withLock { $0 += 1 }
+        return stored
     }
 }
 
@@ -426,6 +447,65 @@ struct CaptureFlowTests {
             )
         }
         #expect(store.state.capture?.phase == .framing, "배치부터 다시 본다")
+    }
+
+    // MARK: 보관함
+
+    /// 뷰의 `.task`는 처음 뜰 때만 돈다. 촬영하고 돌아왔을 때 방금 세션이
+    /// 없는 목록을 보는 것이 이 화면의 최악 실패이므로 탭 선택에서 한 번 더
+    /// 보낸다.
+    @Test("보관함 탭으로 가면 목록을 다시 읽는다")
+    func 보관함_재조회() async {
+        let stored = [
+            Session(startedAt: Date(timeIntervalSince1970: 1_700_000_000), situation: .rally, fps: 120)
+        ]
+        let repo = InMemoryRepository()
+        let sessions = StubSessionRepository(stored)
+        let store = TestStore(initialState: AppFeature.State()) {
+            AppFeature(repository: repo, sessionRepository: sessions)
+        }
+
+        await store.send(.tabSelected(.library)) { $0.tab = .library }
+        await store.receive(.library(.appeared))
+        await store.receive(.library(.loaded(stored))) {
+            $0.library.phase = .loaded(stored)
+        }
+        #expect(sessions.loadAllCount == 1)
+    }
+
+    @Test("다른 탭으로 가면 보관함을 읽지 않는다")
+    func 다른_탭은_조회하지_않는다() async {
+        let sessions = StubSessionRepository([])
+        let store = TestStore(initialState: AppFeature.State()) {
+            AppFeature(repository: InMemoryRepository(), sessionRepository: sessions)
+        }
+
+        await store.send(.tabSelected(.progress)) { $0.tab = .progress }
+        #expect(sessions.loadAllCount == 0)
+    }
+
+    /// 보관함과 촬영 직후는 **같은 목적지**다 — IA-FLOW 10.3.
+    @Test("보관함에서 세션을 누르면 요약이 열린다")
+    func 보관함에서_요약() async {
+        let id = UUID()
+        let store = TestStore(initialState: AppFeature.State(tab: .library)) {
+            AppFeature(repository: InMemoryRepository(), sessionRepository: StubSessionRepository([]))
+        }
+
+        await store.send(.library(.sessionTapped(id)))
+        await store.receive(.library(.delegate(.sessionTapped(id)))) {
+            $0.summary = SessionSummaryFeature.State(sessionID: id)
+        }
+    }
+
+    @Test("빈 보관함의 촬영하러 가기는 촬영 탭으로 보낸다")
+    func 빈_보관함에서_촬영() async {
+        let store = TestStore(initialState: AppFeature.State(tab: .library)) {
+            AppFeature(repository: InMemoryRepository(), sessionRepository: StubSessionRepository([]))
+        }
+
+        await store.send(.library(.captureTapped))
+        await store.receive(.library(.delegate(.goToCapture))) { $0.tab = .capture }
     }
 
     @Test("촬영 시작을 누르면 가이드에서 촬영으로 넘어간다")
