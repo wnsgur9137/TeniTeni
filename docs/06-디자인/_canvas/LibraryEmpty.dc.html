@@ -1,0 +1,116 @@
+<!doctype html>
+<html>
+<head><meta charset="utf-8"><script src="./support.js"></script></head>
+<body>
+<x-dc>
+<helmet><style>
+body{margin:0;font-family:-apple-system,"SF Pro Text",system-ui,sans-serif}
+a{color:#C6F24E}a:hover{color:#D9F87E}
+.num{font-variant-numeric:tabular-nums}
+</style></helmet>
+<!--
+  보관함 — 빈 상태와 읽기 실패 (SPEC-0116).
+
+  두 상태를 한 아트보드에 위아래로 둔다. **같은 자리에 들어가고 하나만
+  뜨므로** 나란히 봐야 "구분이 되는가"를 판단할 수 있다.
+
+  ⚠️ 읽기 실패를 **빈 상태로 위장하지 않는다.** 레퍼런스 조사에서 반복된
+  불만은 "찾기 어렵다"가 아니라 "사라졌다"였다(SwingVision 레퍼런스
+  2026-10-27절). 조용히 빈 목록을 띄우면 그것이 바로 "사라졌다"로 읽힌다.
+
+  빈 상태는 **촬영 탭으로 보낸다.** "없다"만 말하고 끝내면 사용자는 다음에
+  무엇을 할지 모른다.
+-->
+<div style="width:390px;height:1240px;background:#0B0D0F;color:#F2F4F6;display:flex;flex-direction:column;gap:0">
+
+  <!-- ① 아직 찍은 것이 없다 -->
+  <div style="height:620px;display:flex;flex-direction:column;border-bottom:1px dashed #1F2429">
+    <div style="padding:24px 20px 14px">
+      <div style="font-size:28px;font-weight:700">보관함</div>
+    </div>
+    <div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;padding:0 32px">
+      <svg width="52" height="52" viewBox="0 0 52 52" fill="none">
+        <rect x="7" y="9" width="17" height="17" rx="3.5" stroke="#1F2429" stroke-width="2"/>
+        <rect x="28" y="9" width="17" height="17" rx="3.5" stroke="#1F2429" stroke-width="2"/>
+        <rect x="7" y="30" width="17" height="13" rx="3.5" stroke="#1F2429" stroke-width="2"/>
+        <rect x="28" y="30" width="17" height="13" rx="3.5" stroke="#1F2429" stroke-width="2"/>
+      </svg>
+      <div style="font-size:20px;font-weight:700;text-align:center">아직 찍은 것이<br>없습니다</div>
+      <div style="font-size:14px;color:#9BA3AB;text-align:center;line-height:1.5">코트에서 한 번 찍으면<br>여기에 쌓입니다.</div>
+      <div style="margin-top:6px;font-size:16px;font-weight:600;color:#0B0D0F;background:#C6F24E;border-radius:10px;padding:14px 28px">촬영하러 가기</div>
+    </div>
+    <div style="height:72px;border-top:1px solid #16191D;display:flex;align-items:center;justify-content:space-around;padding-bottom:8px">
+      <div style="display:flex;flex-direction:column;align-items:center;gap:4px">
+        <svg width="22" height="22" viewBox="0 0 22 22" fill="none">
+          <rect x="3" y="6" width="16" height="11" rx="2.5" stroke="#6B737B" stroke-width="1.6"/>
+          <circle cx="11" cy="11.5" r="3" stroke="#6B737B" stroke-width="1.6"/>
+        </svg>
+        <span style="font-size:10px;color:#6B737B">촬영</span>
+      </div>
+      <div style="display:flex;flex-direction:column;align-items:center;gap:4px">
+        <svg width="22" height="22" viewBox="0 0 22 22" fill="none">
+          <rect x="3" y="4" width="7" height="7" rx="1.6" stroke="#C6F24E" stroke-width="1.6"/>
+          <rect x="12" y="4" width="7" height="7" rx="1.6" stroke="#C6F24E" stroke-width="1.6"/>
+          <rect x="3" y="13" width="7" height="5" rx="1.6" stroke="#C6F24E" stroke-width="1.6"/>
+          <rect x="12" y="13" width="7" height="5" rx="1.6" stroke="#C6F24E" stroke-width="1.6"/>
+        </svg>
+        <span style="font-size:10px;color:#C6F24E;font-weight:600">보관함</span>
+      </div>
+      <div style="display:flex;flex-direction:column;align-items:center;gap:4px">
+        <svg width="22" height="22" viewBox="0 0 22 22" fill="none">
+          <path d="M3 16l4.5-5 3.5 3 4-6 4 5" stroke="#6B737B" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+        <span style="font-size:10px;color:#6B737B">진척도</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ② 읽지 못했다 — "없다"와 다르게 말한다 -->
+  <div style="height:620px;display:flex;flex-direction:column">
+    <div style="padding:24px 20px 14px">
+      <div style="font-size:28px;font-weight:700">보관함</div>
+    </div>
+    <div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;padding:0 32px">
+      <svg width="46" height="46" viewBox="0 0 46 46" fill="none">
+        <path d="M23 7l16 29H7L23 7z" stroke="#FF8A3D" stroke-width="2.2" stroke-linejoin="round"/>
+        <path d="M23 18v8" stroke="#FF8A3D" stroke-width="2.2" stroke-linecap="round"/>
+        <circle cx="23" cy="30.5" r="1.4" fill="#FF8A3D"/>
+      </svg>
+      <div style="font-size:18px;font-weight:700;text-align:center;line-height:1.4">기록을 읽지 못했습니다</div>
+      <div style="font-size:14px;color:#9BA3AB;text-align:center;line-height:1.5">디스크를 읽을 수 없습니다</div>
+      <!-- 사유를 그대로 보여준다. 숨기면 "사라졌다"와 구분되지 않는다. -->
+      <div style="font-size:12px;color:#6B737B;text-align:center;line-height:1.5;margin-top:-6px">찍은 영상이 지워진 것은 아닙니다.</div>
+      <div style="margin-top:6px;display:flex;gap:10px">
+        <div style="font-size:16px;font-weight:600;color:#0B0D0F;background:#C6F24E;border-radius:10px;padding:13px 26px">다시 시도</div>
+      </div>
+    </div>
+    <div style="height:72px;border-top:1px solid #16191D;display:flex;align-items:center;justify-content:space-around;padding-bottom:8px">
+      <div style="display:flex;flex-direction:column;align-items:center;gap:4px">
+        <svg width="22" height="22" viewBox="0 0 22 22" fill="none">
+          <rect x="3" y="6" width="16" height="11" rx="2.5" stroke="#6B737B" stroke-width="1.6"/>
+          <circle cx="11" cy="11.5" r="3" stroke="#6B737B" stroke-width="1.6"/>
+        </svg>
+        <span style="font-size:10px;color:#6B737B">촬영</span>
+      </div>
+      <div style="display:flex;flex-direction:column;align-items:center;gap:4px">
+        <svg width="22" height="22" viewBox="0 0 22 22" fill="none">
+          <rect x="3" y="4" width="7" height="7" rx="1.6" stroke="#C6F24E" stroke-width="1.6"/>
+          <rect x="12" y="4" width="7" height="7" rx="1.6" stroke="#C6F24E" stroke-width="1.6"/>
+          <rect x="3" y="13" width="7" height="5" rx="1.6" stroke="#C6F24E" stroke-width="1.6"/>
+          <rect x="12" y="13" width="7" height="5" rx="1.6" stroke="#C6F24E" stroke-width="1.6"/>
+        </svg>
+        <span style="font-size:10px;color:#C6F24E;font-weight:600">보관함</span>
+      </div>
+      <div style="display:flex;flex-direction:column;align-items:center;gap:4px">
+        <svg width="22" height="22" viewBox="0 0 22 22" fill="none">
+          <path d="M3 16l4.5-5 3.5 3 4-6 4 5" stroke="#6B737B" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+        <span style="font-size:10px;color:#6B737B">진척도</span>
+      </div>
+    </div>
+  </div>
+
+</div>
+</x-dc>
+</body>
+</html>
