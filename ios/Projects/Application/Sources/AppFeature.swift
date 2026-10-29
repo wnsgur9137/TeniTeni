@@ -29,6 +29,9 @@ public struct AppFeature {
         /// `nil`이면 요약이 닫혀 있다. 촬영이 **저장된 세션을 들고** 끝날
         /// 때만 생긴다 — 보여줄 것이 없는데 열지 않는다.
         @Presents public var summary: SessionSummaryFeature.State?
+        /// `nil`이면 리플레이가 닫혀 있다. 요약에서 스윙을 누를 때만 생긴다.
+        /// **요약 위에 올라간다** — 닫으면 요약으로 돌아온다.
+        @Presents public var replay: ReplayFeature.State?
 
         public var hasCompletedOnboarding: Bool { preferences.hasCompletedOnboarding }
 
@@ -81,6 +84,7 @@ public struct AppFeature {
         case settings(PresentationAction<SettingsFeature.Action>)
         case capture(PresentationAction<CaptureFeature.Action>)
         case summary(PresentationAction<SessionSummaryFeature.Action>)
+        case replay(PresentationAction<ReplayFeature.Action>)
     }
 
     private let repository: any UserPreferencesRepository
@@ -196,6 +200,16 @@ public struct AppFeature {
                 )
                 return .none
 
+            case .summary(.presented(.delegate(.openReplay(let sessionID, let swingID)))):
+                // **요약을 닫지 않는다.** 리플레이를 닫으면 요약으로 돌아와야
+                // 하고, 거기서 다른 스윙을 고를 수 있어야 한다.
+                state.replay = ReplayFeature.State(sessionID: sessionID, swingID: swingID)
+                return .none
+
+            case .replay(.presented(.delegate(.closed))):
+                state.replay = nil
+                return .none
+
             case .settings(.presented(.delegate(.handednessChanged(let hand)))):
                 state.preferences.handedness = hand
                 repository.save(state.preferences)
@@ -210,12 +224,13 @@ public struct AppFeature {
                 state.settings = nil
                 return .none
 
-            case .onboarding, .home, .library, .settings, .capture, .summary:
+            case .onboarding, .home, .library, .settings, .capture, .summary, .replay:
                 return .none
             }
         }
         .ifLet(\.$settings, action: \.settings) { SettingsFeature() }
         .ifLet(\.$capture, action: \.capture) { CaptureFeature() }
         .ifLet(\.$summary, action: \.summary) { SessionSummaryFeature(repository: sessionRepository) }
+        .ifLet(\.$replay, action: \.replay) { ReplayFeature(repository: sessionRepository) }
     }
 }
