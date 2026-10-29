@@ -1,0 +1,94 @@
+<!doctype html>
+<html>
+<head><meta charset="utf-8"><script src="./support.js"></script></head>
+<body>
+<x-dc>
+<helmet><style>
+body{margin:0;font-family:-apple-system,"SF Pro Text",system-ui,sans-serif}
+a{color:#C6F24E}a:hover{color:#D9F87E}
+.num{font-variant-numeric:tabular-nums}
+</style></helmet>
+<!-- 영상을 탭했을 때. SPEC-0123 선택지 8.
+     같은 AVPlayer를 쓴다 — 아이템을 갈지 않으므로 위치·배속이 유지된다.
+     사람 전신이 약 156pt로 세로의 1.8배다. #121 오버레이가 읽히는 자리다.
+     컨트롤은 영상 위에 scrim으로 겹친다. -->
+<div style="width:844px;height:390px;background:#000;position:relative;color:#F2F4F6">
+
+  <div style="position:absolute;inset:0;background:linear-gradient(115deg,#16281c 0%,#12211a 45%,#0d1512 100%)"></div>
+
+  <!-- 사람 전신 ≈ 156pt -->
+  <div style="position:absolute;left:386px;top:112px">
+    <svg width="86" height="156" viewBox="0 0 86 156" fill="none">
+      <g stroke="rgba(242,244,246,0.38)" stroke-width="4.5" stroke-linecap="round">
+        <line x1="43" y1="36" x2="43" y2="78"/>
+        <line x1="43" y1="42" x2="20" y2="58"/>
+        <line x1="43" y1="42" x2="68" y2="32"/>
+        <line x1="43" y1="78" x2="29" y2="114"/>
+        <line x1="43" y1="78" x2="59" y2="114"/>
+        <line x1="29" y1="114" x2="25" y2="146"/>
+        <line x1="59" y1="114" x2="64" y2="146"/>
+      </g>
+      <circle cx="43" cy="23" r="11" fill="none" stroke="rgba(242,244,246,0.38)" stroke-width="4.5"/>
+    </svg>
+  </div>
+
+  <!-- 상단 — 돌아가기와 번호 -->
+  <div style="position:absolute;left:0;right:0;top:0;padding:14px 22px;display:flex;align-items:center;gap:12px;background:linear-gradient(180deg,rgba(11,13,15,0.72) 0%,rgba(11,13,15,0) 100%)">
+    <svg width="22" height="22" viewBox="0 0 22 22" fill="none">
+      <path d="M3 8V3h5M19 14v5h-5M14 3h5v5M8 19H3v-5" stroke="#F2F4F6" stroke-width="1.8" stroke-linecap="round"/>
+    </svg>
+    <div class="num" style="flex:1;font-size:15px;font-weight:600">스윙 12 <span style="color:#9BA3AB;font-weight:400">/ 34</span></div>
+    <div class="num" style="font-size:12px;color:#9BA3AB">탭하면 세로로</div>
+  </div>
+
+  <!-- 하단 컨트롤 — 한 줄에 전부 -->
+  <div style="position:absolute;left:0;right:0;bottom:0;padding:16px 22px 18px;background:linear-gradient(0deg,rgba(11,13,15,0.86) 0%,rgba(11,13,15,0) 100%);display:flex;flex-direction:column;gap:11px">
+
+    <div style="position:relative;height:6px;background:rgba(242,244,246,0.18);border-radius:999px">
+      <div style="position:absolute;left:0;top:0;height:6px;width:34%;background:#9BA3AB;border-radius:999px"></div>
+      <div style="position:absolute;left:34%;top:-10px;width:2px;height:26px;background:#C6F24E;margin-left:-1px"></div>
+      <div style="position:absolute;left:34%;top:-5px;width:16px;height:16px;border-radius:999px;background:#C6F24E;margin-left:-8px;border:3px solid rgba(11,13,15,0.86)"></div>
+    </div>
+
+    <div style="display:flex;align-items:center;gap:10px">
+      <div class="num" style="font-size:11px;color:#9BA3AB;width:104px">0.62 <span style="color:#6B737B">/ 1.80</span> · 임팩트</div>
+
+      <div style="flex:1;display:flex;align-items:center;justify-content:center;gap:16px">
+        <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+          <path d="M12 4L7 10l5 6" stroke="#F2F4F6" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+          <path d="M5 4v12" stroke="#F2F4F6" stroke-width="1.8" stroke-linecap="round"/>
+        </svg>
+        <div style="width:42px;height:42px;border-radius:999px;background:#C6F24E;display:flex;align-items:center;justify-content:center">
+          <svg width="15" height="15" viewBox="0 0 15 15" fill="none">
+            <rect x="2.6" y="2.2" width="3.2" height="10.6" rx="1" fill="#0B0D0F"/>
+            <rect x="9" y="2.2" width="3.2" height="10.6" rx="1" fill="#0B0D0F"/>
+          </svg>
+        </div>
+        <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+          <path d="M8 4l5 6-5 6" stroke="#F2F4F6" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+          <path d="M15 4v12" stroke="#F2F4F6" stroke-width="1.8" stroke-linecap="round"/>
+        </svg>
+      </div>
+
+      <div style="display:flex;gap:5px">
+        <div class="num" style="font-size:11px;font-weight:600;padding:6px 8px;border-radius:7px;background:rgba(242,244,246,0.12);color:#9BA3AB">0.125×</div>
+        <div class="num" style="font-size:11px;font-weight:700;padding:6px 8px;border-radius:7px;background:#C6F24E;color:#0B0D0F">0.25×</div>
+        <div class="num" style="font-size:11px;font-weight:600;padding:6px 8px;border-radius:7px;background:rgba(242,244,246,0.12);color:#9BA3AB">0.5×</div>
+        <div class="num" style="font-size:11px;font-weight:600;padding:6px 8px;border-radius:7px;background:rgba(242,244,246,0.12);color:#9BA3AB">1×</div>
+      </div>
+
+      <div style="display:flex;align-items:center;gap:12px;padding-left:4px">
+        <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+          <path d="M11 3L6 9l5 6" stroke="#9BA3AB" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+        <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+          <path d="M7 3l5 6-5 6" stroke="#F2F4F6" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+      </div>
+    </div>
+  </div>
+
+</div>
+</x-dc>
+</body>
+</html>
