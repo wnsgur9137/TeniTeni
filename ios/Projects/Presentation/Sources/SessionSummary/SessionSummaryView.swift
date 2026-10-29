@@ -118,39 +118,79 @@ public struct SessionSummaryView: View {
         .accessibilityLabel("스윙 \(session.swingCount)개")
     }
 
+    /// 클립을 머리로 두고 **스윙을 행으로** 펼친다.
+    ///
+    /// 전에는 클립만 보여줘서 누를 것이 없었다 — 목적지가 없었기 때문이다.
+    /// 번호는 `ReplayItem.playlist(from:)`가 매긴 것을 그대로 쓴다. 두 화면이
+    /// 다른 번호를 말하면 "12번째 스윙"이 어긋난다(SPEC-0123).
     @ViewBuilder
     private func clipList(_ session: Session) -> some View {
+        let items = ReplayItem.playlist(from: session)
         VStack(alignment: .leading, spacing: 8) {
             Text("클립 \(session.clips.count)개")
                 .font(.system(size: 12, weight: .medium))
                 .foregroundStyle(Token.Text.tertiary)
             VStack(spacing: 1) {
                 ForEach(session.clips) { clip in
-                    clipRow(clip)
+                    clipHeader(clip)
+                    ForEach(items.filter { $0.clipID == clip.id }) { item in
+                        swingRow(item)
+                    }
                 }
             }
             .background(Token.Background.surface, in: .rect(cornerRadius: 13))
         }
     }
 
-    private func clipRow(_ clip: Clip) -> some View {
+    private func clipHeader(_ clip: Clip) -> some View {
         HStack(spacing: 12) {
-            VStack(alignment: .leading, spacing: 3) {
-                Text("스윙 \(clip.swings.count)개")
-                    .font(.system(size: 15))
-                    .foregroundStyle(Token.Text.primary)
-                // fps를 보여주는 이유: 발열로 강등되면 클립마다 다르다.
-                // 그 사실이 드러나는 유일한 자리다(ADR-0005).
-                Text("\(Self.time.string(from: clip.recordedAt)) · \(clip.fps)fps")
-                    .font(.system(size: 12))
-                    .monospacedDigit()
-                    .foregroundStyle(Token.Text.tertiary)
-            }
+            // fps를 보여주는 이유: 발열로 강등되면 클립마다 다르다.
+            // 그 사실이 드러나는 유일한 자리다(ADR-0005).
+            Text("\(Self.time.string(from: clip.recordedAt)) · \(clip.fps)fps")
+                .font(.system(size: 12, weight: .medium))
+                .monospacedDigit()
+                .foregroundStyle(Token.Text.tertiary)
             Spacer()
         }
         .padding(.horizontal, 16)
-        .padding(.vertical, 13)
+        .padding(.top, 12)
+        .padding(.bottom, 6)
         .accessibilityElement(children: .combine)
+    }
+
+    private func swingRow(_ item: ReplayItem) -> some View {
+        Button { store.send(.swingTapped(item.swing.id)) } label: {
+            HStack(spacing: 12) {
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("스윙 \(item.position)")
+                        .font(.system(size: 15))
+                        .monospacedDigit()
+                        .foregroundStyle(Token.Text.primary)
+                    Text(Self.swingDetail(item.swing))
+                        .font(.system(size: 12))
+                        .monospacedDigit()
+                        .foregroundStyle(Token.Text.tertiary)
+                }
+                Spacer()
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(Token.Text.tertiary)
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 11)
+            .contentShape(.rect)
+        }
+        .buttonStyle(.plain)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("스윙 \(item.position), \(Self.swingDetail(item.swing))")
+        .accessibilityHint("리플레이를 엽니다")
+    }
+
+    /// 구간 길이와 **구간 안의** 임팩트 시각. 클립 기준 절대초를 보여주면
+    /// 사용자가 어디를 말하는지 알 수 없다.
+    static func swingDetail(_ swing: Swing) -> String {
+        let impact = max(swing.impactSeconds - swing.startSeconds, 0)
+        return String(format: "%.1f초 · 임팩트 %.2f초", max(swing.duration, 0), impact)
     }
 
     private var footer: some View {
