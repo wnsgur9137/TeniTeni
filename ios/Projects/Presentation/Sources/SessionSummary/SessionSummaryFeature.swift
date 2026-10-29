@@ -57,6 +57,8 @@ public struct SessionSummaryFeature {
         case retryTapped
         /// 진단 화면의 "배치 다시 보기".
         case reframeTapped
+        /// 클립 행의 스윙을 눌렀다.
+        case swingTapped(UUID)
         case delegate(Delegate)
 
         public enum Delegate: Equatable {
@@ -67,6 +69,9 @@ public struct SessionSummaryFeature {
             /// 그 사이 사용자가 홈에서 다른 상황을 골랐을 때 엉뚱한 배치
             /// 안내를 보여준다.
             case reframe(situation: CaptureSituation, observable: ObservationTarget)
+            /// 리플레이로 보낸다. **Feature가 Feature를 띄우지 않는다** —
+            /// 조립은 `Application`이 한다(D-03).
+            case openReplay(sessionID: UUID, swingID: UUID)
         }
     }
 
@@ -113,6 +118,13 @@ public struct SessionSummaryFeature {
 
             case .closeTapped:
                 return .send(.delegate(.closed))
+
+            case .swingTapped(let swingID):
+                // 세션이 아니라 `id`를 넘긴다 — 리플레이가 다시 읽는다
+                // (SPEC-0110 선택지 1).
+                return .send(.delegate(.openReplay(
+                    sessionID: state.sessionID, swingID: swingID
+                )))
 
             case .reframeTapped:
                 // 읽은 세션이 있어야 상황을 안다. 없으면 보낼 것이 없다.

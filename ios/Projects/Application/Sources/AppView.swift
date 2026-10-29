@@ -52,7 +52,14 @@ public struct AppView: View {
         // 프레임에 하나를 닫고 다른 하나를 여는 전이에서 SwiftUI가 두 번째
         // 제시를 흘릴 수 있다 — 그러면 사용자는 요약을 영원히 못 본다.
         .fullScreenCover(item: $store.scope(state: \.summary, action: \.summary)) { summaryStore in
+            // 리플레이를 **요약 위에** 올린다. 탭 쪽에 나란히 걸면 두
+            // fullScreenCover가 같은 자리를 다툰다.
             SessionSummaryView(store: summaryStore)
+                .fullScreenCover(
+                    item: $store.scope(state: \.replay, action: \.replay)
+                ) { replayStore in
+                    ReplayScreen(store: replayStore)
+                }
         }
     }
 
