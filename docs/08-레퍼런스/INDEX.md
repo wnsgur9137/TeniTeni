@@ -5,7 +5,7 @@ tags:
   - 문서유형/MOC
   - 영역/제품
 created: 2026-09-10
-updated: 2026-09-11
+updated: 2026-10-29
 status: active
 ---
 
@@ -25,8 +25,8 @@ status: active
 |---|---|---|
 | [SwingVision](SwingVision.md) | 가장 직접적 경쟁. iOS 네이티브, 온디바이스 분석, 코트 인식·인아웃 | 2026-09-11 (촬영 UX만) |
 | [Zepp Tennis](ZeppTennis.md) | 센서 기반. 영상으로 푸는 것을 IMU로 푼 사례 — 지표 정의 | 미조사 |
-| [Onform](Onform.md) | 영상 코칭. 리플레이·주석 UX | 미조사 |
-| [Hudl Technique](HudlTechnique.md) | 스포츠 일반 폼 분석. 페이즈 스크러버 | 미조사 |
+| [Onform](Onform.md) | 영상 코칭. 리플레이·주석 UX | 2026-10-29 (재생 조작만) |
+| [Hudl Technique](HudlTechnique.md) | 스포츠 일반 폼 분석. **2021년 서비스 종료 — 기능 확인 불가** | 2026-10-29 (보관 정책만) |
 
 ## ML
 
