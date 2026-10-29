@@ -111,6 +111,9 @@ private struct PlaybackState: Equatable {
     let speed: PlaybackSpeed
     let isPlaying: Bool
 
+    /// `Store`를 읽는 것은 메인 액터의 일이다. 표시하지 않으면 전체 빌드에서
+    /// 경고가 난다 — 증분 빌드는 그것을 숨긴다.
+    @MainActor
     init(_ store: StoreOf<ReplayFeature>) {
         self.speed = store.effectiveSpeed
         self.isPlaying = store.isPlaying
