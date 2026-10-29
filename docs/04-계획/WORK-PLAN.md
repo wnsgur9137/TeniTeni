@@ -263,7 +263,8 @@ Mac ──→ TeniVision (공유) ──→ 검출 결과 JSON ──→ 집계 
 
 > 영속화는 **1-B**로 옮겼습니다. 1-B가 클립을 저장하는데 저장할 곳이 두 단계 뒤에 있었습니다.
 
-- 슬로우 모션 리플레이 + 스켈레톤 + 페이즈 + 피드백
+- 슬로우 모션 리플레이 + 페이즈 ([#123](https://github.com/wnsgur9137/TeniTeni/issues/123)) → 오버레이 레이어 ([#121](https://github.com/wnsgur9137/TeniTeni/issues/121))
+  - **피드백은 이 단계에 없습니다.** 신뢰도 임계값이 코치 자문([#54](https://github.com/wnsgur9137/TeniTeni/issues/54)) 선행이고 1-D 룰 엔진도 선행입니다 ([SPEC-0123](../07-기획/SPEC-0123-swing-replay.md))
 - 세션 요약, 클립 목록
 - **남은 예외 화면** — 권한 거부 · 저장공간 · 세션 복구 · 삭제 ([IA-FLOW 10.6](../06-디자인/IA-FLOW.md))
 - 골든 테스트 구축 (0-B 영상을 픽스처로)
