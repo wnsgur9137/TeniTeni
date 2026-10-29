@@ -1,0 +1,72 @@
+<!doctype html>
+<html>
+<head><meta charset="utf-8"><script src="./support.js"></script></head>
+<body>
+<x-dc>
+<helmet><style>
+body{margin:0;font-family:-apple-system,"SF Pro Text",system-ui,sans-serif}
+a{color:#C6F24E}a:hover{color:#D9F87E}
+.num{font-variant-numeric:tabular-nums}
+</style></helmet>
+<!-- 클립 레코드는 있는데 파일이 없다. SPEC-0123 선택지 6.
+     ⚠️ 이 스윙을 **건너뛰지 않는다** — 건너뛰면 "34개 중 12번째"의 분모가
+     달라져 사용자가 세던 수와 어긋난다. 넘기기는 살아 있다. -->
+<div style="width:390px;height:844px;background:#0B0D0F;color:#F2F4F6;display:flex;flex-direction:column">
+
+  <div style="padding:16px 20px 14px;display:flex;align-items:center;gap:12px">
+    <svg width="22" height="22" viewBox="0 0 22 22" fill="none">
+      <path d="M14 5l-6 6 6 6" stroke="#F2F4F6" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+    </svg>
+    <div style="flex:1;display:flex;flex-direction:column;gap:2px">
+      <div class="num" style="font-size:17px;font-weight:600">스윙 12 <span style="color:#6B737B;font-weight:400">/ 34</span></div>
+      <div class="num" style="font-size:12px;color:#6B737B">9월 10일 14:32 · 120fps</div>
+    </div>
+  </div>
+
+  <!-- 영상 자리 -->
+  <div style="height:219px;background:#16191D;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px">
+    <svg width="34" height="34" viewBox="0 0 34 34" fill="none">
+      <rect x="3" y="7" width="22" height="20" rx="3" stroke="#6B737B" stroke-width="1.8"/>
+      <path d="M25 14l6-4v14l-6-4" stroke="#6B737B" stroke-width="1.8" stroke-linejoin="round"/>
+      <path d="M6 28L28 6" stroke="#FF8A3D" stroke-width="1.8" stroke-linecap="round"/>
+    </svg>
+    <div style="font-size:15px;font-weight:600;color:#F2F4F6">이 클립의 영상 파일이 없습니다</div>
+    <div class="num" style="font-size:12px;color:#6B737B">20260910-143215-3.mov</div>
+  </div>
+
+  <!-- 설명 -->
+  <div style="padding:20px 20px 0">
+    <div style="padding:16px;border-radius:14px;background:#16191D;display:flex;flex-direction:column;gap:7px">
+      <div style="font-size:13px;color:#9BA3AB;line-height:1.5">기록은 남아 있는데 영상이 지워졌습니다. 기기 저장공간을 정리하거나 다른 앱이 파일을 옮기면 이렇게 됩니다.</div>
+      <div style="font-size:13px;color:#9BA3AB;line-height:1.5">이 스윙의 <span style="color:#F2F4F6">구간 정보는 남아 있습니다</span> — 다시 재생할 수는 없습니다.</div>
+    </div>
+  </div>
+
+  <!-- 넘기기는 살아 있다 -->
+  <div style="padding:16px 20px 0;display:flex;gap:10px">
+    <div style="flex:1;display:flex;align-items:center;justify-content:center;gap:7px;height:44px;border-radius:11px;background:#16191D">
+      <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+        <path d="M10 3L5 8l5 5" stroke="#9BA3AB" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+      <span style="font-size:13px;color:#9BA3AB;font-weight:500">이전 스윙</span>
+    </div>
+    <div style="flex:1;display:flex;align-items:center;justify-content:center;gap:7px;height:44px;border-radius:11px;background:#1F2429">
+      <span style="font-size:13px;color:#F2F4F6;font-weight:600">다음 스윙</span>
+      <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+        <path d="M6 3l5 5-5 5" stroke="#F2F4F6" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+    </div>
+  </div>
+
+  <div style="flex:1"></div>
+
+  <div style="padding:0 20px 28px">
+    <div style="display:flex;align-items:center;justify-content:center;height:50px;border-radius:10px;background:#16191D">
+      <span style="font-size:15px;font-weight:600;color:#9BA3AB">세션으로 돌아가기</span>
+    </div>
+  </div>
+
+</div>
+</x-dc>
+</body>
+</html>
