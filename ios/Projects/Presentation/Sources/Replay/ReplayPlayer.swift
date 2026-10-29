@@ -29,6 +29,15 @@ final class ReplayPlayer {
     /// 구간 끝. 아이템이 준비되기 전에 지정될 수 있으므로 들고 있는다.
     @ObservationIgnored private var segmentEnd: TimeInterval?
     @ObservationIgnored private var pendingStart: TimeInterval?
+    /// 화면이 바라는 재생 상태. **아이템이 준비된 뒤에 적용한다.**
+    ///
+    /// `AVPlayer`는 `.readyToPlay` 전에 준 `rate`를 보장하지 않는다.
+    /// `automaticallyWaitsToMinimizeStalling`이 거짓이면 더 그렇다 — 그대로
+    /// 두면 리플레이를 열었는데 아무것도 재생되지 않는다.
+    @ObservationIgnored private var desired: (speed: PlaybackSpeed, playing: Bool) = (.standard, false)
+    /// 탐색이 진행 중이다. 그동안 올라오는 시각은 버린다 — 스크러버를 끄는
+    /// 동안 과거 위치가 올라와 엄지가 뒤로 튄다.
+    @ObservationIgnored private var isSeeking = false
 
     init() {
         player.actionAtItemEnd = .pause
@@ -50,7 +59,8 @@ final class ReplayPlayer {
             queue: .main
         ) { [weak self] time in
             MainActor.assumeIsolated {
-                self?.onTime?(time.seconds)
+                guard let self, !self.isSeeking else { return }
+                self.onTime?(time.seconds)
             }
         }
     }
@@ -87,6 +97,8 @@ final class ReplayPlayer {
         loadedURL = nil
         segmentEnd = nil
         pendingStart = nil
+        isSeeking = false
+        desired = (.standard, false)
     }
 
     private func itemStatusChanged(_ item: AVPlayerItem) {
@@ -94,11 +106,18 @@ final class ReplayPlayer {
         case .readyToPlay:
             disableAudioTracks(of: item)
             onSlowMotionSupport?(item.canPlaySlowForward)
+            installBoundaryObserver()
             if let pendingStart {
                 self.pendingStart = nil
-                Task { await seek(to: pendingStart) }
+                Task { [weak self] in
+                    await self?.seek(to: pendingStart)
+                    // 탐색이 끝난 **뒤에** 재생을 건다. 먼저 걸면 시작점이
+                    // 아니라 0초에서 재생이 터진다.
+                    self?.applyDesired()
+                }
+            } else {
+                applyDesired()
             }
-            installBoundaryObserver()
         case .failed:
             // 파일 존재는 `ClipLocator`가 이미 걸렀다. 여기 오는 것은 손상된
             // 파일이므로 재생할 수 없다는 사실만 올려보낸다.
@@ -124,6 +143,9 @@ final class ReplayPlayer {
     // MARK: 구간
 
     func setSegment(end seconds: TimeInterval) {
+        // 끝이 그대로면 다시 걸지 않는다. 스크러버를 끄는 동안 `seek`가
+        // 수십 번 오는데, 그때마다 관측자를 떼고 다시 거는 것은 낭비다.
+        guard segmentEnd != seconds || boundaryObserver == nil else { return }
         segmentEnd = seconds
         installBoundaryObserver()
     }
@@ -148,9 +170,19 @@ final class ReplayPlayer {
     // MARK: 재생
 
     func apply(speed: PlaybackSpeed, playing: Bool) {
+        desired = (speed, playing)
+        // 멈추는 것은 언제든 즉시 먹힌다. 재생은 준비된 뒤여야 한다.
+        guard !playing || player.currentItem?.status == .readyToPlay else {
+            if !playing { player.pause() }
+            return
+        }
+        applyDesired()
+    }
+
+    private func applyDesired() {
         guard player.currentItem != nil else { return }
-        if playing {
-            player.rate = Float(speed.rawValue)
+        if desired.playing {
+            player.rate = Float(desired.speed.rawValue)
         } else {
             player.pause()
         }
@@ -159,8 +191,10 @@ final class ReplayPlayer {
     /// 정밀 탐색. 관용값을 주면 반복할 때마다 시작점이 흔들린다.
     func seek(to seconds: TimeInterval) async {
         guard player.currentItem != nil else { return }
+        isSeeking = true
         let time = CMTime(seconds: seconds, preferredTimescale: 600)
         await player.seek(to: time, toleranceBefore: .zero, toleranceAfter: .zero)
+        isSeeking = false
     }
 
     func step(by count: Int) {
