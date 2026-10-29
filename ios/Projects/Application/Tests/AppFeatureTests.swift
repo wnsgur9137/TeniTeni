@@ -423,6 +423,44 @@ struct CaptureFlowTests {
         await store.receive(.summary(.presented(.delegate(.closed)))) { $0.summary = nil }
     }
 
+    /// 요약에서 스윙을 누르면 리플레이가 **요약 위에** 열린다.
+    ///
+    /// 자식 Feature끼리 서로를 모르므로(D-03) 이 조립은 여기서만 일어난다.
+    @Test("스윙을 누르면 리플레이가 요약 위에 열린다")
+    func 리플레이_열림() async {
+        let repo = InMemoryRepository(UserPreferences(handedness: .right))
+        let sessionID = UUID()
+        var initial = AppFeature.State(preferences: UserPreferences(handedness: .right))
+        initial.summary = SessionSummaryFeature.State(sessionID: sessionID)
+        let store = TestStore(initialState: initial) { AppFeature(repository: repo) }
+
+        let swingID = UUID()
+        await store.send(.summary(.presented(.swingTapped(swingID))))
+        await store.receive(.summary(.presented(.delegate(.openReplay(
+            sessionID: sessionID, swingID: swingID
+        ))))) {
+            $0.replay = ReplayFeature.State(sessionID: sessionID, swingID: swingID)
+        }
+        // **요약을 닫지 않는다.** 리플레이를 닫으면 요약으로 돌아와야 하고,
+        // 거기서 다른 스윙을 고를 수 있어야 한다.
+        #expect(store.state.summary != nil, "요약은 아래에 남아 있다")
+    }
+
+    @Test("리플레이를 닫으면 요약으로 돌아온다")
+    func 리플레이_닫힘() async {
+        let repo = InMemoryRepository(UserPreferences(handedness: .right))
+        let sessionID = UUID()
+        var initial = AppFeature.State(preferences: UserPreferences(handedness: .right))
+        initial.summary = SessionSummaryFeature.State(sessionID: sessionID)
+        initial.replay = ReplayFeature.State(sessionID: sessionID, swingID: UUID())
+        let store = TestStore(initialState: initial) { AppFeature(repository: repo) }
+
+        // 초기 상태가 이미 정지·세로이므로 바뀌는 것이 없다.
+        await store.send(.replay(.presented(.closeTapped)))
+        await store.receive(.replay(.presented(.delegate(.closed)))) { $0.replay = nil }
+        #expect(store.state.summary != nil)
+    }
+
     /// 진단의 "배치 다시 보기"는 요약을 닫고 촬영을 다시 연다.
     @Test("배치 다시 보기는 촬영을 다시 연다")
     func 배치_다시() async {
