@@ -118,6 +118,37 @@ public struct OverlaySidecar: Sendable, Equatable, Codable {
             && aspect != nil
     }
 
+    /// 프레임 사이의 기준 간격. 실측이 없으면 선언된 fps로 떨어진다.
+    public var effectiveSpacing: Double {
+        if frameSpacing > 0 { return frameSpacing }
+        return frameRate > 0 ? 1 / frameRate : 0
+    }
+
+    /// 라켓 궤적을 그릴 과거 구간. 시간 순서다.
+    ///
+    /// **빈 구간에 `nil`을 끼운다.** 사람을 못 찾은 프레임은 사이드카에
+    /// 아예 없으므로, 그냥 이으면 **없는 궤적을 직선으로 그어** 보여준다.
+    /// 그 구간의 라켓이 어디 있었는지 우리는 모른다.
+    ///
+    /// - Parameter trail: 주어진 시각에서 **뒤로** 몇 초를 담을지.
+    public func racketTrail(until seconds: Double, trail: Double) -> [RacketHead?] {
+        // 간격이 이보다 벌어지면 프레임이 빠진 것이다. 1.5는 한 프레임을
+        // 건너뛴 경우(2.0)보다 낮고, 지터로 흔들리는 폭보다 높다.
+        let spacing = effectiveSpacing
+        let maximumGap = spacing > 0 ? spacing * 1.5 : .infinity
+
+        var result: [RacketHead?] = []
+        var previousSeconds: Double?
+        for frame in frames where frame.seconds <= seconds && frame.seconds >= seconds - trail {
+            if let previous = previousSeconds, frame.seconds - previous > maximumGap {
+                result.append(nil)
+            }
+            result.append(frame.racketHead)
+            previousSeconds = frame.seconds
+        }
+        return result
+    }
+
     /// 주어진 시각에 가장 가까운 프레임.
     ///
     /// 보간하지 않는다 — 관절을 보간하면 **없던 자세가 생긴다.** 슬로우
@@ -135,8 +166,7 @@ public struct OverlaySidecar: Sendable, Equatable, Codable {
         // 3/4이어도 엉뚱한 프레임을 집지 않는다: 옆 프레임은 1간격 밖에
         // 있으므로 0.75 안에 들어오지 못한다. 그래서 **한 프레임이 비어 있는
         // 구간(사람을 못 찾은 프레임)은 여전히 `nil`로 떨어진다.**
-        let spacing = frameSpacing > 0 ? frameSpacing : (frameRate > 0 ? 1 / frameRate : 0)
-        let tolerance = 0.75 * spacing
+        let tolerance = 0.75 * effectiveSpacing
         var best: OverlayFrame?
         var bestDistance = Double.infinity
         for frame in frames {

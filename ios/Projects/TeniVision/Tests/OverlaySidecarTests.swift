@@ -266,6 +266,80 @@ struct OverlaySidecarTests {
         #expect(sidecar.frame(at: step * 2) == nil)
     }
 
+    // MARK: - 궤적
+
+    private static func headFrame(_ seconds: Double, x: CGFloat) -> OverlayFrame {
+        OverlayFrame(
+            seconds: seconds,
+            joints: [:],
+            racketHead: RacketHead(point: CGPoint(x: x, y: 0.5), confidence: 0.7)
+        )
+    }
+
+    @Test("지금 시각에서 뒤로 주어진 구간만 담는다")
+    func 궤적_구간() {
+        let step = 1.0 / 60
+        let sidecar = Self.sidecar(
+            frames: (0..<10).map { Self.headFrame(Double($0) * step, x: CGFloat($0) / 10) }
+        )
+        let trail = sidecar.racketTrail(until: step * 5, trail: step * 2.5)
+        // 5, 4, 3번 프레임 — 앞으로 간 것은 담지 않는다.
+        #expect(trail.count == 3)
+        #expect(trail.compactMap { $0?.point.x } == [0.3, 0.4, 0.5])
+    }
+
+    /// 사람을 못 찾은 프레임은 사이드카에 **아예 없다.** 그냥 이으면
+    /// **없는 궤적을 직선으로 그어** 보여준다 — 그 구간의 라켓이 어디
+    /// 있었는지 우리는 모른다.
+    @Test("빠진 구간에 nil이 끼어 선이 끊긴다")
+    func 궤적_끊김() {
+        let step = 1.0 / 60
+        // 0, 1, (2 없음), 3, 4
+        let sidecar = Self.sidecar(frames: [
+            Self.headFrame(0, x: 0.1),
+            Self.headFrame(step, x: 0.2),
+            Self.headFrame(step * 3, x: 0.4),
+            Self.headFrame(step * 4, x: 0.5),
+        ])
+        let trail = sidecar.racketTrail(until: step * 4, trail: step * 5)
+        // 0, 1, nil, 3, 4
+        #expect(trail.count == 5)
+        #expect(trail[2] == nil)
+        #expect(trail[0] != nil)
+        #expect(trail[3] != nil)
+    }
+
+    @Test("간격이 고르면 nil이 끼지 않는다")
+    func 궤적_연속() {
+        let step = 1.0 / 60
+        let sidecar = Self.sidecar(
+            frames: (0..<5).map { Self.headFrame(Double($0) * step, x: 0.5) }
+        )
+        let trail = sidecar.racketTrail(until: step * 4, trail: step * 5)
+        #expect(trail.count == 5)
+        #expect(trail.allSatisfy { $0 != nil })
+    }
+
+    /// 헤드가 `nil`인 프레임(단축 신뢰도 미달)도 그대로 `nil`로 간다 —
+    /// 빠진 프레임과 같은 뜻이다: **거기서 선을 끊는다.**
+    @Test("신뢰도 미달로 헤드가 없는 프레임도 nil이다")
+    func 궤적_헤드_없음() {
+        let step = 1.0 / 60
+        let sidecar = Self.sidecar(frames: [
+            Self.headFrame(0, x: 0.1),
+            OverlayFrame(seconds: step, joints: [:], racketHead: nil),
+            Self.headFrame(step * 2, x: 0.3),
+        ])
+        let trail = sidecar.racketTrail(until: step * 2, trail: step * 3)
+        #expect(trail.count == 3)
+        #expect(trail[1] == nil)
+    }
+
+    @Test("사이드카가 비면 궤적도 빈다")
+    func 궤적_빈_사이드카() {
+        #expect(Self.sidecar().racketTrail(until: 1, trail: 1).isEmpty)
+    }
+
     @Test("프레임이 하나면 선언된 fps로 떨어진다")
     func 간격_없음() {
         let sidecar = Self.sidecar(frameRate: 60, frames: [Self.frame(0)])

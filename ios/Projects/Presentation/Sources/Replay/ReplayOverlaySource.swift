@@ -175,35 +175,14 @@ public final class ReplayOverlaySource {
         sidecar?.frame(at: seconds)
     }
 
-    /// 라켓 궤적을 그릴 과거 구간. 시간 순서다.
+    /// 라켓 궤적을 그릴 과거 구간.
     ///
-    /// **빈 구간에 `nil`을 끼운다.** 사람을 못 찾은 프레임은 사이드카에
-    /// 아예 없으므로, 그냥 이으면 **없는 궤적을 직선으로 그어** 보여준다.
-    /// 그 구간의 라켓이 어디 있었는지 우리는 모른다.
-    ///
-    /// - Parameter trail: 지금 시각에서 **뒤로** 몇 초를 보여줄지.
+    /// 계산은 `OverlaySidecar`가 한다 — **값 타입이라 검증된다.** 여기에
+    /// 두면 `@MainActor @Observable` 안에 갇혀 테스트가 닿지 못한다.
     public func racketTrail(
         until seconds: TimeInterval,
         trail: TimeInterval
     ) -> [RacketHead?] {
-        guard let sidecar else { return [] }
-        // 간격이 이보다 벌어지면 프레임이 빠진 것이다. 1.5는 한 프레임을
-        // 건너뛴 경우(2.0)보다 낮고, 지터로 흔들리는 폭보다 높다.
-        let spacing = sidecar.frameSpacing > 0
-            ? sidecar.frameSpacing
-            : (sidecar.frameRate > 0 ? 1 / sidecar.frameRate : 0)
-        let maximumGap = spacing > 0 ? spacing * 1.5 : .infinity
-
-        var result: [RacketHead?] = []
-        var previousSeconds: Double?
-        for frame in sidecar.frames
-        where frame.seconds <= seconds && frame.seconds >= seconds - trail {
-            if let previous = previousSeconds, frame.seconds - previous > maximumGap {
-                result.append(nil)
-            }
-            result.append(frame.racketHead)
-            previousSeconds = frame.seconds
-        }
-        return result
+        sidecar?.racketTrail(until: seconds, trail: trail) ?? []
     }
 }
