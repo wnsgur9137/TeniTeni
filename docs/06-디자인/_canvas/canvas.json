@@ -175,6 +175,27 @@
       "y": 3562,
       "w": 844,
       "h": 390
+    },
+    {
+      "file": "ReplayOverlaySkeleton.dc.html",
+      "x": 2480,
+      "y": 3562,
+      "w": 844,
+      "h": 390
+    },
+    {
+      "file": "ReplayOverlayRacket.dc.html",
+      "x": 3404,
+      "y": 3562,
+      "w": 844,
+      "h": 390
+    },
+    {
+      "file": "ReplayOverlayPending.dc.html",
+      "x": 4328,
+      "y": 3562,
+      "w": 844,
+      "h": 1265
     }
   ],
   "annotations": [
