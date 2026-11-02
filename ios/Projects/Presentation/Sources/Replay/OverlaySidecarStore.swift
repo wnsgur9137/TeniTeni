@@ -47,7 +47,22 @@ public struct OverlaySidecarStore: Sendable {
         directory.appending(path: clipFileName + ".overlay.error")
     }
 
+    /// 사이드카 **파일이 있는지만** 본다.
+    ///
+    /// `state(for:)`는 23k 점짜리 JSON을 통째로 디코딩한다. "이미 구웠나"를
+    /// 묻는 데 그 비용을 낼 이유가 없다 — 세션 하나가 클립 수십 개다.
+    ///
+    /// 내용이 쓸 수 있는지는 보지 않는다. 쓸 수 없는 사이드카를 다시 굽는
+    /// 것은 `state(for:)`를 보는 쪽(화면)이 판단한다.
+    public func hasSidecar(for clipFileName: String) -> Bool {
+        guard !clipFileName.isEmpty else { return false }
+        return fileManager.fileExists(atPath: sidecarURL(for: clipFileName).path)
+    }
+
     /// 파일에서 읽은 상태. 큐의 상태는 모른다 — 합치는 쪽은 호출부다.
+    ///
+    /// ⚠️ **프레임 수백 개를 디코딩한다.** 메인 액터에서 부르지 마라 —
+    /// 화면이 그만큼 멈춘다.
     ///
     /// 빈 이름은 디렉터리를 가리키므로 먼저 막는다(`ClipLocator`와 같은 함정).
     public func state(for clipFileName: String) -> OverlaySidecarState {

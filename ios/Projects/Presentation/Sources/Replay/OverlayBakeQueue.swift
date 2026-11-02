@@ -47,7 +47,9 @@ public actor OverlayBakeQueue {
         guard !fileName.isEmpty else { return }
         guard !queued.contains(where: { $0.fileName == fileName }) else { return }
         guard inFlight != fileName else { return }
-        if case .ready = store.state(for: fileName) { return }
+        // 내용까지 디코딩하지 않는다 — 세션 하나가 클립 수십 개이고,
+        // "이미 구웠나"에 23k 점 파싱 비용을 낼 이유가 없다.
+        guard !store.hasSidecar(for: fileName) else { return }
         queued.append((fileName, side))
     }
 
@@ -60,8 +62,13 @@ public actor OverlayBakeQueue {
     }
 
     /// 실패한 클립을 다시 굽는다. 화면의 "다시 시도"가 부른다.
+    ///
+    /// **이미 굽고 있으면 아무것도 하지 않는다.** 보지 않으면 같은 클립이
+    /// 두 번 구워지고 완료 통지가 두 번 나간다 — 듣는 쪽이 첫 통지에
+    /// `return`하므로 두 번째 결과는 화면에 반영되지 않는다.
     public func retry(fileName: String, side: RacketSide) {
         guard !fileName.isEmpty else { return }
+        guard inFlight != fileName else { return }
         queued.removeAll { $0.fileName == fileName }
         queued.insert((fileName, side), at: 0)
         drain()
@@ -127,6 +134,11 @@ public actor OverlayBakeQueue {
         do {
             let sidecar = try await baker.bake(clipAt: url, side: side)
             try store.write(sidecar, for: fileName)
+        } catch is CancellationError {
+            // **실패로 적지 않는다.** 취소는 우리가 멈춘 것이고, 다음에
+            // 다시 넣으면 된다. 실패로 적으면 사용자가 "다시 시도"를
+            // 눌러야 하는데 고칠 것이 없다.
+            return
         } catch OverlayBakeError.noPoseFound {
             store.markFailed("사람을 찾지 못한 프레임이 너무 많습니다", for: fileName)
         } catch {

@@ -239,11 +239,6 @@ public struct AppFeature {
                 repository.save(state.preferences)
                 return .none
 
-            case .replay(.presented(.delegate(.overlayRetryRequested(let fileName, let side)))):
-                let queue = overlayQueue
-                return .run { _ in
-                    await queue.retry(fileName: fileName, side: side)
-                }
 
             case .replay(.presented(.delegate(.closed))):
                 state.replay = nil

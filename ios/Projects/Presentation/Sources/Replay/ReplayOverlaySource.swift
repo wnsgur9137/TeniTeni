@@ -13,6 +13,12 @@ import TeniVision
 /// (SPEC-0123 선택지 7).
 ///
 /// 리듀서에는 **상태만** 올려보낸다(`ReplayFeature.OverlayPhase`).
+///
+/// ## 큐 투입도 여기서 한다
+///
+/// 상태 변경(리듀서)과 큐 투입(코디네이터 이펙트)으로 갈라 두면, 상태에
+/// 붙은 감시가 투입보다 먼저 달려 **"큐에 없다"를 읽고 "분석 전"으로
+/// 되돌린다.** 둘을 한 Task에 묶는다.
 @MainActor
 @Observable
 public final class ReplayOverlaySource {
@@ -26,7 +32,8 @@ public final class ReplayOverlaySource {
     private let store: OverlaySidecarStore
     private let queue: OverlayBakeQueue
     private var fileName: String?
-    private var watching: Task<Void, Never>?
+    private var side: RacketSide = .right
+    private var work: Task<Void, Never>?
 
     public init(
         store: OverlaySidecarStore = OverlaySidecarStore(),
@@ -36,89 +43,131 @@ public final class ReplayOverlaySource {
         self.queue = queue
     }
 
-    // `deinit`에서 `watching`을 취소하지 않는다. nonisolated deinit은 메인
-    // 액터 프로퍼티를 읽을 수 없고, 읽으려고 `Task`를 띄우면 그 Task가
-    // 해제된 자신을 캡처한다.
+    // `deinit`에서 `work`를 취소하지 않는다. nonisolated deinit은 메인 액터
+    // 프로퍼티를 읽을 수 없고, 읽으려고 `Task`를 띄우면 그 Task가 해제된
+    // 자신을 캡처한다.
     //
     // 취소하지 않아도 새는 것이 없다: 감시 Task는 `[weak self]`로 잡으므로
     // 이 객체를 붙들지 않고, `completions()` 스트림은 continuation이
     // 사라질 때 스스로 끝난다.
 
-    /// 클립이 바뀌었다. 사이드카를 다시 읽는다.
+    /// 클립이 바뀌었다. 사이드카를 다시 읽고, **없으면 굽기를 시작한다.**
     ///
     /// 같은 파일이면 아무것도 하지 않는다 — 같은 클립 안의 다음 스윙으로
     /// 넘어갈 때마다 수백 프레임을 다시 파싱할 이유가 없다.
-    public func load(fileName new: String?) {
+    public func load(fileName new: String?, side: RacketSide) {
+        self.side = side
         guard fileName != new else { return }
         fileName = new
-        watching?.cancel()
-        watching = nil
+        work?.cancel()
+        work = nil
         sidecar = nil
 
         guard let new, !new.isEmpty else {
             onPhase?(.notAnalyzed)
             return
         }
-        refresh(new)
+        start(new, retrying: false)
     }
 
-    /// 파일 상태를 다시 읽는다. 큐가 끝났다고 알리면 이것이 돈다.
-    private func refresh(_ name: String) {
-        switch store.state(for: name) {
-        case .ready(let loaded):
-            sidecar = loaded
-            onPhase?(.ready)
-
-        case .failed(let reason):
-            sidecar = nil
-            onPhase?(.failed(reason))
-
-        case .baking, .notAnalyzed:
-            sidecar = nil
-            // 파일에는 없다. 큐가 들고 있는지 물어본다 — 파일만 보면
-            // "굽는 중"과 "분석 전"이 구분되지 않는다.
-            watch(name)
-        }
+    /// "다시 시도". 큐에 **넣고 나서** 감시한다 — 순서가 뒤집히면
+    /// "분석 전"으로 되돌아간다.
+    public func retry() {
+        guard let fileName else { return }
+        work?.cancel()
+        start(fileName, retrying: true)
     }
 
-    /// 큐에 있으면 `baking`으로 두고 끝날 때까지 듣는다.
+    /// 파일을 읽고, 필요하면 굽기를 시작하고, 끝날 때까지 듣는다.
     ///
-    /// 폴링하지 않는다. 굽는 데 수십 초가 걸릴 수 있고, 그동안 파일을
-    /// 반복해 열면 디스크를 긁으며 배터리를 쓴다.
-    private func watch(_ name: String) {
-        watching = Task { [weak self] in
+    /// **전부 한 Task 안에서 한다.** 나누면 그 사이에 상태가 바뀌어
+    /// 어긋난다.
+    private func start(_ name: String, retrying: Bool) {
+        let store = store
+        work = Task { [weak self] in
             guard let self else { return }
-            // ★ 확인과 구독을 **한 번에** 받는다. 나누면 그 사이에 굽기가
-            //   끝나 완료 신호를 놓치고 "분석 중"에서 영원히 멈춘다.
+
+            // ★ 디코딩을 메인 액터 밖에서 한다. 23k 점짜리 JSON을 여기서
+            //   풀면 그만큼 화면이 멈춘다.
+            let state = await Self.read(name, from: store)
+            guard !Task.isCancelled else { return }
+
+            switch state {
+            case .ready(let loaded):
+                sidecar = loaded
+                onPhase?(.ready)
+                return
+
+            case .failed(let reason) where !retrying:
+                onPhase?(.failed(reason))
+                return
+
+            case .baking, .notAnalyzed, .failed:
+                break
+            }
+
+            // 파일에 없다. 굽게 만든다.
+            //
+            // ★ **보관함에서 연 세션이 여기로 온다.** 촬영 종료만으로 큐에
+            //   넣으면 어제 찍은 세션은 영원히 "분석 전"이고, 세그먼트는
+            //   비활성이며 "다시 시도"는 실패에만 뜬다 — 탈출구가 없다.
+            //   강제 종료로 굽기가 끊긴 클립도 같다.
+            if retrying {
+                await queue.retry(fileName: name, side: side)
+            } else {
+                await queue.enqueue(fileName: name, side: side)
+                await queue.drain()
+            }
+            guard !Task.isCancelled else { return }
+
+            // 확인과 구독을 **한 번에** 받는다. 나누면 그 사이에 굽기가
+            // 끝나 완료 신호를 놓치고 "분석 중"에서 영원히 멈춘다.
             let (baking, completions) = await queue.watch(name)
             guard !Task.isCancelled else { return }
-            onPhase?(baking ? .baking : .notAnalyzed)
-            guard baking else { return }
+
+            guard baking else {
+                // 큐에 없다. **"분석 전"으로 단정하지 않는다** — 그 사이에
+                // 끝났을 수 있다. 파일이 정본이다.
+                await report(name, from: store)
+                return
+            }
+            onPhase?(.baking)
 
             for await finished in completions {
                 guard !Task.isCancelled else { return }
                 guard finished == name else { continue }
-                // 끝났다. 파일을 다시 읽는다 — 성공인지 실패인지는
-                // 파일이 말한다.
-                switch store.state(for: name) {
-                case .ready(let loaded):
-                    sidecar = loaded
-                    onPhase?(.ready)
-                case .failed(let reason):
-                    onPhase?(.failed(reason))
-                case .baking, .notAnalyzed:
-                    onPhase?(.notAnalyzed)
-                }
+                await report(name, from: store)
                 return
             }
         }
     }
 
-    /// 다시 시도 뒤 상태를 `baking`으로 두고 다시 듣는다.
-    public func watchAgain() {
-        guard let fileName else { return }
-        watching?.cancel()
-        watch(fileName)
+    /// 파일을 읽어 상태를 올려보낸다.
+    private func report(_ name: String, from store: OverlaySidecarStore) async {
+        let state = await Self.read(name, from: store)
+        guard !Task.isCancelled else { return }
+        switch state {
+        case .ready(let loaded):
+            sidecar = loaded
+            onPhase?(.ready)
+        case .failed(let reason):
+            onPhase?(.failed(reason))
+        case .baking, .notAnalyzed:
+            onPhase?(.notAnalyzed)
+        }
+    }
+
+    /// 메인 액터 밖에서 파일을 읽는다.
+    ///
+    /// `nonisolated`로 둔 `static`이라 이 클래스의 메인 액터 격리를 타지
+    /// 않는다. `OverlaySidecarStore`는 `Sendable`이다.
+    private nonisolated static func read(
+        _ name: String,
+        from store: OverlaySidecarStore
+    ) async -> OverlaySidecarState {
+        await Task.detached(priority: .userInitiated) {
+            store.state(for: name)
+        }.value
     }
 
     /// 그릴 프레임. 사이드카가 없거나 그 시각에 데이터가 없으면 `nil`이다.
@@ -126,7 +175,11 @@ public final class ReplayOverlaySource {
         sidecar?.frame(at: seconds)
     }
 
-    /// 라켓 궤적을 그릴 과거 구간.
+    /// 라켓 궤적을 그릴 과거 구간. 시간 순서다.
+    ///
+    /// **빈 구간에 `nil`을 끼운다.** 사람을 못 찾은 프레임은 사이드카에
+    /// 아예 없으므로, 그냥 이으면 **없는 궤적을 직선으로 그어** 보여준다.
+    /// 그 구간의 라켓이 어디 있었는지 우리는 모른다.
     ///
     /// - Parameter trail: 지금 시각에서 **뒤로** 몇 초를 보여줄지.
     public func racketTrail(
@@ -134,8 +187,23 @@ public final class ReplayOverlaySource {
         trail: TimeInterval
     ) -> [RacketHead?] {
         guard let sidecar else { return [] }
-        return sidecar.frames
-            .filter { $0.seconds <= seconds && $0.seconds >= seconds - trail }
-            .map(\.racketHead)
+        // 간격이 이보다 벌어지면 프레임이 빠진 것이다. 1.5는 한 프레임을
+        // 건너뛴 경우(2.0)보다 낮고, 지터로 흔들리는 폭보다 높다.
+        let spacing = sidecar.frameSpacing > 0
+            ? sidecar.frameSpacing
+            : (sidecar.frameRate > 0 ? 1 / sidecar.frameRate : 0)
+        let maximumGap = spacing > 0 ? spacing * 1.5 : .infinity
+
+        var result: [RacketHead?] = []
+        var previousSeconds: Double?
+        for frame in sidecar.frames
+        where frame.seconds <= seconds && frame.seconds >= seconds - trail {
+            if let previous = previousSeconds, frame.seconds - previous > maximumGap {
+                result.append(nil)
+            }
+            result.append(frame.racketHead)
+            previousSeconds = frame.seconds
+        }
+        return result
     }
 }
