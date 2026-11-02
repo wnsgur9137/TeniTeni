@@ -62,6 +62,10 @@ private func session(swings: Int, clips: Int = 1) -> Session {
     )
 }
 
+/// 클립 파일이 전부 있는 상태. 기본 `ClipLocator`는 실제 `Documents`를
+/// 보므로 결과가 환경에 따라 달라진다 (#120).
+private let presentLocator = ClipLocator(directory: URL(filePath: "/clips")) { _ in true }
+
 @Suite("세션 요약")
 @MainActor
 struct SessionSummaryFeatureTests {
@@ -70,10 +74,12 @@ struct SessionSummaryFeatureTests {
     func 읽기_성공() async {
         let stored = session(swings: 4, clips: 2)
         let store = TestStore(initialState: SessionSummaryFeature.State(sessionID: stored.id)) {
-            SessionSummaryFeature(repository: StubRepository(.found(stored)))
+            SessionSummaryFeature(repository: StubRepository(.found(stored)), locator: presentLocator)
         }
         await store.send(.appeared)
         await store.receive(.loaded(stored)) { $0.phase = .loaded(stored) }
+        // 세션을 읽은 **뒤에** 클립 파일 확인이 온다 (#120).
+        await store.receive(.missingClipsChecked([]))
         #expect(store.state.isDiagnosis == false)
     }
 
@@ -82,10 +88,12 @@ struct SessionSummaryFeatureTests {
     func 진단_분기() async {
         let empty = session(swings: 0, clips: 0)
         let store = TestStore(initialState: SessionSummaryFeature.State(sessionID: empty.id)) {
-            SessionSummaryFeature(repository: StubRepository(.found(empty)))
+            SessionSummaryFeature(repository: StubRepository(.found(empty)), locator: presentLocator)
         }
         await store.send(.appeared)
         await store.receive(.loaded(empty)) { $0.phase = .loaded(empty) }
+        // 세션을 읽은 **뒤에** 클립 파일 확인이 온다 (#120).
+        await store.receive(.missingClipsChecked([]))
         #expect(store.state.isDiagnosis, "0개면 요약이 아니라 진단이다")
     }
 
@@ -94,10 +102,12 @@ struct SessionSummaryFeatureTests {
     func 빈_클립() async {
         let empty = session(swings: 0, clips: 2)
         let store = TestStore(initialState: SessionSummaryFeature.State(sessionID: empty.id)) {
-            SessionSummaryFeature(repository: StubRepository(.found(empty)))
+            SessionSummaryFeature(repository: StubRepository(.found(empty)), locator: presentLocator)
         }
         await store.send(.appeared)
         await store.receive(.loaded(empty)) { $0.phase = .loaded(empty) }
+        // 세션을 읽은 **뒤에** 클립 파일 확인이 온다 (#120).
+        await store.receive(.missingClipsChecked([]))
         #expect(store.state.isDiagnosis)
     }
 
@@ -105,7 +115,7 @@ struct SessionSummaryFeatureTests {
     @Test("읽기가 실패하면 사유를 남긴다")
     func 읽기_실패() async {
         let store = TestStore(initialState: SessionSummaryFeature.State(sessionID: UUID())) {
-            SessionSummaryFeature(repository: StubRepository(.failure))
+            SessionSummaryFeature(repository: StubRepository(.failure), locator: presentLocator)
         }
         await store.send(.appeared)
         await store.receive(.failed("디스크를 읽을 수 없습니다")) {
@@ -117,7 +127,7 @@ struct SessionSummaryFeatureTests {
     @Test("세션이 없으면 없다고 말한다")
     func 세션_없음() async {
         let store = TestStore(initialState: SessionSummaryFeature.State(sessionID: UUID())) {
-            SessionSummaryFeature(repository: StubRepository(.missing))
+            SessionSummaryFeature(repository: StubRepository(.missing), locator: presentLocator)
         }
         await store.send(.appeared)
         await store.receive(.missing) { $0.phase = .failed("이 세션의 기록이 없습니다") }
@@ -128,19 +138,23 @@ struct SessionSummaryFeatureTests {
         let stored = session(swings: 2)
         let repository = StubRepository(.found(stored))
         let store = TestStore(initialState: SessionSummaryFeature.State(sessionID: stored.id)) {
-            SessionSummaryFeature(repository: repository)
+            SessionSummaryFeature(repository: repository, locator: presentLocator)
         }
         await store.send(.appeared)
         await store.receive(.loaded(stored)) { $0.phase = .loaded(stored) }
+        // 세션을 읽은 **뒤에** 클립 파일 확인이 온다 (#120).
+        await store.receive(.missingClipsChecked([]))
         await store.send(.retryTapped) { $0.phase = .loading }
         await store.receive(.loaded(stored)) { $0.phase = .loaded(stored) }
+        // 세션을 읽은 **뒤에** 클립 파일 확인이 온다 (#120).
+        await store.receive(.missingClipsChecked([]))
         #expect(repository.loadCount == 2)
     }
 
     @Test("닫기가 올라간다")
     func 닫기() async {
         let store = TestStore(initialState: SessionSummaryFeature.State(sessionID: UUID())) {
-            SessionSummaryFeature(repository: StubRepository(.missing))
+            SessionSummaryFeature(repository: StubRepository(.missing), locator: presentLocator)
         }
         await store.send(.closeTapped)
         await store.receive(.delegate(.closed))
@@ -160,10 +174,12 @@ struct SessionSummaryFeatureTests {
             clips: []
         )
         let store = TestStore(initialState: SessionSummaryFeature.State(sessionID: stored.id)) {
-            SessionSummaryFeature(repository: StubRepository(.found(stored)))
+            SessionSummaryFeature(repository: StubRepository(.found(stored)), locator: presentLocator)
         }
         await store.send(.appeared)
         await store.receive(.loaded(stored)) { $0.phase = .loaded(stored) }
+        // 세션을 읽은 **뒤에** 클립 파일 확인이 온다 (#120).
+        await store.receive(.missingClipsChecked([]))
         await store.send(.reframeTapped)
         await store.receive(.delegate(.reframe(situation: .wall, observable: .lineCall)))
     }
@@ -172,7 +188,7 @@ struct SessionSummaryFeatureTests {
     @Test("읽기 전에는 배치 다시 보기가 아무것도 보내지 않는다")
     func 배치_미로드() async {
         let store = TestStore(initialState: SessionSummaryFeature.State(sessionID: UUID())) {
-            SessionSummaryFeature(repository: StubRepository(.missing))
+            SessionSummaryFeature(repository: StubRepository(.missing), locator: presentLocator)
         }
         await store.send(.reframeTapped)
     }

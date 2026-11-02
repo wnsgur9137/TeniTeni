@@ -61,6 +61,10 @@ private func session(dayOffset: Int, swings: Int = 1, clips: Int = 1) -> Session
     )
 }
 
+/// 클립 파일이 전부 있는 상태. **#120 이후 모든 테스트가 이것을 명시한다** —
+/// 기본 `ClipLocator`는 실제 `Documents`를 보므로 결과가 환경에 따라 달라진다.
+private let presentLocator = ClipLocator(directory: URL(filePath: "/clips")) { _ in true }
+
 @Suite("보관함")
 @MainActor
 struct LibraryFeatureTests {
@@ -69,12 +73,18 @@ struct LibraryFeatureTests {
     func 읽기_성공() async {
         let stored = [session(dayOffset: 0), session(dayOffset: 1)]
         let store = TestStore(initialState: LibraryFeature.State()) {
-            LibraryFeature(repository: StubRepository(.all(stored)))
+            LibraryFeature(repository: StubRepository(.all(stored)), locator: presentLocator)
         }
         await store.send(.appeared)
         await store.receive(.loaded(stored)) {
             // 1일이 0일보다 최신이므로 뒤집혀 들어간다.
             $0.phase = .loaded([stored[1], stored[0]])
+        }
+        // 목록이 그려진 **뒤에** 클립 파일 확인이 온다 (#120).
+        await store.receive(
+            .availabilityChecked([stored[0].id: .all, stored[1].id: .all])
+        ) {
+            $0.availability = [stored[0].id: .all, stored[1].id: .all]
         }
         #expect(store.state.isEmpty == false)
     }
@@ -87,11 +97,16 @@ struct LibraryFeatureTests {
         let mid = session(dayOffset: 5)
         let new = session(dayOffset: 9)
         let store = TestStore(initialState: LibraryFeature.State()) {
-            LibraryFeature(repository: StubRepository(.all([mid, old, new])))
+            LibraryFeature(repository: StubRepository(.all([mid, old, new])), locator: presentLocator)
         }
         await store.send(.appeared)
         await store.receive(.loaded([mid, old, new])) {
             $0.phase = .loaded([new, mid, old])
+        }
+        await store.receive(
+            .availabilityChecked([new.id: .all, mid.id: .all, old.id: .all])
+        ) {
+            $0.availability = [new.id: .all, mid.id: .all, old.id: .all]
         }
         guard case .loaded(let sessions) = store.state.phase else {
             Issue.record("목록이어야 한다")
@@ -105,17 +120,18 @@ struct LibraryFeatureTests {
     @Test("아무것도 없으면 비어 있다고 말한다")
     func 빈_목록() async {
         let store = TestStore(initialState: LibraryFeature.State()) {
-            LibraryFeature(repository: StubRepository(.all([])))
+            LibraryFeature(repository: StubRepository(.all([])), locator: presentLocator)
         }
         await store.send(.appeared)
         await store.receive(.loaded([])) { $0.phase = .loaded([]) }
+        await store.receive(.availabilityChecked([:]))
         #expect(store.state.isEmpty, "빈 목록은 빈 상태 화면으로 간다")
     }
 
     @Test("읽기가 실패하면 사유를 남기고, 비어 있다고 말하지 않는다")
     func 읽기_실패() async {
         let store = TestStore(initialState: LibraryFeature.State()) {
-            LibraryFeature(repository: StubRepository(.failure))
+            LibraryFeature(repository: StubRepository(.failure), locator: presentLocator)
         }
         await store.send(.appeared)
         await store.receive(.failed("디스크를 읽을 수 없습니다")) {
@@ -128,12 +144,14 @@ struct LibraryFeatureTests {
     func 재시도() async {
         let repository = StubRepository(.all([]))
         let store = TestStore(initialState: LibraryFeature.State()) {
-            LibraryFeature(repository: repository)
+            LibraryFeature(repository: repository, locator: presentLocator)
         }
         await store.send(.appeared)
         await store.receive(.loaded([])) { $0.phase = .loaded([]) }
+        await store.receive(.availabilityChecked([:]))
         await store.send(.retryTapped) { $0.phase = .loading }
         await store.receive(.loaded([])) { $0.phase = .loaded([]) }
+        await store.receive(.availabilityChecked([:]))
         #expect(repository.loadCount == 2)
     }
 
@@ -141,7 +159,7 @@ struct LibraryFeatureTests {
     func 세션_탭() async {
         let stored = session(dayOffset: 0)
         let store = TestStore(initialState: LibraryFeature.State()) {
-            LibraryFeature(repository: StubRepository(.all([stored])))
+            LibraryFeature(repository: StubRepository(.all([stored])), locator: presentLocator)
         }
         await store.send(.sessionTapped(stored.id))
         await store.receive(.delegate(.sessionTapped(stored.id)))
@@ -151,7 +169,7 @@ struct LibraryFeatureTests {
     @Test("빈 상태의 촬영하러 가기가 올라간다")
     func 촬영_탭() async {
         let store = TestStore(initialState: LibraryFeature.State()) {
-            LibraryFeature(repository: StubRepository(.all([])))
+            LibraryFeature(repository: StubRepository(.all([])), locator: presentLocator)
         }
         await store.send(.captureTapped)
         await store.receive(.delegate(.goToCapture))
@@ -162,10 +180,13 @@ struct LibraryFeatureTests {
     func 스윙_0개도_남는다() async {
         let empty = session(dayOffset: 0, swings: 0, clips: 1)
         let store = TestStore(initialState: LibraryFeature.State()) {
-            LibraryFeature(repository: StubRepository(.all([empty])))
+            LibraryFeature(repository: StubRepository(.all([empty])), locator: presentLocator)
         }
         await store.send(.appeared)
         await store.receive(.loaded([empty])) { $0.phase = .loaded([empty]) }
+        await store.receive(.availabilityChecked([empty.id: .all])) {
+            $0.availability = [empty.id: .all]
+        }
         #expect(store.state.isEmpty == false, "세션은 있다 — 그 안의 스윙이 0개일 뿐이다")
     }
 

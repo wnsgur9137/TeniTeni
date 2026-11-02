@@ -556,6 +556,11 @@ struct CaptureFlowTests {
         await store.receive(.library(.loaded(stored))) {
             $0.library.phase = .loaded(stored)
         }
+        // 목록이 그려진 **뒤에** 클립 파일 확인이 온다(#120). 세션에 클립이
+        // 0개이므로 결손이 아니다 — 찍을 것이 없었을 뿐이다.
+        await store.receive(.library(.availabilityChecked([stored[0].id: .all]))) {
+            $0.library.availability = [stored[0].id: .all]
+        }
         #expect(sessions.loadAllCount == 1)
     }
 
