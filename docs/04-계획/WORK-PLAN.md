@@ -5,7 +5,7 @@ tags:
   - 문서유형/계획
   - 영역/제품
 created: 2026-09-10
-updated: 2026-09-11
+updated: 2026-11-02
 status: active
 ---
 
@@ -13,6 +13,11 @@ status: active
 
 > **작업 상태는 [GitHub Issues](https://github.com/wnsgur9137/TeniTeni/issues)에 있습니다.**
 > 각 단계는 동명의 마일스톤에 대응합니다. 이 문서는 순서와 선행 관계만 담습니다.
+
+> [!IMPORTANT]
+> **이슈 번호는 이 문서가 정본입니다.** 열린 작업에는 번호를 답니다 — 계획 문서와 이슈 목록을 사람이 머리로 맞추지 않게 하는 것이 목적입니다.
+>
+> [로드맵](ROADMAP.md)에는 번호를 적지 않습니다. 그쪽은 "무엇을 언제"를 담고, 번호는 순서·선행과 함께 있어야 쓸모가 있습니다.
 
 [로드맵](ROADMAP.md)이 "무엇을 언제"라면, 이 문서는 **"어떤 순서로, 무엇이 선행인지"** 를 정의합니다.
 
@@ -75,8 +80,8 @@ Phase 3 │ 레퍼런스 비교(DTW·고스트) · 3D 포즈(X-Factor) · 구속
 
 | # | 작업 | 산출물 |
 |---|---|---|
-| 1 | 실기기 지원 포맷 덤프 | 해상도·fps·binned 목록 |
-| 2 | 화각 실측 → [촬영 프로토콜 5.1](../02-설계/CAPTURE-PROTOCOL.md#51-카메라-배치) 계산값 보정 | 공 픽셀 크기 실측표 |
+| 1 | 실기기 지원 포맷 덤프 ([#4](https://github.com/wnsgur9137/TeniTeni/issues/4) 🚧) | 해상도·fps·binned 목록 |
+| 2 | 화각 실측 → [촬영 프로토콜 5.1](../02-설계/CAPTURE-PROTOCOL.md#51-카메라-배치) 계산값 보정 ([#4](https://github.com/wnsgur9137/TeniTeni/issues/4) 🚧) | 공 픽셀 크기 실측표 |
 | 3 | **최소 촬영 앱** | 프리뷰 + 녹화 버튼 |
 
 최소 촬영 앱의 범위를 엄격히 지킵니다.
@@ -89,7 +94,7 @@ Phase 3 │ 레퍼런스 비교(DTW·고스트) · 3D 포즈(X-Factor) · 구속
 
 > 단일 타깃 하나면 됩니다. Tuist를 아직 도입하지 않습니다.
 
-### 0-B. 촬영 (코트, 1일)
+### 0-B. 촬영 (코트, 1일) — [#130](https://github.com/wnsgur9137/TeniTeni/issues/130) 🚧
 
 목표: **조건을 변주한 영상 세트 확보.** 이게 이후 모든 작업의 입력이자 골든 테스트 픽스처가 됩니다.
 
@@ -144,6 +149,7 @@ Mac ──→ TeniVision (공유) ──→ 검출 결과 JSON ──→ 집계 
 > | # | 전 | 후 |
 > |---|---|---|
 > | 1 | Metal 프리뷰 직접 렌더 | **불필요** — 라이브는 `AVCaptureVideoPreviewLayer`로 충분하다 |
+> | 4 | One Euro Filter를 라이브 경로에 | **주 용도가 1-E 사이드카로 옮겨졌다** — 오프라인이라 더 세게 걸 수 있다 ([#128](https://github.com/wnsgur9137/TeniTeni/issues/128)) |
 > | 5 | 스켈레톤 렌더 패스 | **1-E로 이동** ([#121](https://github.com/wnsgur9137/TeniTeni/issues/121)) |
 > | 6 | 실시간 궤적 렌더 패스 | **1-E로 이동.** 오프라인 계산이므로 "실시간"이 아니다 |
 > | 7 | 120fps 8.3ms 예산 | **예산이 줄어든다** — 라이브에 남는 분석은 스윙 트리거용 포즈 하나다 |
@@ -155,11 +161,11 @@ Mac ──→ TeniVision (공유) ──→ 검출 결과 JSON ──→ 집계 
 | 1 | ~~Metal 프리뷰 직접 렌더~~ → **불필요** (ADR-0006) | — | ❌ | — |
 | 2 | `RenderTransform` 단일 변환 행렬 | — | ❌ | ✅ |
 | 3 | `CMReadySampleBuffer` 기반 프레임 인테이크 + 스트림 분리 | — | ❌ | ✅ |
-| 4 | `DetectHumanBodyPoseRequest` + One Euro Filter | 3 | ❌ **포즈** | ✅ |
+| 4 | `DetectHumanBodyPoseRequest` + One Euro Filter ([#128](https://github.com/wnsgur9137/TeniTeni/issues/128)) | 3 | ❌ **포즈** | ✅ |
 | 5 | ~~스켈레톤 렌더 패스~~ → **1-E로 이동** | 2, 4 | ❌ | — |
 | 6 | ~~실시간 궤적 렌더 패스~~ → **1-E로 이동** (오프라인 계산) | 2, 3 | ✅ | — |
-| 7 | 성능 프로파일링 (라이브는 포즈만) | 4 | ❌ | ✅ |
-| 8 | 발열·인터럽션·strict concurrency 검증 | 7 | ❌ | ✅ |
+| 7 | 성능 프로파일링 (라이브는 포즈만) ([#129](https://github.com/wnsgur9137/TeniTeni/issues/129) 🚧) | 4 | ❌ | ✅ |
+| 8 | 발열·인터럽션·strict concurrency 검증 ([#129](https://github.com/wnsgur9137/TeniTeni/issues/129) 🚧) | 7 | ❌ | ✅ |
 
 #### 왜 1~5는 게이트와 무관한가
 
@@ -237,12 +243,27 @@ Mac ──→ TeniVision (공유) ──→ 검출 결과 JSON ──→ 집계 
 ### 1-B. 스윙 검출 (2~3주)
 
 - 손목 각속도 기반 룰 트리거 + 히스테리시스
-- 링 버퍼 (소급 저장)
+- 링 버퍼 (소급 저장) — **미완. 아래 참고** ([#103](https://github.com/wnsgur9137/TeniTeni/issues/103))
 - 스윙 구간 클립 저장
 - `Domain` 엔티티 확정 (Session, Clip, Swing)
 - **SwiftData 영속화** — 저장할 곳 없이 클립을 저장할 수 없다. [D-08](../05-결정/stack/D-08-local-db.md)이 "메타데이터만"으로 확정했으므로 영상 파일과 무관하다
 - **중간 확인 화면**(`QuickCheck`) — 왕복 빈도 '중간'·'잦음' 상황에서 필요
 - **예외 화면** — 스윙 0개 진단(`EmptySession`), 발열 경고(`ThermalWarning`)
+
+#### ⚠️ 링 버퍼는 1차 조치만 들어가 있다 — [#103](https://github.com/wnsgur9137/TeniTeni/issues/103)
+
+`FrameIntake`의 얕은 복사 때문에 링 버퍼 한 장이 `AVCaptureVideoDataOutput` **출력 풀의 한 장을 붙듭니다.** 상한이 없으면 풀이 고갈돼 분석 프레임이 끊기고, 화면에는 "스윙 0개"로만 보입니다.
+
+[#97](https://github.com/wnsgur9137/TeniTeni/issues/97)에서 **1차 조치**가 들어갔습니다 — `ClipRecorder`의 `backlogCapacity`로 장 수 상한 24장(분석 60fps 기준 0.4초), 상한에 걸려 버린 장 수는 `droppedBacklogCount`로 셉니다. 점유에 증명 가능한 상한이 생겼으므로 **지금 증상은 "스윙이 안 잡힌다"가 아닙니다.**
+
+**대가는 클립의 머리입니다.** 되감을 구간이 `preRoll`(2초)보다 짧아져 **테이크백 대부분이 빠집니다.** 남은 일은 둘입니다.
+
+| 남은 일 | 실기기 |
+|---|---|
+| 소급분을 캡처 풀 밖으로 옮기는 설계 — 클립 해상도와 맞바꾸는 제품 결정이다 | 불필요 |
+| 상한 24가 옳은 값인지 실측 — `AVCaptureVideoDataOutput`은 풀 크기를 공개하지 않는다 | **필요** |
+
+근거는 [SPEC-0097](../07-기획/SPEC-0097-swing-wiring.md) 선택지 2와 그 리스크 표에 있습니다.
 
 ### 1-C. 학습 데이터 촬영 (1주, 코트)
 
@@ -255,6 +276,7 @@ Mac ──→ TeniVision (공유) ──→ 검출 결과 JSON ──→ 집계 
 - Create ML Action Classifier 학습 → Core ML 통합
 - 페이즈 분할, 임팩트 프레임 특정
 - 메트릭 산출 + 룰 엔진 피드백
+- **코치 자문 확보** ([#54](https://github.com/wnsgur9137/TeniTeni/issues/54)) — 9.7이 "지금부터 병렬"로 지목한 유일한 항목. **이 단계 시작 전까지 확보되어야 합니다**
 - **`contracts/proto/` 확정** — 포즈 시계열 저장에 Protobuf 사용 ([D-09](../05-결정/stack/D-09-serialization.md))
 
 > `proto` 스키마는 백엔드보다 먼저 필요합니다. 로컬 저장에 쓰기 때문입니다.
@@ -263,13 +285,37 @@ Mac ──→ TeniVision (공유) ──→ 검출 결과 JSON ──→ 집계 
 
 > 영속화는 **1-B**로 옮겼습니다. 1-B가 클립을 저장하는데 저장할 곳이 두 단계 뒤에 있었습니다.
 
-- 슬로우 모션 리플레이 + 페이즈 ([#123](https://github.com/wnsgur9137/TeniTeni/issues/123)) → 오버레이 레이어 ([#121](https://github.com/wnsgur9137/TeniTeni/issues/121))
-  - **피드백은 이 단계에 없습니다.** 신뢰도 임계값이 코치 자문([#54](https://github.com/wnsgur9137/TeniTeni/issues/54)) 선행이고 1-D 룰 엔진도 선행입니다 ([SPEC-0123](../07-기획/SPEC-0123-swing-replay.md))
-- 세션 요약, 클립 목록
-- **남은 예외 화면** — 권한 거부 · 저장공간 · 세션 복구 · 삭제 ([IA-FLOW 10.6](../06-디자인/IA-FLOW.md))
-- 골든 테스트 구축 (0-B 영상을 픽스처로)
+#### 끝난 것
+
+| 작업 | 이슈 |
+|---|---|
+| 세션 요약, 스윙 0개 진단 | [#110](https://github.com/wnsgur9137/TeniTeni/issues/110) |
+| 보관함 — 과거 세션 목록 | [#116](https://github.com/wnsgur9137/TeniTeni/issues/116) |
+| 슬로우 모션 리플레이 + 페이즈 | [#123](https://github.com/wnsgur9137/TeniTeni/issues/123) |
+
+#### 남은 것 — 순서
+
+| 순 | 작업 | 이슈 | 선행 | 실기기 |
+|---|---|---|---|---|
+| 1 | 오버레이 레이어 — 리플레이에서 켜고 끈다 | [#121](https://github.com/wnsgur9137/TeniTeni/issues/121) | #123 ✅ | 불필요 |
+| 2 | 파일이 없는데 목록이 "스윙 12개"라고 말한다 | [#120](https://github.com/wnsgur9137/TeniTeni/issues/120) | #116 ✅ · `ClipLocator`(#123) ✅ | 불필요 |
+| 3 | 세션·클립 삭제 — `delete`에 호출자가 없다 | [#126](https://github.com/wnsgur9137/TeniTeni/issues/126) | #116 ✅ · #123 ✅ | 불필요 |
+| 4 | 강제 종료된 세션 복구 — 고아 클립만 남는다 | [#125](https://github.com/wnsgur9137/TeniTeni/issues/125) | — | 불필요 |
+| 5 | 저장공간이 모자라면 찍기 전에 말한다 | [#124](https://github.com/wnsgur9137/TeniTeni/issues/124) | **#126** — "보관함 정리"로 보낼 곳이 있어야 한다 | 불필요 |
+| — | One Euro Filter | [#128](https://github.com/wnsgur9137/TeniTeni/issues/128) | 끼울 자리가 **#121의 사이드카**. 0-D 4번이고 마일스톤도 0-D다 | 불필요 |
+| — | 골든 테스트 (0-B 영상을 픽스처로) | [#127](https://github.com/wnsgur9137/TeniTeni/issues/127) 🚧 | **0-B 촬영(#130)** | — |
+
+**순서의 근거는 선행뿐입니다.** 5번이 3번 뒤인 것은 저장공간 화면이 사용자를 "보관함 정리"로 보내기 때문이고, 나머지는 서로 막지 않으므로 바꿔도 됩니다.
+
+#### 이 단계에 없는 것
+
+- **피드백.** 신뢰도 임계값이 코치 자문([#54](https://github.com/wnsgur9137/TeniTeni/issues/54)) 선행이고 1-D 룰 엔진도 선행입니다 ([SPEC-0123](../07-기획/SPEC-0123-swing-replay.md))
+- **오버레이 4레이어 중 둘.** 볼 궤적은 0-C 게이트, 라인은 1-F 2·3이 선행입니다 ([ADR-0006](../05-결정/adr/ADR-0006-replay-overlay-layers.md))
+- **예외 화면 중 권한 거부.** [#67](https://github.com/wnsgur9137/TeniTeni/issues/67)로 이미 끝났습니다 — 마일스톤은 **1-B**입니다
 
 **이 시점에 TestFlight 배포가 가능합니다.** 백엔드 없이 앱이 완결됩니다.
+
+> ⚠️ **미결 — 진척도 탭이 비어 있습니다.** 9.4의 1-A′ 절이 "2-E를 앞당길지, 빈 상태를 다듬어 내보낼지는 **1-E에 가서 정한다**"로 남겼고, **지금이 1-E인데 아직 정하지 않았습니다.** 골든 테스트(#127)가 0-B에 막혀 있으므로 이 결정이 TestFlight 시점의 남은 변수입니다.
 
 ---
 
