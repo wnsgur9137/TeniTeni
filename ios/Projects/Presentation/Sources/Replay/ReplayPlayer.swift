@@ -197,11 +197,24 @@ final class ReplayPlayer {
         isSeeking = false
     }
 
+    /// 프레임 단위 이동. **끝나면 실제 시각을 올려보낸다.**
+    ///
+    /// 주기 관측자는 재생 중에만 발화한다. 스텝은 재생을 멈추므로 여기서
+    /// 알리지 않으면 화면이 그 프레임의 시각을 모른다 — 오버레이가 직전
+    /// 프레임에 멈춘 채로 남는다(#121).
     func step(by count: Int) {
         guard let item = player.currentItem else { return }
         player.pause()
         if count > 0, !item.canStepForward { return }
         if count < 0, !item.canStepBackward { return }
         item.step(byCount: count)
+        // ★ 옮긴 시각을 올려보낸다. 주기 관측자는 **재생 중에만** 발화하고
+        //   스텝은 재생을 멈추므로, 알리지 않으면 화면이 이 프레임의 시각을
+        //   모른다 — 오버레이가 직전 프레임에 멈춘 채로 남는다(#121).
+        //
+        //   `isSeeking` 가드를 타지 않는다: 탐색 중이면 그 결과가 곧 오고,
+        //   여기서 끼어들면 탐색 중 시각이 화면에 올라간다.
+        guard !isSeeking else { return }
+        onTime?(player.currentTime().seconds)
     }
 }

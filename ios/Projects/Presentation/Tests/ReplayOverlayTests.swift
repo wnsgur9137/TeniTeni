@@ -86,7 +86,10 @@ struct ReplayOverlayTests {
     @Test("켜면 코디네이터에게 기억해 달라고 알린다")
     func 전환() async {
         let store = makeStore()
-        await store.send(.overlaySelected(.skeleton)) { $0.overlay = .skeleton }
+        await store.send(.overlaySelected(.skeleton)) {
+            $0.overlay = .skeleton
+            $0.desiredOverlay = .skeleton
+        }
         await store.receive(.delegate(.overlayChanged(.skeleton)))
         #expect(store.state.canDrawOverlay)
     }
@@ -117,7 +120,7 @@ struct ReplayOverlayTests {
         let store = makeStore(overlay: .skeleton, phase: .ready)
         await store.send(.overlayPhaseChanged(.notAnalyzed)) {
             $0.overlayPhase = .notAnalyzed
-            // 그릴 수 없게 됐으면 **끈다.**
+            // 그릴 수 없게 됐으면 **끈다.** `desiredOverlay`는 남는다.
             $0.overlay = .off
         }
         await store.send(.overlaySelected(.off))
@@ -153,11 +156,42 @@ struct ReplayOverlayTests {
 
     // MARK: - 다시 시도
 
-    @Test("실패일 때만 다시 시도가 간다")
+    /// 큐에 넣는 일은 **큐를 쥔 쪽**이 한다. 코디네이터의 이펙트로 돌리면
+    /// 상태에 붙은 감시가 투입보다 먼저 달려 "분석 전"으로 되돌아간다.
+    @Test("실패일 때만 다시 시도가 상태를 바꾼다")
     func 다시_시도() async {
         let store = makeStore(phase: .failed("사람을 찾지 못했습니다"))
         await store.send(.overlayRetryTapped) { $0.overlayPhase = .baking }
-        await store.receive(.delegate(.overlayRetryRequested(fileName: "a.mov", side: .right)))
+    }
+
+    /// 굽는 중인 클립으로 넘어가면 `overlay`는 꺼지는데, 고른 것을 잃으면
+    /// **굽기가 끝난 뒤에도 꺼진 채로 남는다.**
+    @Test("굽는 동안 꺼지고 끝나면 고른 것이 돌아온다")
+    func 고른_것_복구() async {
+        let store = makeStore(overlay: .skeleton, phase: .ready)
+        await store.send(.overlayPhaseChanged(.baking)) {
+            $0.overlayPhase = .baking
+            $0.overlay = .off
+        }
+        #expect(store.state.desiredOverlay == .skeleton)
+        await store.send(.overlayPhaseChanged(.ready)) {
+            $0.overlayPhase = .ready
+            $0.overlay = .skeleton
+        }
+    }
+
+    /// 끈 것은 끈 것이다. 되살리면 사용자가 끈 것을 앱이 무시한다.
+    @Test("사용자가 끈 뒤에는 되살리지 않는다")
+    func 끈_것_유지() async {
+        let store = makeStore(overlay: .skeleton, phase: .ready)
+        await store.send(.overlaySelected(.off)) {
+            $0.overlay = .off
+            $0.desiredOverlay = .off
+        }
+        await store.receive(.delegate(.overlayChanged(.off)))
+        await store.send(.overlayPhaseChanged(.baking)) { $0.overlayPhase = .baking }
+        await store.send(.overlayPhaseChanged(.ready)) { $0.overlayPhase = .ready }
+        #expect(store.state.overlay == .off)
     }
 
     @Test("실패가 아니면 다시 시도가 가지 않는다")

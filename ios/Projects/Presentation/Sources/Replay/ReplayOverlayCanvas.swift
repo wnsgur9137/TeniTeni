@@ -32,6 +32,14 @@ struct ReplayOverlayCanvas: View {
                   let projection = OverlayProjection(pixelSize: pixelSize, viewSize: size)
             else { return }
 
+            // ★ 영상 사각형 **밖으로 넘기지 않는다.**
+            //
+            //   좌표를 자르지 않는 것은 의도다(자르면 궤적이 가장자리에
+            //   붙어 거짓된 직선이 생긴다). 그런데 그리는 것까지 넘치면
+            //   **레터박스와 컨트롤 위에 관절이 떠 있다** — 영상 밖에 있는
+            //   팔은 사용자에게 아무 뜻이 없고, 스크러버를 가린다.
+            context.clip(to: Path(projection.content))
+
             switch layer {
             case .off:
                 break
@@ -73,7 +81,9 @@ struct ReplayOverlayCanvas: View {
             )
         }
 
-        for (joint, sample) in frame.joints {
+        // 순회 순서를 고정한다. 딕셔너리 순서를 그대로 쓰면 프레임마다
+        // 그리는 순서가 달라져, 겹친 관절의 위아래가 깜빡인다.
+        for (joint, sample) in frame.joints.sorted(by: { $0.key.rawValue < $1.key.rawValue }) {
             guard sample.confidence >= Self.minimumConfidence else { continue }
             // 얼굴 관절은 점만 찍는다. 본을 잇지 않는 것과 같은 이유다.
             let radius: CGFloat = Self.isFace(joint) ? 2 : 3

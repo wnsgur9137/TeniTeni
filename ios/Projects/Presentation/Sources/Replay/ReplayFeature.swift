@@ -54,6 +54,12 @@ public struct ReplayFeature {
 
         /// 지금 켜진 오버레이. 기본은 `off` — **첫 화면은 자기 스윙 영상이다.**
         public var overlay: OverlayLayer
+        /// 사용자가 **고른** 레이어. 그릴 수 없는 동안에도 유지된다.
+        ///
+        /// 굽는 중인 클립으로 넘어가면 `overlay`는 `off`로 떨어지는데, 이
+        /// 값이 없으면 굽기가 끝난 뒤에도 **꺼진 채로 남는다** — 사용자가
+        /// 고른 것을 앱이 잊는다.
+        public var desiredOverlay: OverlayLayer
         /// 이 클립의 사이드카가 어떤 상태인가. **데이터는 들지 않는다** —
         /// 프레임 수백 개를 리듀서 상태에 두면 액션마다 그 배열을 비교한다.
         /// 데이터는 `ReplayOverlaySource`가 들고, 여기엔 상태만 온다
@@ -76,6 +82,7 @@ public struct ReplayFeature {
             clipURL: URL? = nil,
             slowMotionUnsupported: Bool = false,
             overlay: OverlayLayer = .off,
+            desiredOverlay: OverlayLayer? = nil,
             overlayPhase: OverlayPhase = .notAnalyzed,
             side: RacketSide = .right,
             seek: SeekCommand = SeekCommand(),
@@ -91,6 +98,7 @@ public struct ReplayFeature {
             self.clipURL = clipURL
             self.slowMotionUnsupported = slowMotionUnsupported
             self.overlay = overlay
+            self.desiredOverlay = desiredOverlay ?? overlay
             self.overlayPhase = overlayPhase
             self.side = side
             self.seek = seek
@@ -209,8 +217,6 @@ public struct ReplayFeature {
             /// 고른 레이어를 기억해 달라. 저장은 코디네이터의 일이다 —
             /// `Presentation`의 Feature는 설정 저장소를 모른다(D-03).
             case overlayChanged(OverlayLayer)
-            /// 이 클립을 다시 구워 달라.
-            case overlayRetryRequested(fileName: String, side: RacketSide)
         }
     }
 
@@ -282,6 +288,17 @@ public struct ReplayFeature {
                 state.isPlaying = false
                 state.step.tick += 1
                 state.step.count = count
+                // ★ 시각을 **여기서도** 옮긴다.
+                //
+                //   주기 관측자는 재생 중에만 발화한다. 스텝은 재생을 멈추므로
+                //   플레이어가 올려보내는 시각이 오지 않고, 그러면 오버레이가
+                //   **직전 프레임에 멈춘 채로 남는다.** 영상만 넘어간다.
+                //
+                //   플레이어가 실제 시각을 올려보내면 그 값으로 덮인다
+                //   (`ReplayPlayer.step`). 이것은 그 전까지의 값이다.
+                if let item = state.current {
+                    state.currentSeconds += Double(count) * item.frameSeconds
+                }
                 return .none
 
             case .impactTapped:
@@ -319,22 +336,27 @@ public struct ReplayFeature {
                 guard layer == .off || state.canSelectOverlay else { return .none }
                 guard state.overlay != layer else { return .none }
                 state.overlay = layer
+                state.desiredOverlay = layer
                 return .send(.delegate(.overlayChanged(layer)))
 
             case .overlayRetryTapped:
-                guard case .failed = state.overlayPhase, let item = state.current else {
-                    return .none
-                }
+                guard case .failed = state.overlayPhase else { return .none }
                 state.overlayPhase = .baking
-                return .send(
-                    .delegate(.overlayRetryRequested(fileName: item.fileName, side: state.side))
-                )
+                // 큐에 넣는 일은 **큐를 쥔 쪽**(`ReplayOverlaySource`)이 한다.
+                // 코디네이터의 이펙트로 돌리면 상태에 붙은 감시가 투입보다
+                // 먼저 달려 "분석 전"으로 되돌아간다.
+                return .none
 
             case .overlayPhaseChanged(let phase):
                 state.overlayPhase = phase
-                // 그릴 수 없게 됐으면 **끈다.** 켜진 채로 두면 아무것도
-                // 안 그려지는 화면에서 세그먼트만 "스켈레톤"을 가리킨다.
-                if phase != .ready, state.overlay.needsSidecar {
+                if phase == .ready {
+                    // 굽기가 끝났다. **고른 것을 되살린다.** 잃어버리면
+                    // 사용자가 고른 레이어를 앱이 잊는다.
+                    state.overlay = state.desiredOverlay
+                } else if state.overlay.needsSidecar {
+                    // 그릴 수 없게 됐으면 **끈다.** 켜진 채로 두면 아무것도
+                    // 안 그려지는 화면에서 세그먼트만 "스켈레톤"을 가리킨다.
+                    // `desiredOverlay`는 건드리지 않는다.
                     state.overlay = .off
                 }
                 return .none
