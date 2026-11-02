@@ -119,9 +119,9 @@ struct RacketHeadTests {
         #expect(abs(head.confidence - 0.45) < 1e-9)
     }
 
-    /// 손이 기대보다 **길게** 보이는 것은 단축이 아니다(개인차·추정 오차).
-    /// 1로 자른다 — 자르지 않으면 신뢰도가 1을 넘는다.
-    @Test("손이 기대보다 길어도 단축은 1을 넘지 않는다")
+    /// 손이 기대보다 **조금** 길게 보이는 것은 단축이 아니다(개인차·추정
+    /// 오차). 1로 자른다 — 자르지 않으면 신뢰도가 1을 넘는다.
+    @Test("손이 조금 길어도 단축은 1을 넘지 않는다")
     func 단축_상한() throws {
         let aspect = Self.aspect
         let metersPerUnit = RacketHeadEstimator.shoulderMeters / (0.2 * aspect)
@@ -131,13 +131,66 @@ struct RacketHeadTests {
             RacketHeadEstimator.estimate(
                 Self.input(
                     wrist: CGPoint(x: 0.5, y: 0.5),
-                    mcp: CGPoint(x: 0.5, y: 0.5 + handUnits * 3)
+                    mcp: CGPoint(x: 0.5, y: 0.5 + handUnits * 1.5)
                 ),
                 minimumConfidence: 0
             )
         )
         #expect(head.confidence <= 1)
         #expect(abs(head.confidence - 0.9) < 1e-9)
+    }
+
+    /// ⚠️ **측면 자세가 자를 망친다.** 몸이 돌면 투영된 어깨너비가 줄고
+    /// 손 길이는 그만큼 줄지 않는다 — 그러면 비율이 1을 크게 넘는다.
+    ///
+    /// 상한 1로 깎아 버리면 그 실패가 **높은 신뢰도로 통과**하고, 손바닥
+    /// 안에 찍힌 짧은 라켓이 그려진다. 테니스 준비 자세가 측면이므로
+    /// 드문 경우가 아니다.
+    @Test("자와 손이 2배 넘게 어긋나면 그리지 않는다")
+    func 자_불신() {
+        let aspect = Self.aspect
+        let metersPerUnit = RacketHeadEstimator.shoulderMeters / (0.2 * aspect)
+        let handUnits = RacketHeadEstimator.handMeters / metersPerUnit
+
+        // 비율 3 — 어깨가 약 70° 돌아간 상황에 해당한다.
+        #expect(
+            RacketHeadEstimator.estimate(
+                Self.input(
+                    wrist: CGPoint(x: 0.5, y: 0.5),
+                    mcp: CGPoint(x: 0.5, y: 0.5 + handUnits * 3)
+                ),
+                minimumConfidence: 0
+            ) == nil
+        )
+        // 경계 바로 아래는 그린다.
+        #expect(
+            RacketHeadEstimator.estimate(
+                Self.input(
+                    wrist: CGPoint(x: 0.5, y: 0.5),
+                    mcp: CGPoint(
+                        x: 0.5,
+                        y: 0.5 + handUnits * CGFloat(RacketHeadEstimator.maximumHandRatio * 0.99)
+                    )
+                ),
+                minimumConfidence: 0
+            ) != nil
+        )
+    }
+
+    /// 어깨너비가 0에 가까우면 `metersPerUnit`이 폭발해 `reach`가 0이 되고,
+    /// 동시에 비율이 커져 상한 1에 포화한다. **자 불신이 그것을 잡는다.**
+    @Test("어깨가 거의 겹치면 그리지 않는다")
+    func 어깨_거의_0() {
+        #expect(
+            RacketHeadEstimator.estimate(
+                Self.input(
+                    wrist: CGPoint(x: 0.5, y: 0.5),
+                    mcp: CGPoint(x: 0.5, y: 0.55),
+                    shoulderHalf: 0.0005
+                ),
+                minimumConfidence: 0
+            ) == nil
+        )
     }
 
     @Test("단축이 커서 신뢰도가 임계에 못 미치면 그 프레임은 nil이다")

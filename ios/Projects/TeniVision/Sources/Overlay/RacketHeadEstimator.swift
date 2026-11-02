@@ -42,6 +42,27 @@ public enum RacketHeadEstimator {
     /// 손목에서 `middleMCP`까지. 단축을 재는 자다.
     public static let handMeters: Double = 0.10
 
+    /// 손이 기대보다 이만큼 넘게 길어 보이면 **자를 믿지 않는다.**
+    ///
+    /// ## 왜 필요한가 — 측면 자세가 자를 망친다
+    ///
+    /// 어깨너비를 자로 쓰는데, 몸이 측면으로 돌면 **투영된 어깨너비가
+    /// 줄어든다.** 손 길이는 그만큼 줄지 않는다. 그러면
+    ///
+    ///     어깨너비 ↓ → metersPerUnit ↑ → reach ↓       (라켓이 짧아진다)
+    ///                 → expectedHand ↓ → 비율 ↑ → 상한 1에 포화
+    ///
+    /// 단축 보정이 **잡아야 할 실패를 상한 1이 가린다.** 신뢰도는 관절
+    /// 신뢰도(0.8 같은 값)를 그대로 유지하고, 손바닥 안에 찍힌 헤드가
+    /// 높은 신뢰도로 그려진다.
+    ///
+    /// 테니스 준비 자세가 측면이므로 **드문 경우가 아니다.**
+    ///
+    /// 2.0은 어깨가 약 60° 돌아간 지점이다(cos 60° = 0.5). 그보다 돌면
+    /// 자와 손이 2배 이상 어긋나는데, **어느 쪽이 틀렸는지 알 수 없으므로
+    /// 그리지 않는다.**
+    public static let maximumHandRatio: Double = 2.0
+
     /// 추정에 필요한 입력 전부.
     ///
     /// 구조체로 묶는 이유: 인자가 다섯이고 **둘은 좌표계가 다르다**(손/신체).
@@ -118,7 +139,13 @@ public enum RacketHeadEstimator {
         // 손이 기대보다 짧게 보이면 라켓도 그만큼 단축됐다.
         let expectedHand = handMeters / metersPerUnit
         guard expectedHand > 0 else { return nil }
-        let foreshorten = min(max(handLength / expectedHand, 0), 1)
+
+        let ratio = handLength / expectedHand
+        // ★ 자와 손이 너무 어긋나면 **그리지 않는다.** 상한 1로 깎아 버리면
+        //   측면 자세의 실패가 높은 신뢰도로 통과한다 — `maximumHandRatio`.
+        guard ratio <= maximumHandRatio else { return nil }
+
+        let foreshorten = min(max(ratio, 0), 1)
 
         let confidence = min(input.wrist.confidence, input.middleMCP.confidence) * foreshorten
         guard confidence >= minimumConfidence else { return nil }
