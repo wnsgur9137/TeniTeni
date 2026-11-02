@@ -9,7 +9,7 @@ issue: 121
 type: feature
 area: ui
 created: 2026-10-27
-updated: 2026-10-27
+updated: 2026-11-02
 status: active
 ---
 
@@ -42,6 +42,9 @@ status: active
 - 리플레이에서 사이드카를 읽어 Canvas로 그리는 렌더
 - **사이드카가 아직 없을 때의 화면** — 굽는 중 / 실패 / 이 클립은 분석 전
 - `PoseJoint`를 트리거용 6개에서 **스켈레톤용 전체**로 확장
+- **손 관절 경계** — `HandPoseObservable` + `HandJoint`(`wrist`·`middleMCP`). `PoseJoint`와 나란히 둔다 (선택지 6)
+- **굽는 경로 전용 추정기** — `detectsHands: true`. 라이브 `PoseEstimator`는 건드리지 않는다 (선택지 6)
+- **`RenderTransform.point(visionPoint:in:)`** — Canvas가 쓸 뷰 좌표. 기존 NDC 경로는 그대로 (선택지 7)
 - 마지막으로 고른 모드를 기억
 
 ### 만들지 않을 것
@@ -63,6 +66,13 @@ status: active
 ### 입력
 
 `HumanBodyPoseObservation.rightHand` / `.leftHand`가 `HumanHandPoseObservation`을 줍니다(손목 + 손가락 21관절). 주 사용 손은 온보딩에서 받은 `handedness`로 고릅니다.
+
+> [!IMPORTANT]
+> **`wrist`가 두 개 있습니다.** 신체 관측의 `HumanBodyPoseObservation.JointName.rightWrist`와 손 관측의 `HumanHandPoseObservation.JointName.wrist`입니다.
+>
+> **식은 손 관측의 `wrist`를 씁니다.** `middleMCP`와 같은 관측 안에 있어야 둘의 좌표가 같은 추정에서 나오고, 손 길이로 단축을 재는 계산이 성립합니다. 신체 손목과 섞으면 두 관측의 오차가 그 길이에 들어갑니다.
+>
+> 신체 `rightWrist`/`leftWrist`는 **스켈레톤 레이어**에서 그대로 씁니다(트리거가 이미 쓰는 관절). 라켓 궤적만 손 관측을 씁니다.
 
 ### 식
 
@@ -143,6 +153,17 @@ JSON을 고른 이유: 포맷이 확장돼야 합니다(볼 궤적·라인이 �
 
 **채택: 세그먼트 컨트롤.** 레이어가 4개가 되면 아이콘만 남기고 레이블을 뺍니다. 리플레이는 폰 앞에서 보는 화면이므로 아이콘 네 개가 좁지 않습니다.
 
+#### 자리는 **가로 전체화면에만** 둔다
+
+이 기획서를 쓴 뒤 [#123](https://github.com/wnsgur9137/TeniTeni/issues/123)이 리플레이를 **세로 기본 + 탭하면 가로 전체화면**으로 갈랐습니다([IA-FLOW 10.9](../06-디자인/IA-FLOW.md)의 예외). 세로에서 영상은 **219pt**입니다.
+
+| 화면 | 세그먼트 | 왜 |
+|---|---|---|
+| 세로 (390×844) | **없음** | 영상 219pt에서 사람은 약 88pt다. 관절 19개가 그 높이에 뭉쳐 **읽히지 않는다.** 읽히지 않는 것을 켜는 스위치는 자리만 차지한다 — 세로에는 이미 컨트롤이 4줄 있다 |
+| 가로 전체화면 (844×390) | **있음** | 가로 전체화면을 만든 이유가 "관절을 보려면 크게 봐야 한다"였다. 오버레이가 쓸모 있는 유일한 자리다 |
+
+**대가**: 세로에서 오버레이를 보려면 탭 한 번이 더 듭니다. 그리고 **세로만 본 사용자는 오버레이가 있다는 것을 모릅니다** — 전체화면 버튼이 그 입구이고, 그 이상의 유도는 v1에 넣지 않습니다.
+
 ### 4. 기본값과 기억
 
 **기본은 `off`입니다.** 리플레이의 첫 화면은 자기 스윙 영상이어야 합니다 — 오버레이는 사용자가 "보고 싶다"고 말한 뒤에 올라옵니다.
@@ -154,6 +175,59 @@ JSON을 고른 이유: 포맷이 확장돼야 합니다(볼 궤적·라인이 �
 `BodyPoseObservable`은 지금 관절 6개만 노출합니다. [SPEC-0096 선택지 2](SPEC-0096-pose-intake.md)가 그렇게 좁힌 이유는 **`HumanBodyPoseObservation`을 합성할 수 없어서** 가짜 구현으로 테스트하기 때문입니다.
 
 스켈레톤은 전체 관절이 필요하므로 노출면이 커집니다. 가짜 구현이 `switch` 몇 줄에서 딕셔너리로 바뀝니다 — **커지지만 여전히 실기기가 필요 없습니다.** 그 성질이 깨지지 않으므로 확장합니다.
+
+**손 관절은 `PoseJoint`에 넣지 않습니다.** 신체 관절과 손가락 관절은 Vision에서 다른 열거형(`HumanBodyPoseObservation.JointName` / `HumanHandPoseObservation.JointName`)이고, 다른 관측에서 나옵니다. 한 열거형에 섞으면 `sample(for:)`이 "어느 관측에서 찾아야 하는가"를 안에서 분기하게 됩니다 — 선택지 6이 그 자리를 따로 만듭니다.
+
+### 6. 손 관절을 어디서 받는가
+
+`PoseEstimator`는 지금 `DetectHumanBodyPoseRequest()`를 **기본값으로** 만듭니다. `detectsHands`가 꺼져 있어 `leftHand`·`rightHand`가 비어 있습니다.
+
+| 선택지 | 장점 | 단점 |
+|---|---|---|
+| 라이브 `PoseEstimator`에 `detectsHands`를 켠다 | 추정기가 하나로 유지된다 | **실시간 예산을 되돌린다.** [ADR-0006](../05-결정/adr/ADR-0006-replay-overlay-layers.md)이 "라이브에 남는 분석은 스윙 트리거용 포즈 하나"로 줄인 것을 손 21관절로 다시 늘린다. 트리거는 손을 쓰지 않는다 |
+| **굽는 경로에만 켠 추정기를 따로 둔다** | 라이브가 그대로다. 오프라인이라 예산 제약이 없다 | 추정기 설정이 두 가지가 된다 |
+| 손을 쓰지 않고 팔꿈치→손목 축으로 근사 | 손 관측이 필요 없다 | **단축 보정이 사라진다.** 팔 길이로는 라켓의 단축을 알 수 없고, 그러면 "한계를 숨기지 않는다"는 이 절의 전제가 무너진다 |
+
+**채택: 굽는 경로에만 켠다.**
+
+`detectsHands`는 **요청의 설정**이므로(`DetectHumanBodyPoseRequest.detectsHands`) 같은 타입을 다른 설정으로 두 번 만들면 됩니다. 사이드카는 오프라인에서 굽으므로 비용이 라이브 예산에 들어가지 않습니다.
+
+```
+라이브   DetectHumanBodyPoseRequest()                  ← 그대로. 트리거용
+굽는 중  DetectHumanBodyPoseRequest(detectsHands: true) ← 사이드카용
+```
+
+손 관절 추상화는 `BodyPoseObservable`과 **나란히** 둡니다 — 신체 관측에서 손을 꺼내는 경계 하나를 더하는 것이고, `PoseJoint`를 넓히는 것이 아닙니다.
+
+```
+protocol HandPoseObservable   { func sample(for: HandJoint) -> PoseJointSample? }
+enum HandJoint                { case wrist, middleMCP }      ← 식이 쓰는 둘만
+```
+
+**`HandJoint`를 둘로 시작합니다.** 21관절을 다 노출하면 쓰지 않는 가짜 구현이 커집니다. 손가락을 그리기로 하면 그때 넓힙니다.
+
+### 7. 사이드카 좌표를 Canvas가 쓸 수 있게 바꾸는 곳
+
+[SPEC-0040](SPEC-0040-render-transform.md)의 `RenderTransform`은 **Metal NDC만** 냅니다 — `ndc(visionPoint:) -> SIMD2<Float>`, 범위 -1~1, 좌하단 원점. SwiftUI Canvas는 **뷰 좌표**(pt, 좌상단 원점)를 받습니다. 그 변환이 어디에도 없습니다.
+
+| 선택지 | 장점 | 단점 |
+|---|---|---|
+| **`RenderTransform`에 pt 변환을 더한다** | 행렬이 하나로 유지된다. SPEC-0040이 보장한 "두 곳이 어긋날 수 없다"가 Canvas에도 적용된다 | 타입이 Metal 전용이 아니게 된다 |
+| 리플레이 전용 변환을 따로 만든다 | `RenderTransform`을 안 건드린다 | **같은 수학이 두 곳에 생긴다.** SPEC-0040이 피하려던 것이 그것이다 |
+| 호출부가 NDC를 pt로 바꾼다 | 타입 변경 없음 | 뷰마다 반복된다. 뒤집기를 한 곳에서 빼먹으면 오버레이가 상하 반전되는데 **스켈레톤은 대칭이라 눈에 잘 안 띈다** |
+
+**채택: `RenderTransform`에 pt 변환을 더한다.**
+
+```swift
+func point(visionPoint: CGPoint, in viewSize: CGSize) -> CGPoint
+//   NDC(-1~1, y-up) → pt(0~w, y-down)
+//   x = (ndc.x + 1) / 2 * w
+//   y = (1 - ndc.y) / 2 * h
+```
+
+행렬은 그대로 쓰고 **마지막 한 단계만 더합니다.** 기존 `ndc(_:)`는 건드리지 않으므로 Metal 경로(라이브)에 영향이 없습니다.
+
+각의 출처는 리플레이에서 **비디오 트랙의 `preferredTransform`**입니다(ADR-0006). `RotationCoordinator`는 라이브 전용입니다.
 
 ## 데이터 모델
 
@@ -188,9 +262,12 @@ OverlayFrame
 - [ ] 단축 신뢰도가 0에 가까우면 그 프레임의 `racketHead`가 `nil`이다
 - [ ] 사이드카 없음 / 굽는 중 / 실패 세 상태가 화면에서 구분된다
 - [ ] `PoseJoint` 확장 후에도 기존 트리거 테스트가 전부 통과한다
+- [ ] **라이브 `PoseEstimator`의 요청 설정이 바뀌지 않는다** — `detectsHands`는 굽는 경로에만 켜진다
+- [ ] **`RenderTransform.point(visionPoint:in:)`이 NDC 경로와 같은 행렬을 쓴다** — 같은 입력에 대해 두 결과가 서로 변환으로 일치한다
+- [ ] **세그먼트가 세로 화면에 없다** — 세로에서 모드를 바꿀 수단이 없고, 전체화면에서 바꾼 값이 유지된다
 - [ ] `scripts/verify-ios.sh` 통과, 이 PR이 늘린 경고 0
 - [ ] `scripts/verify-docs.sh` 통과
-- [ ] 뮤테이션: 단축 보정 제거 · 신뢰도 임계 제거 · 좌표 Y 뒤집기 · `frameRate`를 세션 값으로 대체 — **전부 테스트가 죽인다**
+- [ ] 뮤테이션: 단축 보정 제거 · 신뢰도 임계 제거 · 좌표 Y 뒤집기 · `frameRate`를 세션 값으로 대체 · **pt 변환의 y 뒤집기 제거** · **손 관측의 `wrist`를 신체 `rightWrist`로 교체** — **전부 테스트가 죽인다**
 
 ## 검증 방법
 
@@ -200,7 +277,8 @@ OverlayFrame
 | 문서 | `./scripts/verify-docs.sh` |
 | 모드 전환·기억 | `TestStore` |
 | 사이드카 왕복·버전 거부 | 단위 테스트 |
-| 라켓 헤드 추정 | **값 타입으로 전수.** 가짜 `BodyPoseObservable`에 관절을 꽂아 기하를 직접 검증한다 |
+| 라켓 헤드 추정 | **값 타입으로 전수.** 가짜 `HandPoseObservable`에 `wrist`·`middleMCP`를 꽂아 기하를 직접 검증한다 |
+| 좌표 변환 | `RenderTransform`의 pt 변환과 NDC 변환이 **같은 행렬에서 나왔음**을 왕복으로 고정. 90°·180°·270°·미러링 전수 |
 | 굽는 경로 | `teni synth`의 합성 영상을 입력으로. 정답을 알므로 관절 좌표를 대조할 수 있다 |
 | **추정이 그럴듯한가** | ⚠️ **실기기 + 사람 눈.** 정답이 없다 |
 
@@ -215,7 +293,9 @@ OverlayFrame
 | [WORK-PLAN](../04-계획/WORK-PLAN.md) 9.3·9.8 | 0-D 1 불필요 · 5·6 → 1-E · 7 예산 축소 · 9.8 위험 축소 |
 | [D-04](../05-결정/stack/D-04-concurrency.md) | "궤적 vs 오버레이" 대립이 없어진다 |
 | [촬영 프로토콜](../02-설계/CAPTURE-PROTOCOL.md) 5.6 | 흔들림 시 "궤적 자동 비활성화" 시점 |
-| [DESIGN-SYSTEM](../06-디자인/DESIGN-SYSTEM.md) 11.2 | **라켓 궤적 토큰 신규** |
+| [SPEC-0040](SPEC-0040-render-transform.md) | **pt 변환 추가** — Canvas 경로가 같은 행렬을 쓴다 (선택지 7) |
+| [SPEC-0096](SPEC-0096-pose-intake.md) | 손 관절 경계가 `BodyPoseObservable`과 나란히 생긴다 (선택지 6) |
+| [DESIGN-SYSTEM](../06-디자인/DESIGN-SYSTEM.md) 11.2 | **`overlay/racket-trail` 신규.** `racket-arm`(라켓 잡은 팔)은 이미 있다 — 궤적선이 없었다 |
 | [INDEX](../INDEX.md) · [DECISION-LOG](../05-결정/DECISION-LOG.md) | ADR-0006 등재 (ADR-0005가 INDEX에 빠져 있다 — 같이 고친다) |
 
 ## 리스크
