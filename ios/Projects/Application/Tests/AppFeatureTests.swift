@@ -168,10 +168,10 @@ struct AppFeatureTests {
     @Test("리플레이에서 고른 오버레이가 저장된다")
     func 오버레이_저장() async {
         let repo = InMemoryRepository(UserPreferences(handedness: .right))
-        let store = TestStore(initialState: AppFeature.State(
-            preferences: UserPreferences(handedness: .right),
-            replay: ReplayFeature.State(sessionID: UUID(), swingID: UUID())
-        )) { AppFeature(repository: repo) }
+        // `@Presents` 프로퍼티는 init 인자가 아니다. 만들고 넣는다.
+        var initial = AppFeature.State(preferences: UserPreferences(handedness: .right))
+        initial.replay = ReplayFeature.State(sessionID: UUID(), swingID: UUID())
+        let store = TestStore(initialState: initial) { AppFeature(repository: repo) }
 
         await store.send(.replay(.presented(.delegate(.overlayChanged(.skeleton))))) {
             $0.preferences.lastOverlayLayer = .skeleton
@@ -192,10 +192,11 @@ struct AppFeatureTests {
         let repo = InMemoryRepository(
             UserPreferences(handedness: .left, lastOverlayLayer: .racket)
         )
-        let store = TestStore(initialState: AppFeature.State(
-            preferences: UserPreferences(handedness: .left, lastOverlayLayer: .racket),
-            summary: SessionSummaryFeature.State(sessionID: session.id)
-        )) {
+        var initial = AppFeature.State(
+            preferences: UserPreferences(handedness: .left, lastOverlayLayer: .racket)
+        )
+        initial.summary = SessionSummaryFeature.State(sessionID: session.id)
+        let store = TestStore(initialState: initial) {
             AppFeature(repository: repo, sessionRepository: StubSessionRepository([session]))
         }
         store.exhaustivity = .off
