@@ -63,15 +63,31 @@ public struct OverlayBaker: Sendable {
         guard let track = try await asset.loadTracks(withMediaType: .video).first else {
             throw OverlayBakeError.noVideoTrack
         }
-        let (naturalSize, transform, nominalFPS) = try await track.load(
-            .naturalSize, .preferredTransform, .nominalFrameRate
+        let (naturalSize, transform, nominalFPS, formats) = try await track.load(
+            .naturalSize, .preferredTransform, .nominalFrameRate, .formatDescriptions
         )
 
         // 플레이어는 `preferredTransform`을 적용해 보여준다. 오버레이가 그
         // 화면에 맞아야 하므로 **Vision에 방향을 넘겨 좌표까지 돌려받는다** —
         // 버퍼를 직접 돌리는 것보다 싸고, 뒤집기를 우리가 하지 않는다.
         let orientation = Self.orientation(from: transform)
-        let displaySize = naturalSize.applying(transform)
+
+        // ★ `naturalSize`가 아니라 **표시 크기**를 쓴다.
+        //
+        //   `AVPlayerLayer`가 레이아웃에 쓰는 것은 `presentationSize`이고,
+        //   그것은 픽셀 종횡비(PAR)와 clean aperture를 적용한 값이다.
+        //   `naturalSize`를 쓰면 비정방 픽셀 영상에서 **종횡비가 어긋나
+        //   오버레이가 가로로 늘거나 줄어든다.** 같은 값이 라켓 추정의
+        //   종횡비 보정에도 쓰이므로 두 곳이 함께 틀린다.
+        //
+        //   아이폰 녹화는 정방 픽셀이라 지금은 두 값이 같다. 그래도
+        //   `naturalSize`를 믿지 않는다 — 같다는 것을 우리가 보장하지 않는다.
+        let presentation = formats.first.map {
+            CMVideoFormatDescriptionGetPresentationDimensions(
+                $0, usePixelAspectRatio: true, useCleanAperture: true
+            )
+        } ?? naturalSize
+        let displaySize = presentation.applying(transform)
         let width = abs(displaySize.width)
         let height = abs(displaySize.height)
         guard width > 0, height > 0 else { throw OverlayBakeError.invalidSize }
@@ -99,6 +115,13 @@ public struct OverlayBaker: Sendable {
         var frames: [OverlayFrame] = []
 
         while let sample = output.copyNextSampleBuffer() {
+            // ★ 취소를 확인한다. 없으면 클립 하나를 끝까지 굽고 나서야
+            //   멈춘다 — 120fps 10초면 프레임 1200장이고, 그동안 CPU를
+            //   붙든다. 앱이 백그라운드로 가도 계속 돈다.
+            guard !Task.isCancelled else {
+                reader.cancelReading()
+                throw CancellationError()
+            }
             guard let pixelBuffer = CMSampleBufferGetImageBuffer(sample) else { continue }
             let pts = CMSampleBufferGetPresentationTimeStamp(sample).seconds
             guard pts.isFinite else { continue }

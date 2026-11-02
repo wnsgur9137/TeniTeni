@@ -157,6 +157,7 @@ struct OverlaySidecarTests {
     @Test("인코딩·디코딩을 왕복한다")
     func 왕복() throws {
         let original = Self.sidecar(frames: [Self.frame(0), Self.frame(1.0 / 60)])
+        #expect(original.frameSpacing > 0)
         let data = try JSONEncoder().encode(original)
         let decoded = try JSONDecoder().decode(OverlaySidecar.self, from: data)
         #expect(decoded == original)
@@ -236,6 +237,41 @@ struct OverlaySidecarTests {
     @Test("프레임이 없으면 nil이다")
     func 빈_사이드카() {
         #expect(Self.sidecar().frame(at: 0) == nil)
+    }
+
+    /// `nominalFrameRate`는 발열 강등·가변 프레임률에서 실제와 다르다
+    /// (ADR-0005). 그 값으로 허용 범위를 정하면 타임라인에 틈이 생겨
+    /// **오버레이가 깜빡인다.** 실측 간격을 담는다.
+    @Test("간격은 실측 중앙값이다 — 선언된 fps가 아니다")
+    func 실측_간격() {
+        // fps는 120이라고 적혀 있지만 실제 간격은 1/30이다.
+        let step = 1.0 / 30
+        let sidecar = Self.sidecar(
+            frameRate: 120,
+            frames: (0..<5).map { Self.frame(Double($0) * step) }
+        )
+        #expect(abs(sidecar.frameSpacing - step) < 1e-9)
+        // 선언된 120fps 기준이면 허용이 0.00625초라 여기서 nil이 됐다.
+        #expect(sidecar.frame(at: step * 2 + 0.008) != nil)
+    }
+
+    /// 빈 구간 하나가 섞인 짧은 클립에서 **상위** 중앙값을 집으면 그 큰
+    /// 값이 기준이 돼 빠진 프레임을 메워 버린다.
+    @Test("빠진 구간이 간격 기준을 끌어올리지 않는다")
+    func 간격_중앙값() {
+        let step = 1.0 / 60
+        // 간격 [step, 2*step]
+        let sidecar = Self.sidecar(frames: [Self.frame(0), Self.frame(step), Self.frame(step * 3)])
+        #expect(abs(sidecar.frameSpacing - step) < 1e-9)
+        #expect(sidecar.frame(at: step * 2) == nil)
+    }
+
+    @Test("프레임이 하나면 선언된 fps로 떨어진다")
+    func 간격_없음() {
+        let sidecar = Self.sidecar(frameRate: 60, frames: [Self.frame(0)])
+        #expect(sidecar.frameSpacing == 0)
+        #expect(sidecar.frame(at: 0.012) != nil)
+        #expect(sidecar.frame(at: 0.02) == nil)
     }
 }
 
