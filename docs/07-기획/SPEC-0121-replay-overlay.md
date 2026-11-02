@@ -44,7 +44,7 @@ status: active
 - `PoseJoint`를 트리거용 6개에서 **스켈레톤용 전체**로 확장
 - **손 관절 경계** — `HandPoseObservable` + `HandJoint`(`wrist`·`middleMCP`). `PoseJoint`와 나란히 둔다 (선택지 6)
 - **굽는 경로 전용 추정기** — `detectsHands: true`. 라이브 `PoseEstimator`는 건드리지 않는다 (선택지 6)
-- **`RenderTransform.point(visionPoint:in:)`** — Canvas가 쓸 뷰 좌표. 기존 NDC 경로는 그대로 (선택지 7)
+- **`OverlayProjection`** — `.resizeAspect`를 복제하는 순수 값 타입. `RenderTransform`은 건드리지 않는다 (선택지 7의 정정)
 - 마지막으로 고른 모드를 기억
 
 ### 만들지 않을 것
@@ -81,6 +81,15 @@ u          = normalize(middleMCP − wrist)          ← 그립 축 (손바닥 �
 mPerNorm   = SHOULDER_M / shoulderWidth_norm       ← 어깨너비를 자로 쓴다
 head       = wrist + u × (GRIP_TO_HEAD_M / mPerNorm)
 ```
+
+> [!IMPORTANT]
+> **이 식에는 종횡비 보정이 빠져 있었습니다. 구현에서 더했습니다 (2026-11-02).**
+>
+> 정규화 좌표는 두 축이 모두 0~1이지만 **실거리로는 등방이 아닙니다.** 1920×1080에서 같은 0.4 m가 가로로는 0.208 norm-x, 세로로는 0.370 norm-y입니다 — **16:9 = 1.78배** 차이입니다.
+>
+> 어깨너비는 거의 가로이므로 그 값으로 만든 `mPerNorm`을 그대로 쓰면 **세로 방향 라켓이 1.78배 짧게** 추정됩니다. 팔로스루가 수직에 가까운 테니스 스윙에서 하필 가장 크게 틀립니다.
+>
+> 그래서 **x에 종횡비를 곱한 정사각 공간**(단위가 영상 세로 기준)에서 방향·길이·어깨너비를 계산하고 마지막에 되돌립니다. 종횡비는 사이드카의 `pixelWidth`/`pixelHeight`에서 옵니다.
 
 | 상수 | 값 | 근거 |
 |---|---|---|
@@ -216,18 +225,20 @@ enum HandJoint                { case wrist, middleMCP }      ← 식이 쓰는 �
 | 리플레이 전용 변환을 따로 만든다 | `RenderTransform`을 안 건드린다 | **같은 수학이 두 곳에 생긴다.** SPEC-0040이 피하려던 것이 그것이다 |
 | 호출부가 NDC를 pt로 바꾼다 | 타입 변경 없음 | 뷰마다 반복된다. 뒤집기를 한 곳에서 빼먹으면 오버레이가 상하 반전되는데 **스켈레톤은 대칭이라 눈에 잘 안 띈다** |
 
-**채택: `RenderTransform`에 pt 변환을 더한다.**
+**채택했던 안: `RenderTransform`에 pt 변환을 더한다.**
 
-```swift
-func point(visionPoint: CGPoint, in viewSize: CGSize) -> CGPoint
-//   NDC(-1~1, y-up) → pt(0~w, y-down)
-//   x = (ndc.x + 1) / 2 * w
-//   y = (1 - ndc.y) / 2 * h
-```
+> [!WARNING]
+> **구현에서 이 결정을 뒤집었습니다 (2026-11-02).** 전제가 틀렸습니다.
+>
+> `RenderTransform`은 **aspect-fill**입니다 — 라이브 프리뷰가 화면을 꽉 채우고 넘치는 부분을 자르기 때문입니다. 그런데 리플레이의 `AVPlayerLayer`는 `videoGravity = .resizeAspect`, 즉 **aspect-fit**입니다(#123). 영상 전체를 보여주고 남는 자리를 레터박스로 둡니다 — 자르면 스윙의 일부가 안 보이므로 그게 맞습니다.
+>
+> fill 행렬을 그대로 쓰면 **오버레이가 영상보다 크게 그려지고 중심에서 멀어질수록 벌어집니다.** 가운데에 선 사람으로 확인하면 어긋남이 작아 눈에 잘 안 띄는 종류의 오류입니다.
+>
+> 그리고 이 안의 근거("두 곳이 같은 행렬을 써야 어긋나지 않는다")가 **리플레이에는 적용되지 않습니다.** 영상의 배치는 `AVPlayerLayer`가 하고 우리는 그것을 따라가기만 합니다 — 우리 쪽에 "두 곳"이 없습니다. 따라갈 대상이 `.resizeAspect`이므로 **fit을 복제하는 것이 옳습니다.**
+>
+> **채택: `OverlayProjection`을 따로 둔다** (`Presentation/Replay`). `.resizeAspect`와 같은 계산(짧은 쪽에 맞춰 넣고 가운데)을 하는 순수 값 타입이고, y 뒤집기도 거기 한 곳에만 있습니다. `RenderTransform`은 **건드리지 않습니다.**
 
-행렬은 그대로 쓰고 **마지막 한 단계만 더합니다.** 기존 `ndc(_:)`는 건드리지 않으므로 Metal 경로(라이브)에 영향이 없습니다.
-
-각의 출처는 리플레이에서 **비디오 트랙의 `preferredTransform`**입니다(ADR-0006). `RotationCoordinator`는 라이브 전용입니다.
+회전·미러링은 필요 없습니다. 사이드카를 구울 때 Vision에 `preferredTransform`에서 얻은 방향을 넘기므로 **좌표가 이미 표시 방향**으로 나옵니다(ADR-0006). 후면 카메라만 쓰므로 미러링도 없습니다.
 
 ## 데이터 모델
 
@@ -238,6 +249,8 @@ OverlaySidecar
   version           Int                            포맷이 바뀔 것을 전제한다
   clipFileName      String                         클립과 짝이 맞는지 확인용
   frameRate         Double                         클립의 실제 fps (강등되면 다르다 — ADR-0005)
+  pixelWidth/Height Int                            추정식의 종횡비 보정과 Canvas 투영이
+                                                   **같은 값을 봐야** 어긋나지 않는다
   frames            [OverlayFrame]
 
 OverlayFrame
@@ -263,11 +276,12 @@ OverlayFrame
 - [ ] 사이드카 없음 / 굽는 중 / 실패 세 상태가 화면에서 구분된다
 - [ ] `PoseJoint` 확장 후에도 기존 트리거 테스트가 전부 통과한다
 - [ ] **라이브 `PoseEstimator`의 요청 설정이 바뀌지 않는다** — `detectsHands`는 굽는 경로에만 켜진다
-- [ ] **`RenderTransform.point(visionPoint:in:)`이 NDC 경로와 같은 행렬을 쓴다** — 같은 입력에 대해 두 결과가 서로 변환으로 일치한다
+- [ ] **`OverlayProjection`이 `.resizeAspect`와 같은 사각형을 낸다** — 레터박스가 좌우·위아래 양쪽에서 맞고, y를 한 곳에서만 뒤집는다
+- [ ] **종횡비 보정이 값으로 고정된다** — 같은 실거리를 가로로 둔 손과 세로로 둔 손이 같은 뻗음을 낸다
 - [ ] **세그먼트가 세로 화면에 없다** — 세로에서 모드를 바꿀 수단이 없고, 전체화면에서 바꾼 값이 유지된다
 - [ ] `scripts/verify-ios.sh` 통과, 이 PR이 늘린 경고 0
 - [ ] `scripts/verify-docs.sh` 통과
-- [ ] 뮤테이션: 단축 보정 제거 · 신뢰도 임계 제거 · 좌표 Y 뒤집기 · `frameRate`를 세션 값으로 대체 · **pt 변환의 y 뒤집기 제거** · **손 관측의 `wrist`를 신체 `rightWrist`로 교체** — **전부 테스트가 죽인다**
+- [ ] 뮤테이션: 단축 보정 제거 · 신뢰도 임계 제거 · 좌표 Y 뒤집기 · `frameRate`를 세션 값으로 대체 · **투영의 y 뒤집기 제거** · **종횡비 보정 제거** · **단축 상한(1) 제거** — **전부 테스트가 죽인다**
 
 ## 검증 방법
 
@@ -278,7 +292,7 @@ OverlayFrame
 | 모드 전환·기억 | `TestStore` |
 | 사이드카 왕복·버전 거부 | 단위 테스트 |
 | 라켓 헤드 추정 | **값 타입으로 전수.** 가짜 `HandPoseObservable`에 `wrist`·`middleMCP`를 꽂아 기하를 직접 검증한다 |
-| 좌표 변환 | `RenderTransform`의 pt 변환과 NDC 변환이 **같은 행렬에서 나왔음**을 왕복으로 고정. 90°·180°·270°·미러링 전수 |
+| 좌표 변환 | `OverlayProjection`을 레터박스 세 경우(좌우·위아래·딱 맞음)와 범위 밖 점으로 고정 |
 | 굽는 경로 | `teni synth`의 합성 영상을 입력으로. 정답을 알므로 관절 좌표를 대조할 수 있다 |
 | **추정이 그럴듯한가** | ⚠️ **실기기 + 사람 눈.** 정답이 없다 |
 
@@ -293,7 +307,7 @@ OverlayFrame
 | [WORK-PLAN](../04-계획/WORK-PLAN.md) 9.3·9.8 | 0-D 1 불필요 · 5·6 → 1-E · 7 예산 축소 · 9.8 위험 축소 |
 | [D-04](../05-결정/stack/D-04-concurrency.md) | "궤적 vs 오버레이" 대립이 없어진다 |
 | [촬영 프로토콜](../02-설계/CAPTURE-PROTOCOL.md) 5.6 | 흔들림 시 "궤적 자동 비활성화" 시점 |
-| [SPEC-0040](SPEC-0040-render-transform.md) | **pt 변환 추가** — Canvas 경로가 같은 행렬을 쓴다 (선택지 7) |
+| [SPEC-0040](SPEC-0040-render-transform.md) | **변경 없음.** 선택지 7의 전제가 틀려 `OverlayProjection`을 따로 뒀다 |
 | [SPEC-0096](SPEC-0096-pose-intake.md) | 손 관절 경계가 `BodyPoseObservable`과 나란히 생긴다 (선택지 6) |
 | [DESIGN-SYSTEM](../06-디자인/DESIGN-SYSTEM.md) 11.2 | **`overlay/racket-trail` 신규.** `racket-arm`(라켓 잡은 팔)은 이미 있다 — 궤적선이 없었다 |
 | [INDEX](../INDEX.md) · [DECISION-LOG](../05-결정/DECISION-LOG.md) | ADR-0006 등재 (ADR-0005가 INDEX에 빠져 있다 — 같이 고친다) |
