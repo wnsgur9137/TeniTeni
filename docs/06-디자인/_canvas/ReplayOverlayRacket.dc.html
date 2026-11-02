@@ -1,0 +1,128 @@
+<!doctype html>
+<html>
+<head><meta charset="utf-8"><script src="./support.js"></script></head>
+<body>
+<x-dc>
+<helmet><style>
+body{margin:0;font-family:-apple-system,"SF Pro Text",system-ui,sans-serif}
+a{color:#C6F24E}a:hover{color:#D9F87E}
+.num{font-variant-numeric:tabular-nums}
+</style></helmet>
+<!-- 전체화면 + 라켓 궤적 레이어 (SPEC-0121 "라켓 궤적 — 추정식과 그 한계").
+
+     ⚠️ **라켓을 찾아주는 API가 없다.** 손 관절에서 추정한다. 그래서 화면에
+     "추정"이라고 적는다 — 사용자가 측정값으로 읽으면 안 된다.
+
+     점선(끊김)은 단축 신뢰도 임계 미달 구간이다. 이어 그리면 틀린 위치를
+     확신 있게 보여주는 것이 되고, 그것이 추정을 숨기는 것보다 나쁘다.
+     끊김을 "버그"로 읽지 않게 한 줄로 설명한다.
+
+     궤적 알파는 과거로 갈수록 낮다. 지금 프레임의 헤드만 채운 원이다. -->
+<div style="width:844px;height:390px;background:#000;position:relative;color:#F2F4F6">
+
+  <div style="position:absolute;inset:0;background:linear-gradient(115deg,#16281c 0%,#12211a 45%,#0d1512 100%)"></div>
+  <div style="position:absolute;left:300px;top:70px">
+    <svg width="260" height="216" viewBox="0 0 260 216" fill="none">
+      <!-- 실루엣 -->
+      <g stroke="rgba(242,244,246,0.16)" stroke-width="9" stroke-linecap="round">
+        <line x1="129" y1="70" x2="129" y2="112"/>
+        <line x1="129" y1="76" x2="106" y2="92"/>
+        <line x1="129" y1="76" x2="154" y2="66"/>
+        <line x1="129" y1="112" x2="115" y2="148"/>
+        <line x1="129" y1="112" x2="145" y2="148"/>
+      </g>
+      <circle cx="129" cy="55" r="11" fill="none" stroke="rgba(242,244,246,0.16)" stroke-width="9"/>
+
+      <!-- 궤적 — 테이크백에서 임팩트까지. 알파가 과거로 갈수록 낮다 -->
+      <path d="M196 150 C 206 120 202 92 186 74" stroke="#4DD8E6" stroke-width="2" stroke-linecap="round" opacity="0.22"/>
+      <path d="M186 74 C 172 54 150 44 128 42" stroke="#4DD8E6" stroke-width="2.4" stroke-linecap="round" opacity="0.40"/>
+      <path d="M128 42 C 106 40 86 48 72 64" stroke="#4DD8E6" stroke-width="2.8" stroke-linecap="round" opacity="0.66"/>
+      <!-- 임계 미달 — 선을 끊는다. 이어 그리면 틀린 위치를 확신 있게 보여준다 -->
+      <path d="M72 64 C 62 76 56 90 54 104" stroke="#4DD8E6" stroke-width="3" stroke-linecap="round" opacity="0.92" stroke-dasharray="0 9"/>
+      <!-- 지금 프레임의 헤드 -->
+      <circle cx="54" cy="104" r="5" fill="#4DD8E6"/>
+      <circle cx="54" cy="104" r="9.5" fill="none" stroke="#4DD8E6" stroke-width="1.6" opacity="0.42"/>
+      <!-- 그립 → 헤드 축 -->
+      <line x1="154" y1="66" x2="54" y2="104" stroke="#4DD8E6" stroke-width="1.4" opacity="0.30" stroke-dasharray="3 4"/>
+      <circle cx="154" cy="66" r="3.2" fill="#4DD8E6"/>
+    </svg>
+  </div>
+
+  <!-- 측정값이 아니라고 화면에서 말한다. 기획서 "라켓 궤적" 절. -->
+  <div style="position:absolute;left:22px;top:52px;display:flex;align-items:center;gap:6px;padding:5px 9px;border-radius:7px;background:rgba(11,13,15,0.72);border:1px solid rgba(77,216,230,0.42);z-index:3">
+    <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+      <circle cx="6" cy="6" r="5" stroke="#4DD8E6" stroke-width="1.3"/>
+      <path d="M6 3.4v.1M6 5.4v3.2" stroke="#4DD8E6" stroke-width="1.3" stroke-linecap="round"/>
+    </svg>
+    <div style="font-size:11px;font-weight:600;color:#4DD8E6">추정 — 라켓은 영상에서 보이지 않습니다</div>
+  </div>
+
+  <!-- 끊긴 구간을 설명한다. 사용자가 "버그"로 읽지 않게. -->
+  <div style="position:absolute;left:22px;top:84px;font-size:10px;color:#6B737B;line-height:1.5;z-index:3">
+    점선 구간은 손이 카메라 쪽을 향해<br>위치를 믿을 수 없는 프레임입니다
+  </div>
+  <div style="position:absolute;left:0;right:0;top:0;padding:14px 22px;display:flex;align-items:center;gap:12px;background:linear-gradient(180deg,rgba(11,13,15,0.72) 0%,rgba(11,13,15,0) 100%);z-index:3">
+    <svg width="22" height="22" viewBox="0 0 22 22" fill="none">
+      <path d="M3 8V3h5M19 14v5h-5M14 3h5v5M8 19H3v-5" stroke="#F2F4F6" stroke-width="1.8" stroke-linecap="round"/>
+    </svg>
+    <div class="num" style="flex:1;font-size:15px;font-weight:600">스윙 12 <span style="color:#9BA3AB;font-weight:400">/ 34</span></div>
+    <div class="num" style="font-size:12px;color:#9BA3AB">탭하면 세로로</div>
+  </div>
+  <div style="position:absolute;left:0;right:0;bottom:0;padding:14px 22px 14px;background:linear-gradient(0deg,rgba(11,13,15,0.88) 0%,rgba(11,13,15,0) 100%);display:flex;flex-direction:column;gap:9px;z-index:3">
+
+    <div style="position:relative;height:6px;background:rgba(242,244,246,0.18);border-radius:999px">
+      <div style="position:absolute;left:0;top:0;height:6px;width:34%;background:#9BA3AB;border-radius:999px"></div>
+      <div style="position:absolute;left:34%;top:-10px;width:2px;height:26px;background:#C6F24E;margin-left:-1px"></div>
+      <div style="position:absolute;left:34%;top:-5px;width:16px;height:16px;border-radius:999px;background:#C6F24E;margin-left:-8px;border:3px solid rgba(11,13,15,0.88)"></div>
+    </div>
+
+    <div style="display:flex;align-items:center;gap:10px">
+      <div class="num" style="font-size:11px;color:#9BA3AB;width:104px">0.62 <span style="color:#6B737B">/ 1.80</span> · 임팩트</div>
+
+      <div style="flex:1;display:flex;align-items:center;justify-content:center;gap:16px">
+        <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+          <path d="M12 4L7 10l5 6" stroke="#F2F4F6" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+          <path d="M5 4v12" stroke="#F2F4F6" stroke-width="1.8" stroke-linecap="round"/>
+        </svg>
+        <div style="width:38px;height:38px;border-radius:999px;background:#C6F24E;display:flex;align-items:center;justify-content:center">
+          <svg width="14" height="14" viewBox="0 0 15 15" fill="none">
+            <rect x="2.6" y="2.2" width="3.2" height="10.6" rx="1" fill="#0B0D0F"/>
+            <rect x="9" y="2.2" width="3.2" height="10.6" rx="1" fill="#0B0D0F"/>
+          </svg>
+        </div>
+        <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+          <path d="M8 4l5 6-5 6" stroke="#F2F4F6" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+          <path d="M15 4v12" stroke="#F2F4F6" stroke-width="1.8" stroke-linecap="round"/>
+        </svg>
+      </div>
+
+      <div style="display:flex;gap:5px">
+        <div class="num" style="font-size:11px;font-weight:600;padding:6px 8px;border-radius:7px;background:rgba(242,244,246,0.12);color:#9BA3AB">0.125×</div>
+        <div class="num" style="font-size:11px;font-weight:700;padding:6px 8px;border-radius:7px;background:#C6F24E;color:#0B0D0F">0.25×</div>
+        <div class="num" style="font-size:11px;font-weight:600;padding:6px 8px;border-radius:7px;background:rgba(242,244,246,0.12);color:#9BA3AB">0.5×</div>
+        <div class="num" style="font-size:11px;font-weight:600;padding:6px 8px;border-radius:7px;background:rgba(242,244,246,0.12);color:#9BA3AB">1×</div>
+      </div>
+
+      <div style="display:flex;align-items:center;gap:12px;padding-left:4px">
+        <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+          <path d="M11 3L6 9l5 6" stroke="#9BA3AB" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+        <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+          <path d="M7 3l5 6-5 6" stroke="#F2F4F6" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+      </div>
+    </div>
+
+    <div style="display:flex;align-items:center;gap:12px">
+      <div style="display:flex;gap:3px;width:258px;padding:3px;border-radius:9px;background:rgba(242,244,246,0.12)">
+        <div style="flex:1;text-align:center;font-size:12px;font-weight:600;padding:7px 0;border-radius:7px;color:#9BA3AB">끔</div>
+        <div style="flex:1;text-align:center;font-size:12px;font-weight:600;padding:7px 0;border-radius:7px;color:#9BA3AB">스켈레톤</div>
+        <div style="flex:1;text-align:center;font-size:12px;font-weight:700;padding:7px 0;border-radius:7px;background:#4DD8E6;color:#0B0D0F">라켓 궤적</div>
+      </div>
+    </div>
+  </div>
+
+</div>
+</x-dc>
+</body>
+</html>

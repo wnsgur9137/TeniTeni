@@ -5,7 +5,7 @@ tags:
   - 문서유형/설계
   - 영역/디자인
 created: 2026-09-10
-updated: 2026-09-11
+updated: 2026-11-02
 status: active
 ---
 
@@ -64,7 +64,12 @@ UI 레이어 (그 위)          라임 · 오렌지 · 그린
 | `overlay/racket-arm` | `#4DD8E6` 시안 | **라켓 잡은 팔** — 시선 유도 |
 | `overlay/joint` | `#FFFFFF` | 관절 |
 | `overlay/issue` | `#FF4D4D` 레드 | **문제 관절** |
+| `overlay/racket-trail` | `#4DD8E6` 시안 | **라켓 헤드 궤적** — 알파로 과거를 페이드 |
 | `overlay/trail` | `#FFD84D` 앰버 | 공 궤적 (공 색과 연결) |
+
+`overlay/racket-trail`이 `racket-arm`과 **같은 값**인 것은 의도입니다 — **시안은 언제나 라켓**입니다. 공 궤적 앰버와 섞일 걱정이 없습니다: [ADR-0006](../05-결정/adr/ADR-0006-replay-overlay-layers.md)이 레이어를 **배타적**으로 정해 둘이 동시에 보이지 않습니다.
+
+궤적의 알파는 **단축 신뢰도**를 따릅니다. 임계 미달 구간은 **선을 끊습니다** — 이어 그리면 틀린 위치를 확신 있게 보여주는 것이 되고, 그것이 추정을 숨기는 것보다 나쁩니다 ([SPEC-0121](../07-기획/SPEC-0121-replay-overlay.md)).
 
 본과 관절의 알파는 **관절 confidence를 그대로 매핑**합니다 ([SKELETON-OVERLAY 4.7](../02-설계/SKELETON-OVERLAY.md)). 가려진 관절이 흐려지면 사용자가 스스로 카메라 위치를 고칩니다.
 
