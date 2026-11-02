@@ -94,20 +94,41 @@ public struct LibraryView: View {
                     .font(.system(size: 15, weight: .semibold))
                     .monospacedDigit()
                     .foregroundStyle(Token.Text.primary)
-                Text(Self.subtitle(session))
-                    .font(.system(size: 12))
-                    .monospacedDigit()
-                    .foregroundStyle(Token.Text.tertiary)
+                // 결손이 있으면 **그 줄을 대신한다.** 아래에 한 줄 더
+                // 붙이면 행 높이가 세션마다 달라져 목록이 들쭉날쭉해진다.
+                if let notice = store.availability[session.id]?.notice {
+                    HStack(spacing: 4) {
+                        Image(systemName: "exclamationmark.triangle.fill")
+                            .font(.system(size: 10))
+                        Text(notice)
+                            .font(.system(size: 12, weight: .semibold))
+                    }
+                    .foregroundStyle(Token.State.warning)
+                } else {
+                    Text(Self.subtitle(session))
+                        .font(.system(size: 12))
+                        .monospacedDigit()
+                        .foregroundStyle(Token.Text.tertiary)
+                }
             }
             Spacer(minLength: 0)
             VStack(alignment: .trailing, spacing: 2) {
+                // ★ **수를 바꾸지 않는다.** 찍은 사실은 지워지지 않았고,
+                //   재생 가능한 수로 바꾸면 사용자가 세던 수와 어긋난다
+                //   (SPEC-0120 선택지 2). 틀린 것은 "지금 보여줄 수 있다"는
+                //   암시이고 그것은 왼쪽 경고가 거둔다.
                 Text("\(session.swingCount)")
                     .font(.system(size: 20, weight: .bold))
                     .monospacedDigit()
                     // 0개 세션도 목록에 남는다 — 영상은 있다(SPEC-0110).
                     // 눌러도 되지만 **기대를 낮춰** 보여준다.
+                    //
+                    // 영상이 전부 없는 세션도 같은 취급이다: 눌리지만
+                    // 보여줄 것이 없다는 사실을 미리 말한다.
                     .foregroundStyle(
-                        session.swingCount == 0 ? Token.Text.tertiary : Token.Text.primary
+                        session.swingCount == 0
+                            || store.availability[session.id] == ClipAvailability.missing
+                            ? Token.Text.tertiary : Token.Text.primary
                     )
                 Text("스윙")
                     .font(.system(size: 10))
@@ -121,9 +142,7 @@ public struct LibraryView: View {
         .padding(.vertical, 14)
         .contentShape(.rect)
         .accessibilityElement(children: .combine)
-        .accessibilityLabel(
-            "\(Self.rowDate(session.startedAt)), \(Self.subtitle(session)), 스윙 \(session.swingCount)개"
-        )
+        .accessibilityLabel(Self.rowLabel(session, store.availability[session.id]))
     }
 
     // MARK: 비어 있음
@@ -215,6 +234,19 @@ public struct LibraryView: View {
     ///
     /// **fps를 줄마다 적는다.** 발열로 강등되면 세션마다 다르고, 그 사실이
     /// 드러나는 자리가 여기와 요약뿐이다(ADR-0005).
+    /// 보이스오버가 읽는 한 줄. **결손을 빠뜨리지 않는다** — 경고 아이콘은
+    /// 읽히지 않으므로 여기에 글자로 들어가야 한다.
+    static func rowLabel(_ session: Session, _ availability: ClipAvailability?) -> String {
+        var parts = [rowDate(session.startedAt)]
+        if let notice = availability?.notice {
+            parts.append(notice)
+        } else {
+            parts.append(subtitle(session))
+        }
+        parts.append("스윙 \(session.swingCount)개")
+        return parts.joined(separator: ", ")
+    }
+
     static func subtitle(_ session: Session) -> String {
         [
             session.situation.label,
