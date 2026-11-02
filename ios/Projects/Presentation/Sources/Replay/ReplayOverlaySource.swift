@@ -88,12 +88,14 @@ public final class ReplayOverlaySource {
     private func watch(_ name: String) {
         watching = Task { [weak self] in
             guard let self else { return }
-            let baking = await queue.isBaking(name)
+            // ★ 확인과 구독을 **한 번에** 받는다. 나누면 그 사이에 굽기가
+            //   끝나 완료 신호를 놓치고 "분석 중"에서 영원히 멈춘다.
+            let (baking, completions) = await queue.watch(name)
             guard !Task.isCancelled else { return }
             onPhase?(baking ? .baking : .notAnalyzed)
             guard baking else { return }
 
-            for await finished in await queue.completions() {
+            for await finished in completions {
                 guard !Task.isCancelled else { return }
                 guard finished == name else { continue }
                 // 끝났다. 파일을 다시 읽는다 — 성공인지 실패인지는

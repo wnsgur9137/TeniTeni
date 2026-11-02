@@ -72,6 +72,20 @@ public actor OverlayBakeQueue {
         inFlight == fileName || queued.contains { $0.fileName == fileName }
     }
 
+    /// 굽는 중인지 **확인하면서 동시에** 완료 스트림을 받는다.
+    ///
+    /// ## 왜 두 호출로 나누지 않는가
+    ///
+    /// `isBaking`을 먼저 묻고 `completions`를 나중에 받으면 그 사이에 굽기가
+    /// 끝날 수 있다. 그러면 완료 신호가 이미 지나가 **화면이 "분석 중"에서
+    /// 영원히 멈춘다.** 순서를 바꿔도 반대 방향으로 틀린다 — 다 끝났는데
+    /// "분석 전"이라고 말한다.
+    ///
+    /// 액터 메서드 하나로 묶으면 그 사이에 아무것도 끼지 못한다.
+    public func watch(_ fileName: String) -> (isBaking: Bool, completions: AsyncStream<String>) {
+        (isBaking(fileName), completions())
+    }
+
     /// 한 클립이 끝날 때마다 그 이름을 내는 스트림.
     ///
     /// 화면이 "분석 중"을 보여주는 동안 이것을 듣는다. 폴링하지 않는 이유는
