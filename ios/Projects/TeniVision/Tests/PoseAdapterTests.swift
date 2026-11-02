@@ -10,6 +10,18 @@ private struct FakePose: BodyPoseObservable {
 
     func sample(for joint: PoseJoint) -> PoseJointSample? { samples[joint] }
 
+    /// 열거형 전부를 서로 다른 좌표로 꽂은 관측.
+    static func full(confidence: Double = 0.8) -> FakePose {
+        var pose = FakePose()
+        for (index, joint) in PoseJoint.allCases.enumerated() {
+            pose.samples[joint] = PoseJointSample(
+                point: CGPoint(x: Double(index) / 20, y: 0.5),
+                confidence: confidence
+            )
+        }
+        return pose
+    }
+
     /// 어깨 둘만 놓인 관측. 사람 선택 테스트용.
     static func shoulders(width: CGFloat, confidence: Double = 0.9) -> FakePose {
         FakePose(samples: [
@@ -22,18 +34,44 @@ private struct FakePose: BodyPoseObservable {
 @Suite("포즈 어댑터")
 struct PoseAdapterTests {
 
-    @Test("관측에 있는 관절 여섯 개가 전부 넘어온다")
-    func 전체_매핑() {
-        var pose = FakePose()
-        for (index, joint) in PoseJoint.allCases.enumerated() {
-            pose.samples[joint] = PoseJointSample(
-                point: CGPoint(x: Double(index) / 10, y: 0.5),
-                confidence: 0.8
-            )
+    /// 가짜 관측에 19개를 다 꽂아 두고 **기본 경로가 6개만** 가져오는 것을
+    /// 본다. 19개를 가져가면 트리거가 쓰지도 않는 13개의 비용을 실시간
+    /// 예산에서 내게 된다 — #121이 열거형을 넓힌 뒤 지켜야 하는 선이다.
+    @Test("기본 경로는 트리거용 여섯 개만 가져온다")
+    func 트리거_집합() {
+        let frame = PoseFrameAdapter.frame(from: FakePose.full(), at: 1.25)
+        #expect(frame.joints.count == PoseJoint.trigger.count)
+        #expect(frame.joints.count == 6)
+        for joint in PoseJoint.trigger {
+            #expect(frame.joints[joint] != nil)
         }
-        let frame = PoseFrameAdapter.frame(from: pose, at: 1.25)
-        #expect(frame.joints.count == PoseJoint.allCases.count)
+        #expect(frame.joints[.leftKnee] == nil)
+        #expect(frame.joints[.nose] == nil)
         #expect(frame.timestamp == 1.25)
+    }
+
+    /// 사이드카를 굽는 경로. 오프라인이라 예산 제약이 없다.
+    @Test("관절을 고르면 그대로 가져온다 — 열거형 전부도 된다")
+    func 고른_집합() {
+        let pose = FakePose.full()
+        let all = PoseFrameAdapter.frame(from: pose, at: 0, joints: PoseJoint.allCases)
+        #expect(all.joints.count == PoseJoint.allCases.count)
+        #expect(all.joints.count == 19)
+
+        let two = PoseFrameAdapter.frame(from: pose, at: 0, joints: [.nose, .leftAnkle])
+        #expect(two.joints.count == 2)
+        #expect(two.joints[.nose] != nil)
+        #expect(two.joints[.leftShoulder] == nil)
+    }
+
+    /// `visionName`이 `default` 없는 전수 `switch`인 것을 값으로 고정한다.
+    /// 매핑이 빠진 관절은 컴파일이 막지만, **중복으로 매핑된** 관절은 막지
+    /// 않는다 — 같은 Vision 이름을 둘이 쓰면 하나가 조용히 덮인다.
+    @Test("관절 19개가 서로 다른 Vision 이름으로 매핑된다")
+    func 매핑_중복_없음() {
+        let names = PoseJoint.allCases.map(\.visionName)
+        #expect(names.count == 19)
+        #expect(Set(names).count == 19)
     }
 
     @Test("좌표와 신뢰도를 그대로 옮긴다 — 뒤집지 않는다")

@@ -15,7 +15,8 @@ import Vision
 /// `Decodable`을 타고 JSON 픽스처를 만드는 길도 있지만, 그 인코딩 포맷은
 /// 문서화돼 있지 않아 OS 업데이트로 말없이 깨진다.
 ///
-/// 노출면을 관절 6개로 좁혀 둔 덕에 가짜 구현이 몇 줄로 끝난다.
+/// 노출면이 관절 19개로 늘었지만(#121 스켈레톤) 가짜 구현은 딕셔너리
+/// 하나로 끝난다 — **실기기가 필요 없다는 성질은 그대로다.**
 ///
 /// 근거: docs/07-기획/SPEC-0096-pose-intake.md 구현 선택지 2
 public protocol BodyPoseObservable: Sendable {
@@ -54,15 +55,31 @@ extension HumanBodyPoseObservation: BodyPoseObservable {
 }
 
 extension PoseJoint {
-    /// Vision의 관절 이름. 19개 중 트리거가 쓰는 6개만 매핑한다.
+    /// Vision의 관절 이름. **19개 전부** 매핑한다.
+    ///
+    /// `switch`를 전수로 두는 이유: `PoseJoint`에 case를 더하면 여기가
+    /// 컴파일 오류를 낸다. `default`를 두면 새 관절이 조용히 빠진다.
     var visionName: HumanBodyPoseObservation.JointName {
         switch self {
+        case .nose: .nose
+        case .neck: .neck
+        case .leftEye: .leftEye
+        case .rightEye: .rightEye
+        case .leftEar: .leftEar
+        case .rightEar: .rightEar
         case .leftShoulder: .leftShoulder
         case .rightShoulder: .rightShoulder
-        case .leftHip: .leftHip
-        case .rightHip: .rightHip
+        case .leftElbow: .leftElbow
+        case .rightElbow: .rightElbow
         case .leftWrist: .leftWrist
         case .rightWrist: .rightWrist
+        case .root: .root
+        case .leftHip: .leftHip
+        case .rightHip: .rightHip
+        case .leftKnee: .leftKnee
+        case .rightKnee: .rightKnee
+        case .leftAnkle: .leftAnkle
+        case .rightAnkle: .rightAnkle
         }
     }
 }
