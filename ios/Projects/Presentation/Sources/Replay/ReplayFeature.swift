@@ -1,6 +1,7 @@
 import ComposableArchitecture
 import Domain
 import Foundation
+import TeniVision
 
 /// 스윙 리플레이. **AVFoundation을 모른다.**
 ///
@@ -51,6 +52,16 @@ public struct ReplayFeature {
         /// `canPlaySlowForward == false`인 클립. 배속을 막고 사유를 적는다.
         public var slowMotionUnsupported: Bool
 
+        /// 지금 켜진 오버레이. 기본은 `off` — **첫 화면은 자기 스윙 영상이다.**
+        public var overlay: OverlayLayer
+        /// 이 클립의 사이드카가 어떤 상태인가. **데이터는 들지 않는다** —
+        /// 프레임 수백 개를 리듀서 상태에 두면 액션마다 그 배열을 비교한다.
+        /// 데이터는 `ReplayOverlaySource`가 들고, 여기엔 상태만 온다
+        /// (`AVPlayer`를 화면이 소유하는 것과 같은 이유다 — SPEC-0123 선택지 7).
+        public var overlayPhase: OverlayPhase
+        /// 라켓을 든 쪽. 추정식이 어느 손을 볼지 정한다.
+        public let side: RacketSide
+
         public var seek: SeekCommand
         public var step: StepCommand
 
@@ -64,6 +75,9 @@ public struct ReplayFeature {
             currentSeconds: TimeInterval = 0,
             clipURL: URL? = nil,
             slowMotionUnsupported: Bool = false,
+            overlay: OverlayLayer = .off,
+            overlayPhase: OverlayPhase = .notAnalyzed,
+            side: RacketSide = .right,
             seek: SeekCommand = SeekCommand(),
             step: StepCommand = StepCommand()
         ) {
@@ -76,6 +90,9 @@ public struct ReplayFeature {
             self.currentSeconds = currentSeconds
             self.clipURL = clipURL
             self.slowMotionUnsupported = slowMotionUnsupported
+            self.overlay = overlay
+            self.overlayPhase = overlayPhase
+            self.side = side
             self.seek = seek
             self.step = step
         }
@@ -115,6 +132,42 @@ public struct ReplayFeature {
         public var effectiveSpeed: PlaybackSpeed {
             slowMotionUnsupported ? .normal : speed
         }
+
+        /// 지금 오버레이를 그릴 수 있는가.
+        public var canDrawOverlay: Bool {
+            overlay.needsSidecar && overlayPhase == .ready
+        }
+
+        /// 세그먼트를 눌러도 되는가.
+        ///
+        /// 사이드카가 없으면 **못 누르게 하되 숨기지는 않는다.** 숨기면
+        /// "이 앱에 오버레이가 없다"로 읽히고 그 오해는 되돌리기 어렵다.
+        public var canSelectOverlay: Bool {
+            overlayPhase == .ready && !isClipMissing
+        }
+
+        /// 세그먼트 옆에 적는 한 줄. 켤 수 있으면 `nil`이다.
+        public var overlayNotice: String? {
+            if isClipMissing { return "영상이 없어 오버레이도 없습니다" }
+            switch overlayPhase {
+            case .ready: return nil
+            case .baking: return "오버레이를 준비하고 있습니다"
+            case .notAnalyzed: return "아직 분석하지 않았습니다"
+            case .failed(let reason): return reason
+            }
+        }
+    }
+
+    /// 사이드카가 지금 어떤 상태인가. **데이터는 담지 않는다.**
+    ///
+    /// 네 상태를 섞지 않는 이유: 실패를 "준비 중"으로 보여주면 사용자는
+    /// 영원히 기다리고, "분석 전"을 실패로 보여주면 고칠 것이 없는데
+    /// 다시 시도를 누른다.
+    public enum OverlayPhase: Equatable, Sendable {
+        case ready
+        case baking
+        case failed(String)
+        case notAnalyzed
     }
 
     public enum Phase: Equatable, Sendable {
@@ -140,15 +193,24 @@ public struct ReplayFeature {
         case retryTapped
         case closeTapped
 
+        case overlaySelected(OverlayLayer)
+        case overlayRetryTapped
+
         /// 플레이어가 올려보내는 것
         case timeObserved(TimeInterval)
         case reachedEnd
         case slowMotionUnsupported(Bool)
+        case overlayPhaseChanged(OverlayPhase)
 
         case delegate(Delegate)
 
         public enum Delegate: Equatable {
             case closed
+            /// 고른 레이어를 기억해 달라. 저장은 코디네이터의 일이다 —
+            /// `Presentation`의 Feature는 설정 저장소를 모른다(D-03).
+            case overlayChanged(OverlayLayer)
+            /// 이 클립을 다시 구워 달라.
+            case overlayRetryRequested(fileName: String, side: RacketSide)
         }
     }
 
@@ -249,6 +311,32 @@ public struct ReplayFeature {
 
             case .fullscreenToggled:
                 state.isFullscreen.toggle()
+                return .none
+
+            case .overlaySelected(let layer):
+                // 켤 수 없는 상태에서 눌러도 바뀌지 않는다. 바뀐 것처럼
+                // 보이고 아무것도 안 그려지면 **고장으로 읽힌다.**
+                guard layer == .off || state.canSelectOverlay else { return .none }
+                guard state.overlay != layer else { return .none }
+                state.overlay = layer
+                return .send(.delegate(.overlayChanged(layer)))
+
+            case .overlayRetryTapped:
+                guard case .failed = state.overlayPhase, let item = state.current else {
+                    return .none
+                }
+                state.overlayPhase = .baking
+                return .send(
+                    .delegate(.overlayRetryRequested(fileName: item.fileName, side: state.side))
+                )
+
+            case .overlayPhaseChanged(let phase):
+                state.overlayPhase = phase
+                // 그릴 수 없게 됐으면 **끈다.** 켜진 채로 두면 아무것도
+                // 안 그려지는 화면에서 세그먼트만 "스켈레톤"을 가리킨다.
+                if phase != .ready, state.overlay.needsSidecar {
+                    state.overlay = .off
+                }
                 return .none
 
             case .timeObserved(let seconds):

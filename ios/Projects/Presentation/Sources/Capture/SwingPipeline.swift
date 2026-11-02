@@ -7,7 +7,9 @@ import TeniVision
 /// `TeniVision`은 `Domain`을 모른다(`Project.swift`). 변환은 둘을 함께 아는
 /// 가장 낮은 계층인 여기서 한다 — [아키텍처 2.2](../../../../../docs/02-설계/ARCHITECTURE.md).
 extension Handedness {
-    var racketSide: RacketSide {
+    /// `Application`의 코디네이터도 이 변환을 쓴다 — 리플레이 오버레이가
+    /// 어느 손을 볼지 정해야 한다(#121).
+    public var racketSide: RacketSide {
         switch self {
         case .right: .right
         case .left: .left

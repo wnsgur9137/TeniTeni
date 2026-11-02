@@ -13,9 +13,13 @@ public struct ReplayScreen: View {
 
     @Bindable private var store: StoreOf<ReplayFeature>
     @State private var player = ReplayPlayer()
+    /// 사이드카를 들고 있는 쪽. 플레이어와 같은 이유로 **화면이 소유한다** —
+    /// 프레임 수백 개를 리듀서 상태에 두지 않는다.
+    @State private var overlay: ReplayOverlaySource
 
-    public init(store: StoreOf<ReplayFeature>) {
+    public init(store: StoreOf<ReplayFeature>, overlayQueue: OverlayBakeQueue) {
         self.store = store
+        self._overlay = State(initialValue: ReplayOverlaySource(queue: overlayQueue))
     }
 
     public var body: some View {
@@ -31,7 +35,7 @@ public struct ReplayScreen: View {
 
             case .ready:
                 if store.isFullscreen {
-                    ReplayFullscreenView(store: store, layer: player.layer)
+                    ReplayFullscreenView(store: store, layer: player.layer, overlay: overlay)
                 } else {
                     ReplayView(store: store, layer: player.layer)
                 }
@@ -43,6 +47,7 @@ public struct ReplayScreen: View {
             player.onSlowMotionSupport = { [store] supported in
                 store.send(.slowMotionUnsupported(!supported))
             }
+            overlay.onPhase = { [store] phase in store.send(.overlayPhaseChanged(phase)) }
             store.send(.appeared)
         }
         // 선언적 상태 → 플레이어 명령. 아래 네 개가 이 화면의 전체 배선이다.
@@ -53,6 +58,17 @@ public struct ReplayScreen: View {
             }
             player.load(url: url, startAt: store.currentSeconds)
             applySegment()
+        }
+        // 클립이 바뀌면 사이드카도 바뀐다. **파일 이름으로 본다** — 같은
+        // 클립 안의 다음 스윙에서는 다시 읽지 않는다.
+        .onChange(of: store.current?.fileName) { _, fileName in
+            overlay.load(fileName: fileName)
+        }
+        // 다시 시도를 누르면 큐가 다시 받는다. 그 결과를 다시 듣는다.
+        .onChange(of: store.overlayPhase) { previous, phase in
+            if phase == .baking, previous != .baking {
+                overlay.watchAgain()
+            }
         }
         .onChange(of: store.seek) { _, command in
             Task { await player.seek(to: command.seconds) }
