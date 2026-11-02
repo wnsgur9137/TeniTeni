@@ -162,6 +162,54 @@ struct AppFeatureTests {
 
     // MARK: 설정
 
+    // MARK: 오버레이 (#121)
+
+    /// 매번 다시 고르게 하지 않는다 — `lastSituation`과 같은 규칙이다.
+    @Test("리플레이에서 고른 오버레이가 저장된다")
+    func 오버레이_저장() async {
+        let repo = InMemoryRepository(UserPreferences(handedness: .right))
+        // `@Presents` 프로퍼티는 init 인자가 아니다. 만들고 넣는다.
+        var initial = AppFeature.State(preferences: UserPreferences(handedness: .right))
+        initial.replay = ReplayFeature.State(sessionID: UUID(), swingID: UUID())
+        let store = TestStore(initialState: initial) { AppFeature(repository: repo) }
+
+        await store.send(.replay(.presented(.delegate(.overlayChanged(.skeleton))))) {
+            $0.preferences.lastOverlayLayer = .skeleton
+        }
+        #expect(repo.load().lastOverlayLayer == .skeleton)
+    }
+
+    /// 지난 선택을 미리 골라둔다. 저장만 하고 읽지 않으면 기억한 의미가 없다.
+    @Test("리플레이를 열면 저장된 오버레이로 시작한다")
+    func 오버레이_복원() async {
+        let session = Session(
+            id: UUID(uuidString: "00000000-0000-0000-0000-0000000000aa")!,
+            startedAt: Date(timeIntervalSince1970: 1_700_000_000),
+            situation: .ballMachine,
+            fps: 120,
+            clips: []
+        )
+        let repo = InMemoryRepository(
+            UserPreferences(handedness: .left, lastOverlayLayer: .racket)
+        )
+        var initial = AppFeature.State(
+            preferences: UserPreferences(handedness: .left, lastOverlayLayer: .racket)
+        )
+        initial.summary = SessionSummaryFeature.State(sessionID: session.id)
+        let store = TestStore(initialState: initial) {
+            AppFeature(repository: repo, sessionRepository: StubSessionRepository([session]))
+        }
+        store.exhaustivity = .off
+
+        let swingID = UUID()
+        await store.send(
+            .summary(.presented(.delegate(.openReplay(sessionID: session.id, swingID: swingID))))
+        )
+        #expect(store.state.replay?.overlay == .racket)
+        // 왼손잡이면 왼손을 본다. 기본값으로 떨어지면 라켓이 반대 팔에 붙는다.
+        #expect(store.state.replay?.side == .left)
+    }
+
     @Test("설정에서 감지음을 끄면 저장된다")
     func 설정_소리() async {
         let repo = InMemoryRepository(UserPreferences(handedness: .right))

@@ -1,6 +1,7 @@
 import ComposableArchitecture
 import DesignSystem
 import SwiftUI
+import TeniVision
 
 /// 리플레이의 바깥 껍데기. **플레이어와 방향 잠금을 소유한다.**
 ///
@@ -13,9 +14,13 @@ public struct ReplayScreen: View {
 
     @Bindable private var store: StoreOf<ReplayFeature>
     @State private var player = ReplayPlayer()
+    /// 사이드카를 들고 있는 쪽. 플레이어와 같은 이유로 **화면이 소유한다** —
+    /// 프레임 수백 개를 리듀서 상태에 두지 않는다.
+    @State private var overlay: ReplayOverlaySource
 
-    public init(store: StoreOf<ReplayFeature>) {
+    public init(store: StoreOf<ReplayFeature>, overlayQueue: OverlayBakeQueue) {
         self.store = store
+        self._overlay = State(initialValue: ReplayOverlaySource(queue: overlayQueue))
     }
 
     public var body: some View {
@@ -31,7 +36,7 @@ public struct ReplayScreen: View {
 
             case .ready:
                 if store.isFullscreen {
-                    ReplayFullscreenView(store: store, layer: player.layer)
+                    ReplayFullscreenView(store: store, layer: player.layer, overlay: overlay)
                 } else {
                     ReplayView(store: store, layer: player.layer)
                 }
@@ -43,6 +48,7 @@ public struct ReplayScreen: View {
             player.onSlowMotionSupport = { [store] supported in
                 store.send(.slowMotionUnsupported(!supported))
             }
+            overlay.onPhase = { [store] phase in store.send(.overlayPhaseChanged(phase)) }
             store.send(.appeared)
         }
         // 선언적 상태 → 플레이어 명령. 아래 네 개가 이 화면의 전체 배선이다.
@@ -53,6 +59,21 @@ public struct ReplayScreen: View {
             }
             player.load(url: url, startAt: store.currentSeconds)
             applySegment()
+        }
+        // 클립이 바뀌면 사이드카도 바뀐다. **파일 이름으로 본다** — 같은
+        // 클립 안의 다음 스윙에서는 다시 읽지 않는다.
+        //
+        // 사이드카가 없으면 소스가 큐에 넣는다. **보관함에서 연 세션이
+        // 여기로 온다** — 촬영 종료만으로 넣으면 어제 찍은 세션은 영원히
+        // "분석 전"이고 탈출구가 없다.
+        .onChange(of: ClipIdentity(store)) { _, identity in
+            overlay.load(fileName: identity.fileName, side: identity.side)
+        }
+        // 다시 시도. 큐 투입과 감시를 소스가 한 Task에서 한다.
+        .onChange(of: store.overlayPhase) { previous, phase in
+            if phase == .baking, previous != .baking {
+                overlay.retry()
+            }
         }
         .onChange(of: store.seek) { _, command in
             Task { await player.seek(to: command.seconds) }
@@ -102,6 +123,19 @@ public struct ReplayScreen: View {
             }
         }
         .padding(28)
+    }
+}
+
+/// 클립 파일과 라켓 쪽. 둘을 함께 본다 — 손잡이는 바뀌지 않지만 소스가
+/// 굽기를 걸 때 필요하고, 따로 관측하면 파일만 바뀐 전이에서 옛 손을 쓴다.
+private struct ClipIdentity: Equatable {
+    let fileName: String?
+    let side: RacketSide
+
+    @MainActor
+    init(_ store: StoreOf<ReplayFeature>) {
+        self.fileName = store.current?.fileName
+        self.side = store.side
     }
 }
 

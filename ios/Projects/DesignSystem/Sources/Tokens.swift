@@ -55,6 +55,10 @@ public enum Token {
         public static let joint = Color(hex: 0xFFFFFF)
         /// 문제 관절
         public static let issue = Color(hex: 0xFF4D4D)
+        /// 라켓 헤드 궤적. `racketArm`과 **같은 값이다** — 시안은 언제나
+        /// 라켓이다. 레이어가 배타적이라 공 궤적 앰버와 섞이지 않는다
+        /// (ADR-0006). 알파는 단축 신뢰도가 정한다.
+        public static let racketTrail = Color(hex: 0x4DD8E6)
         /// 공 궤적 (공 색과 연결)
         public static let trail = Color(hex: 0xFFD84D)
     }

@@ -95,14 +95,21 @@ public struct AppFeature {
     /// 기본 저장소는 실행 인자를 보고 정해진다 — UI 테스트로 실행하면
     /// **빈 상태**에서 시작한다. 진입점은 `Application`만 알아야 하므로
     /// (`Project.swift`) 그 판단을 여기서 한다. 근거: `LaunchDefaults`, #88
+    /// 오버레이 사이드카를 굽는 큐. **코디네이터가 소유한다** —
+    /// 촬영이 끝나면 넣고, 리플레이가 결과를 읽는다. 두 화면이 같은 큐를
+    /// 봐야 하므로 어느 한쪽이 들 수 없다(D-03).
+    let overlayQueue: OverlayBakeQueue
+
     public init(
         repository: any UserPreferencesRepository = UserDefaultsUserPreferencesRepository(
             defaults: LaunchDefaults.resolve()
         ),
-        sessionRepository: any SessionRepository = UnavailableSessionRepository()
+        sessionRepository: any SessionRepository = UnavailableSessionRepository(),
+        overlayQueue: OverlayBakeQueue = OverlayBakeQueue()
     ) {
         self.repository = repository
         self.sessionRepository = sessionRepository
+        self.overlayQueue = overlayQueue
     }
 
     public var body: some ReducerOf<Self> {
@@ -171,7 +178,22 @@ public struct AppFeature {
                 // 저장된 세션이 없으면(저장 실패·프레임 0장) 홈으로 간다.
                 guard let sessionID else { return .none }
                 state.summary = SessionSummaryFeature.State(sessionID: sessionID)
-                return .none
+
+                // 오버레이 사이드카를 **지금** 굽는다. 촬영이 끝났으므로
+                // 라이브 포즈 추정과 CPU를 다투지 않는다 — 촬영 중에 돌리면
+                // 스윙 트리거가 신호를 잃고, 그러면 굽는 대상 자체가 사라진다
+                // (SPEC-0121 선택지 2).
+                let queue = overlayQueue
+                let side = state.preferences.handedness?.racketSide ?? .right
+                let sessions = sessionRepository
+                return .run { _ in
+                    // 세션을 다시 읽는다. 클립 파일 이름은 저장소가 정본이다.
+                    guard let session = try? await sessions.load(id: sessionID) else { return }
+                    for clip in session.clips {
+                        await queue.enqueue(fileName: clip.fileName, side: side)
+                    }
+                    await queue.drain()
+                }
 
             case .library(.delegate(.sessionTapped(let sessionID))):
                 // **같은 목적지로 보낸다.** 촬영 직후와 같은 Feature를 쓰고,
@@ -203,8 +225,20 @@ public struct AppFeature {
             case .summary(.presented(.delegate(.openReplay(let sessionID, let swingID)))):
                 // **요약을 닫지 않는다.** 리플레이를 닫으면 요약으로 돌아와야
                 // 하고, 거기서 다른 스윙을 고를 수 있어야 한다.
-                state.replay = ReplayFeature.State(sessionID: sessionID, swingID: swingID)
+                state.replay = ReplayFeature.State(
+                    sessionID: sessionID,
+                    swingID: swingID,
+                    // 지난 선택을 미리 골라둔다 — `lastSituation`과 같은 규칙.
+                    overlay: state.preferences.lastOverlayLayer,
+                    side: state.preferences.handedness?.racketSide ?? .right
+                )
                 return .none
+
+            case .replay(.presented(.delegate(.overlayChanged(let layer)))):
+                state.preferences.lastOverlayLayer = layer
+                repository.save(state.preferences)
+                return .none
+
 
             case .replay(.presented(.delegate(.closed))):
                 state.replay = nil

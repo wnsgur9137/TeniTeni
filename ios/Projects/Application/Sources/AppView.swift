@@ -9,10 +9,18 @@ public struct AppView: View {
     /// 세션 저장소. 생성 실패도 값으로 들고 온다 — 촬영은 되고 저장만
     /// 안 되는 상태를 화면이 알려야 한다.
     private let storage: SessionStorage
+    /// 오버레이를 굽는 큐. 리듀서와 **같은 인스턴스**를 받아야 한다 —
+    /// 촬영 종료가 넣은 것을 리플레이가 읽는다.
+    private let overlayQueue: OverlayBakeQueue
 
-    public init(store: StoreOf<AppFeature>, storage: SessionStorage) {
+    public init(
+        store: StoreOf<AppFeature>,
+        storage: SessionStorage,
+        overlayQueue: OverlayBakeQueue
+    ) {
         self.store = store
         self.storage = storage
+        self.overlayQueue = overlayQueue
     }
 
     public var body: some View {
@@ -58,7 +66,7 @@ public struct AppView: View {
                 .fullScreenCover(
                     item: $store.scope(state: \.replay, action: \.replay)
                 ) { replayStore in
-                    ReplayScreen(store: replayStore)
+                    ReplayScreen(store: replayStore, overlayQueue: overlayQueue)
                 }
         }
     }

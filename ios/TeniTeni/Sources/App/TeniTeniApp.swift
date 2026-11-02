@@ -19,17 +19,26 @@ struct TeniTeniApp: App {
 
     /// 촬영은 `storage`로 쓰고, 요약은 같은 저장소에서 **다시 읽는다.**
     /// 저장소를 못 세운 경우에는 읽기가 사유를 들고 실패한다.
+    /// 오버레이 사이드카를 굽는 큐. **앱 수명 내내 하나다** — 촬영 종료가
+    /// 넣고 리플레이가 읽으므로 둘이 같은 인스턴스를 봐야 한다.
+    private static let overlayQueue = OverlayBakeQueue()
+
     @MainActor
     private static let store = Store(initialState: AppFeature.State()) {
         AppFeature(
-            sessionRepository: storage.repository ?? UnavailableSessionRepository()
+            sessionRepository: storage.repository ?? UnavailableSessionRepository(),
+            overlayQueue: overlayQueue
         )
     }
 
     var body: some Scene {
         WindowGroup {
-            AppView(store: Self.store, storage: Self.storage)
-                .preferredColorScheme(.dark)
+            AppView(
+                store: Self.store,
+                storage: Self.storage,
+                overlayQueue: Self.overlayQueue
+            )
+            .preferredColorScheme(.dark)
         }
     }
 }

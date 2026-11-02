@@ -2,7 +2,7 @@ import Foundation
 
 /// 포즈 관측을 트리거 입력으로 옮긴다.
 ///
-/// 하는 일이 작다 — 관절 6개를 뽑고 시각을 붙인다. 그런데 이 변환이 틀리면
+/// 하는 일이 작다 — 고른 관절을 뽑고 시각을 붙인다. 그런데 이 변환이 틀리면
 /// 트리거는 **아무 신호도 못 내면서 오류도 내지 않는다.** 그래서 따로 두고
 /// 전수 검증한다.
 ///
@@ -15,9 +15,25 @@ public enum PoseFrameAdapter {
         from observation: some BodyPoseObservable,
         at timestamp: TimeInterval
     ) -> PoseFrame {
+        frame(from: observation, at: timestamp, joints: PoseJoint.trigger)
+    }
+
+    /// 뽑을 관절을 고른다.
+    ///
+    /// ⚠️ **라이브는 `PoseJoint.trigger`(6개)를 쓴다.** 19개를 뽑으면 트리거가
+    /// 쓰지도 않는 13개의 비용을 실시간 예산에서 낸다 — ADR-0006이 "라이브에
+    /// 남는 분석은 스윙 트리거용 포즈 하나"로 줄인 것을 되돌리는 셈이다.
+    ///
+    /// 스켈레톤 사이드카를 굽는 경로만 `PoseJoint.allCases`를 넘긴다.
+    /// 오프라인이라 예산 제약이 없다.
+    public static func frame(
+        from observation: some BodyPoseObservable,
+        at timestamp: TimeInterval,
+        joints wanted: [PoseJoint]
+    ) -> PoseFrame {
         var joints: [PoseJoint: PoseJointSample] = [:]
-        joints.reserveCapacity(PoseJoint.allCases.count)
-        for joint in PoseJoint.allCases {
+        joints.reserveCapacity(wanted.count)
+        for joint in wanted {
             // 관측에 없는 관절은 넣지 않는다. 0 신뢰도로 채워 넣으면
             // "보이지만 못 믿는 관절"과 "안 보이는 관절"이 구분되지 않는다.
             guard let sample = observation.sample(for: joint) else { continue }

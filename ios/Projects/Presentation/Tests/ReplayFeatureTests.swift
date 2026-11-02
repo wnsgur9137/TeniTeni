@@ -275,21 +275,28 @@ struct ReplayFeatureTests {
         }
     }
 
-    @Test("프레임 이동은 먼저 멈추고 스텝을 올린다")
+    /// 시각까지 함께 옮기는 이유: **주기 관측자는 재생 중에만 발화한다.**
+    /// 스텝은 재생을 멈추므로 플레이어가 시각을 올려보내지 않고, 그러면
+    /// 오버레이가 직전 프레임에 멈춘 채로 남는다(#121).
+    @Test("프레임 이동은 먼저 멈추고 스텝과 시각을 함께 옮긴다")
     func 프레임_이동() async {
         let fixture = Fixture()
         let store = makeStore(fixture, swingID: id(1))
         await open(store, fixture, index: 0, url: "a.mov", start: 1)
+        // 첫 클립은 120fps다.
+        let frame = 1.0 / 120
 
         await store.send(.stepTapped(1)) {
             // 재생과 스텝이 섞이면 어디로 갔는지 알 수 없다.
             $0.isPlaying = false
             $0.step = .init(tick: 1, count: 1)
+            $0.currentSeconds = 1 + frame
         }
         await store.send(.stepTapped(-1)) {
             $0.step = .init(tick: 2, count: -1)
+            $0.currentSeconds = 1
         }
-        // 0 스텝은 명령을 만들지 않는다.
+        // 0 스텝은 명령도 시각도 만들지 않는다.
         await store.send(.stepTapped(0))
     }
 
