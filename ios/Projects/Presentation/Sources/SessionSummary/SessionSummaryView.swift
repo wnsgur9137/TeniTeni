@@ -134,7 +134,7 @@ public struct SessionSummaryView: View {
                 ForEach(session.clips) { clip in
                     clipHeader(clip)
                     ForEach(items.filter { $0.clipID == clip.id }) { item in
-                        swingRow(item)
+                        swingRow(item, missing: store.missingClips.contains(clip.id))
                     }
                 }
             }
@@ -150,6 +150,17 @@ public struct SessionSummaryView: View {
                 .font(.system(size: 12, weight: .medium))
                 .monospacedDigit()
                 .foregroundStyle(Token.Text.tertiary)
+            // 영상이 없으면 **머리에서 말한다.** 스윙 행마다 적으면 같은
+            // 말이 여러 번 나오고, 클립 단위라는 사실이 흐려진다.
+            if store.missingClips.contains(clip.id) {
+                HStack(spacing: 4) {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .font(.system(size: 10))
+                    Text("영상이 없습니다")
+                        .font(.system(size: 12, weight: .semibold))
+                }
+                .foregroundStyle(Token.State.warning)
+            }
             Spacer()
         }
         .padding(.horizontal, 16)
@@ -158,32 +169,44 @@ public struct SessionSummaryView: View {
         .accessibilityElement(children: .combine)
     }
 
-    private func swingRow(_ item: ReplayItem) -> some View {
+    /// - Parameter missing: 그 클립의 영상이 없다. **눌리지 않는다** —
+    ///   열면 `ReplayMissing`이 뜨는데, 열리기 전에 알 수 있으면 화면
+    ///   전환과 방향 잠금을 치를 이유가 없다(SPEC-0120 선택지 5).
+    private func swingRow(_ item: ReplayItem, missing: Bool) -> some View {
         Button { store.send(.swingTapped(item.swing.id)) } label: {
             HStack(spacing: 12) {
                 VStack(alignment: .leading, spacing: 3) {
                     Text("스윙 \(item.position)")
                         .font(.system(size: 15))
                         .monospacedDigit()
-                        .foregroundStyle(Token.Text.primary)
+                        .foregroundStyle(missing ? Token.Text.tertiary : Token.Text.primary)
                     Text(Self.swingDetail(item.swing))
                         .font(.system(size: 12))
                         .monospacedDigit()
                         .foregroundStyle(Token.Text.tertiary)
                 }
                 Spacer()
-                Image(systemName: "chevron.right")
-                    .font(.system(size: 13, weight: .semibold))
-                    .foregroundStyle(Token.Text.tertiary)
+                // 열 수 없으면 **화살표를 지운다.** 남겨 두면 눌러도 되는
+                // 것처럼 보이고, 눌러서 아무 일도 없으면 고장으로 읽힌다.
+                if !missing {
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(Token.Text.tertiary)
+                }
             }
             .padding(.horizontal, 16)
             .padding(.vertical, 11)
             .contentShape(.rect)
         }
         .buttonStyle(.plain)
+        .disabled(missing)
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("스윙 \(item.position), \(Self.swingDetail(item.swing))")
-        .accessibilityHint("리플레이를 엽니다")
+        .accessibilityLabel(
+            missing
+                ? "스윙 \(item.position), \(Self.swingDetail(item.swing)), 영상이 없습니다"
+                : "스윙 \(item.position), \(Self.swingDetail(item.swing))"
+        )
+        .accessibilityHint(missing ? "영상이 없어 열 수 없습니다" : "리플레이를 엽니다")
     }
 
     /// 구간 길이와 **구간 안의** 임팩트 시각. 클립 기준 절대초를 보여주면
