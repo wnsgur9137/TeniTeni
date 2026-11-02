@@ -238,3 +238,39 @@ struct OverlaySidecarTests {
         #expect(Self.sidecar().frame(at: 0) == nil)
     }
 }
+
+@Suite("굽는 경로의 방향 변환")
+struct OverlayBakerOrientationTests {
+
+    /// `preferredTransform` → Vision에 넘길 방향.
+    ///
+    /// ⚠️ **이 매핑이 실제 녹화 파일과 맞는지는 실기기에서만 확인된다.**
+    /// 여기서 고정하는 것은 "네 변환이 서로 다른 방향으로 간다"와
+    /// "모르는 변환은 추측하지 않는다"뿐이다 — 틀려도 이 테스트는 통과한다.
+    @Test("90의 배수 네 가지가 서로 다른 방향으로 간다")
+    func 네_방향() {
+        #expect(OverlayBaker.orientation(from: .identity) == .up)
+        #expect(OverlayBaker.orientation(from: CGAffineTransform(rotationAngle: .pi / 2)) == .right)
+        #expect(OverlayBaker.orientation(from: CGAffineTransform(rotationAngle: .pi)) == .down)
+        #expect(
+            OverlayBaker.orientation(from: CGAffineTransform(rotationAngle: -.pi / 2)) == .left
+        )
+    }
+
+    /// 추측해 돌리면 오버레이가 통째로 어긋나고 그 원인을 찾기 어렵다.
+    @Test("모르는 변환은 up으로 둔다 — 추측해 돌리지 않는다")
+    func 모르는_변환() {
+        #expect(
+            OverlayBaker.orientation(from: CGAffineTransform(rotationAngle: .pi / 4)) == .up
+        )
+        #expect(OverlayBaker.orientation(from: CGAffineTransform(scaleX: 2, y: 3)) == .up)
+    }
+
+    /// 이동 성분은 방향과 무관하다. 보고 판단하면 같은 회전이 다른 방향이 된다.
+    @Test("이동 성분은 방향을 바꾸지 않는다")
+    func 이동_무관() {
+        let rotated = CGAffineTransform(rotationAngle: .pi / 2)
+            .concatenating(CGAffineTransform(translationX: 1080, y: 0))
+        #expect(OverlayBaker.orientation(from: rotated) == .right)
+    }
+}

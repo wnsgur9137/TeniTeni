@@ -204,6 +204,39 @@ struct OverlayBakeQueueTests {
         #expect(store.state(for: "a.mov") == .notAnalyzed)
     }
 
+    /// 확인과 구독을 나누면 그 사이에 굽기가 끝나 완료 신호를 놓치고
+    /// 화면이 "분석 중"에서 **영원히 멈춘다.** 한 번에 받는다.
+    @Test("확인과 구독을 한 번에 받는다")
+    func 원자적_감시() async throws {
+        let directory = try makeDirectory()
+        let queue = OverlayBakeQueue(
+            store: OverlaySidecarStore(directory: directory),
+            locator: ClipLocator(directory: directory) { _ in false }
+        )
+        await queue.enqueue(fileName: "a.mov", side: .right)
+
+        let (baking, completions) = await queue.watch("a.mov")
+        #expect(baking)
+        await queue.drain()
+        var finished: String?
+        for await name in completions where name == "a.mov" {
+            finished = name
+            break
+        }
+        #expect(finished == "a.mov")
+    }
+
+    @Test("큐에 없는 클립은 감시하지 않는다")
+    func 감시_대상_아님() async throws {
+        let directory = try makeDirectory()
+        let queue = OverlayBakeQueue(
+            store: OverlaySidecarStore(directory: directory),
+            locator: ClipLocator(directory: directory) { _ in false }
+        )
+        let (baking, _) = await queue.watch("없는.mov")
+        #expect(baking == false)
+    }
+
     /// 파일이 없는 것은 #120이 다루는 상태다. **실패로 적지 않는다** —
     /// 고칠 것이 없는데 "다시 시도"를 띄우게 된다.
     @Test("클립 파일이 없으면 실패로 적지 않는다")
