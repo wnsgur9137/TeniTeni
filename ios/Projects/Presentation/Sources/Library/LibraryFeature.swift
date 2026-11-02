@@ -30,9 +30,24 @@ public struct LibraryFeature {
     @ObservableState
     public struct State: Equatable {
         public var phase: Phase
+        /// 세션별 클립 파일 결손. **레코드가 아니라 지금 사실이다** —
+        /// 목록을 다시 읽을 때마다 새로 확인한다(SPEC-0120 선택지 4).
+        ///
+        /// 키가 없으면 아직 확인하지 않았다는 뜻이다. 목록은 **확인 전에
+        /// 먼저 그려진다** — 읽기가 느려도 멈추지 않는다.
+        public var availability: [UUID: ClipAvailability]
 
-        public init(phase: Phase = .loading) {
+        public init(
+            phase: Phase = .loading,
+            availability: [UUID: ClipAvailability] = [:]
+        ) {
             self.phase = phase
+            self.availability = availability
+        }
+
+        /// 그 세션의 결손. 확인 전이면 `nil`이다.
+        public func availability(for sessionID: UUID) -> ClipAvailability? {
+            availability[sessionID]
         }
 
         /// 비어 있는가. **읽기 실패는 비어 있는 것이 아니다.**
@@ -54,6 +69,8 @@ public struct LibraryFeature {
         /// 촬영하고 돌아왔을 때 방금 세션이 없는 것이 이 화면의 최악 실패다.
         case appeared
         case loaded([Session])
+        /// 클립 파일 확인이 끝났다. 목록이 그려진 **뒤에** 온다.
+        case availabilityChecked([UUID: ClipAvailability])
         case failed(String)
         case retryTapped
         case sessionTapped(UUID)
@@ -70,9 +87,11 @@ public struct LibraryFeature {
     }
 
     private let repository: any SessionRepository
+    private let locator: ClipLocator
 
-    public init(repository: any SessionRepository) {
+    public init(repository: any SessionRepository, locator: ClipLocator = ClipLocator()) {
         self.repository = repository
+        self.locator = locator
     }
 
     public var body: some ReducerOf<Self> {
@@ -80,6 +99,9 @@ public struct LibraryFeature {
             switch action {
             case .appeared, .retryTapped:
                 state.phase = .loading
+                // 지난 확인 결과를 버린다. 그 사이에 파일이 지워졌을 수
+                // 있고, 그것이 이 확인의 존재 이유다.
+                state.availability = [:]
                 // `self`를 포획하면 Reducer가 Sendable이 아니어서 막힌다.
                 let repository = repository
                 return .run { send in
@@ -94,7 +116,33 @@ public struct LibraryFeature {
                 // **여기서 정렬한다.** `loadAll()`이 "최근 것부터"를 약속하지만
                 // 그 약속에 기대면 순서가 바뀌는 날 조용히 깨진다 — 화면은
                 // 아무 오류도 내지 않고 뒤섞인 목록을 보여준다.
-                state.phase = .loaded(sessions.sorted { $0.startedAt > $1.startedAt })
+                let sorted = sessions.sorted { $0.startedAt > $1.startedAt }
+                state.phase = .loaded(sorted)
+                // ★ 확인은 **목록을 그린 뒤** 백그라운드에서 돈다.
+                //
+                //   클립 수만큼 `stat`을 도는데, 세션 20개 × 클립 10개가
+                //   약 1 ms다(SPEC-0120). 작지만 메인 액터에서 돌면 그
+                //   1 ms가 프레임 예산 안에 들어가고, 실기기에서 더 느리면
+                //   목록이 뜨는 것 자체가 늦어진다.
+                let locator = locator
+                return .run { send in
+                    let checked = await Task.detached(priority: .utility) {
+                        var result: [UUID: ClipAvailability] = [:]
+                        result.reserveCapacity(sorted.count)
+                        for session in sorted {
+                            result[session.id] = ClipAvailability.of(session, locator: locator)
+                        }
+                        return result
+                    }.value
+                    await send(.availabilityChecked(checked))
+                }
+
+            case .availabilityChecked(let checked):
+                // 그 사이에 목록을 다시 읽었으면 버린다 — 지난 확인 결과를
+                // 새 목록에 붙이면 엉뚱한 세션에 경고가 붙는다.
+                guard case .loaded(let sessions) = state.phase else { return .none }
+                let ids = Set(sessions.map(\.id))
+                state.availability = checked.filter { ids.contains($0.key) }
                 return .none
 
             case .failed(let reason):
