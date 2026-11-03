@@ -75,6 +75,52 @@ struct DocumentsClipFileStoreTests {
         #expect(exists("b.mov", in: directory))
     }
 
+    /// ⚠️ **여기는 지우는 코드다.** 틀리면 사용자가 고르지 않은 파일이
+    /// 사라지고 되돌릴 수 없다.
+    ///
+    /// `fileName`은 지금 녹화가 만든 `lastPathComponent`라 구분자가 들어갈
+    /// 수 없다. 그런데 그 값은 **SwiftData에 저장되고 백업 복원·기기
+    /// 이전으로도 들어온다** — 우리가 만든 값만 온다는 보장이 영구적이지
+    /// 않다.
+    @Test("경로를 벗어나는 이름은 아무것도 지우지 않는다")
+    func 경로_탈출() async throws {
+        let directory = try makeDirectory()
+        // 형제 자리에 파일을 둔다 — `../`가 통하면 이것이 지워진다.
+        let sibling = directory.deletingLastPathComponent()
+            .appending(path: "형제-\(UUID().uuidString).mov")
+        try Data([0]).write(to: sibling)
+        defer { try? FileManager.default.removeItem(at: sibling) }
+
+        try write("a.mov", in: directory)
+        try FileManager.default.createDirectory(
+            at: directory.appending(path: "sub"), withIntermediateDirectories: true
+        )
+        try write("sub/b.mov", in: directory)
+
+        let store = makeStore(directory)
+        for bad in ["..", ".", "../\(sibling.lastPathComponent)", "sub/b.mov", "/etc/hosts"] {
+            await store.remove(fileName: bad)
+        }
+
+        // 형제도, 하위 디렉터리의 것도, 디렉터리 자신도 그대로다.
+        #expect(FileManager.default.fileExists(atPath: sibling.path))
+        #expect(FileManager.default.fileExists(atPath: directory.path))
+        #expect(exists("a.mov", in: directory))
+        #expect(exists("sub/b.mov", in: directory))
+    }
+
+    @Test("맨 이름만 통과한다")
+    func 이름_판정() {
+        #expect(DocumentsClipFileStore.isSafe("a.mov"))
+        #expect(DocumentsClipFileStore.isSafe("clip-20261103-120000-0.mov"))
+        #expect(DocumentsClipFileStore.isSafe("") == false)
+        #expect(DocumentsClipFileStore.isSafe("..") == false)
+        #expect(DocumentsClipFileStore.isSafe(".") == false)
+        #expect(DocumentsClipFileStore.isSafe("../a.mov") == false)
+        #expect(DocumentsClipFileStore.isSafe("sub/a.mov") == false)
+        #expect(DocumentsClipFileStore.isSafe("/etc/hosts") == false)
+    }
+
     /// 파일이 **이미 없는 것은 실패가 아니다** — 사용자가 파일 앱에서
     /// 지웠거나 iOS가 정리했을 수 있다(#120). 결과는 같다: 그 파일은 없다.
     @Test("없는 파일을 지워도 조용히 끝난다")
