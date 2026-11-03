@@ -94,6 +94,33 @@ public struct ReplayScreen: View {
                 OrientationLock.shared.release()
             }
         }
+        // **지울 것을 적어서 보여준다.** 되돌리기가 없으므로 이것이 유일한
+        // 안전장치다(SPEC-0126 선택지 3).
+        .confirmationDialog(
+            store.deleting?.title ?? "",
+            isPresented: Binding(
+                get: { store.deleting != nil },
+                set: { if !$0 { store.send(.deleteCancelled) } }
+            ),
+            titleVisibility: .visible,
+            presenting: store.deleting
+        ) { _ in
+            Button("지우기", role: .destructive) { store.send(.deleteConfirmed) }
+            Button("취소", role: .cancel) { store.send(.deleteCancelled) }
+        } message: { target in
+            Text("\(target.detail)\n\(target.counts)\n\(target.warning)")
+        }
+        .alert(
+            "지우지 못했습니다",
+            isPresented: Binding(
+                get: { store.deleteFailure != nil },
+                set: { if !$0 { store.send(.deleteFailureDismissed) } }
+            )
+        ) {
+            Button("확인") { store.send(.deleteFailureDismissed) }
+        } message: {
+            Text(store.deleteFailure ?? "")
+        }
         .onDisappear {
             player.unload()
             OrientationLock.shared.release()

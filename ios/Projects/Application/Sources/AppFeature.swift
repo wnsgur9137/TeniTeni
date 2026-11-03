@@ -244,6 +244,21 @@ public struct AppFeature {
                 state.replay = nil
                 return .none
 
+            case .replay(.presented(.delegate(.deleted))):
+                // **리플레이를 닫고 요약을 다시 읽는다.** 지운 클립이
+                // 요약에 남아 있으면 눌러서 또 열 수 있고, 그러면 없는
+                // 클립의 리플레이가 열린다.
+                state.replay = nil
+                // 세션이 통째로 사라졌을 수도 있다(마지막 클립). 요약이
+                // 다시 읽으면서 "기록이 없습니다"로 떨어지므로 여기서
+                // 판단하지 않는다 — 저장소가 정본이다.
+                return .merge(
+                    .send(.summary(.presented(.appeared))),
+                    // 보관함도 바뀌었다. 탭에 있지 않더라도 다음 진입에서
+                    // 다시 읽지만, 지금 읽어 두면 돌아갔을 때 바로 맞다.
+                    .send(.library(.appeared))
+                )
+
             case .settings(.presented(.delegate(.handednessChanged(let hand)))):
                 state.preferences.handedness = hand
                 repository.save(state.preferences)
