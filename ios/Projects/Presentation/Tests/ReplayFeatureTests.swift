@@ -107,6 +107,8 @@ struct ReplayFeatureTests {
         // 초기 상태가 이미 `.loading`이므로 바뀌는 것이 없다.
         await store.send(.appeared)
         await store.receive(.loaded(fixture.session)) {
+            // 세션을 보관한다 — 삭제가 클립 목록·상황·날짜를 본다 (#126).
+            $0.session = fixture.session
             $0.phase = .ready(items: fixture.items, index: 1)
             $0.clipURL = URL(filePath: "/clips/a.mov")
             // **임팩트가 아니라 구간 시작.** 지표가 없는 동안에는 스윙을
@@ -135,6 +137,8 @@ struct ReplayFeatureTests {
         // 초기 상태가 이미 `.loading`이므로 바뀌는 것이 없다.
         await store.send(.appeared)
         await store.receive(.loaded(fixture.session)) {
+            // 세션을 보관한다 — 삭제가 클립 목록·상황·날짜를 본다 (#126).
+            $0.session = fixture.session
             $0.phase = .ready(items: fixture.items, index: 0)
             $0.clipURL = URL(filePath: "/clips/a.mov")
             $0.currentSeconds = 1
@@ -343,6 +347,8 @@ struct ReplayFeatureTests {
         // 초기 상태가 이미 `.loading`이므로 바뀌는 것이 없다.
         await store.send(.appeared)
         await store.receive(.loaded(fixture.session)) {
+            // 세션을 보관한다 — 삭제가 클립 목록·상황·날짜를 본다 (#126).
+            $0.session = fixture.session
             $0.phase = .ready(items: fixture.items, index: 2)
             $0.clipURL = nil
             $0.currentSeconds = 2
@@ -423,6 +429,8 @@ struct ReplayFeatureTests {
         // 초기 상태가 이미 `.loading`이므로 바뀌는 것이 없다.
         await store.send(.appeared)
         await store.receive(.loaded(empty)) {
+            // 세션을 보관한다 — 삭제가 클립 목록·상황·날짜를 본다 (#126).
+            $0.session = empty
             $0.phase = .failed("이 세션에는 스윙이 없습니다")
         }
     }
@@ -469,6 +477,8 @@ struct ReplayFeatureTests {
         // 초기 상태가 이미 `.loading`이므로 바뀌는 것이 없다.
         await store.send(.appeared)
         await store.receive(.loaded(fixture.session)) {
+            // 세션을 보관한다 — 삭제가 클립 목록·상황·날짜를 본다 (#126).
+            $0.session = fixture.session
             $0.phase = .ready(items: fixture.items, index: index)
             $0.clipURL = URL(filePath: "/clips/\(url)")
             $0.currentSeconds = start
