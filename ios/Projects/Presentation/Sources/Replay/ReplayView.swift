@@ -55,6 +55,19 @@ struct ReplayView: View {
                 }
             }
             Spacer()
+            // 삭제는 **메뉴 안에** 둔다(IA-FLOW 10.6: "리플레이 메뉴").
+            // 버튼으로 내놓으면 되돌릴 수 없는 동작이 닫기 옆에 선다.
+            Menu {
+                Button("이 클립 지우기", systemImage: "trash", role: .destructive) {
+                    store.send(.deleteRequested)
+                }
+                .disabled(store.current == nil)
+            } label: {
+                Image(systemName: "ellipsis.circle")
+                    .font(.system(size: 18, weight: .semibold))
+                    .foregroundStyle(Token.Text.primary)
+            }
+            .accessibilityLabel("더보기")
         }
         .padding(.horizontal, 20)
         .padding(.top, 16)

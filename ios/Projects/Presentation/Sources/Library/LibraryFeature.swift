@@ -36,13 +36,23 @@ public struct LibraryFeature {
         /// 키가 없으면 아직 확인하지 않았다는 뜻이다. 목록은 **확인 전에
         /// 먼저 그려진다** — 읽기가 느려도 멈추지 않는다.
         public var availability: [UUID: ClipAvailability]
+        /// 확인을 기다리는 삭제. **되돌리기가 없으므로 이 다이얼로그가
+        /// 유일한 안전장치다**(SPEC-0126 선택지 3).
+        @Presents public var deleting: DeleteTarget?
+        /// 지우다 실패했다. 사유를 보여준다 — 조용히 넘기면 사용자는
+        /// 지워진 줄 안다.
+        public var deleteFailure: String?
 
         public init(
             phase: Phase = .loading,
-            availability: [UUID: ClipAvailability] = [:]
+            availability: [UUID: ClipAvailability] = [:],
+            deleting: DeleteTarget? = nil,
+            deleteFailure: String? = nil
         ) {
             self.phase = phase
             self.availability = availability
+            self.deleting = deleting
+            self.deleteFailure = deleteFailure
         }
 
         /// 그 세션의 결손. 확인 전이면 `nil`이다.
@@ -74,9 +84,23 @@ public struct LibraryFeature {
         case failed(String)
         case retryTapped
         case sessionTapped(UUID)
+
+        /// 행을 스와이프해 삭제를 눌렀다. **아직 지우지 않는다.**
+        case deleteRequested(UUID)
+        case deleteConfirmed
+        case deleteCancelled
+        case deleteFinished(Result<UUID, DeleteError>)
+        case deleteFailureDismissed
         /// 빈 상태의 "촬영하러 가기".
         case captureTapped
         case delegate(Delegate)
+
+        /// 삭제 실패. `Error`는 `Equatable`이 아니므로 사유만 옮긴다 —
+        /// 액션이 `Equatable`이어야 `TestStore`가 비교한다.
+        public struct DeleteError: Error, Equatable {
+            public let reason: String
+            public init(reason: String) { self.reason = reason }
+        }
 
         public enum Delegate: Equatable {
             case sessionTapped(UUID)
@@ -88,10 +112,16 @@ public struct LibraryFeature {
 
     private let repository: any SessionRepository
     private let locator: ClipLocator
+    private let files: any ClipFileStore
 
-    public init(repository: any SessionRepository, locator: ClipLocator = ClipLocator()) {
+    public init(
+        repository: any SessionRepository,
+        locator: ClipLocator = ClipLocator(),
+        files: any ClipFileStore = DocumentsClipFileStore()
+    ) {
         self.repository = repository
         self.locator = locator
+        self.files = files
     }
 
     public var body: some ReducerOf<Self> {
@@ -152,6 +182,64 @@ public struct LibraryFeature {
             case .sessionTapped(let id):
                 return .send(.delegate(.sessionTapped(id)))
 
+            case .deleteRequested(let id):
+                // **아직 지우지 않는다.** 지울 것을 적어서 보여주고 묻는다.
+                guard case .loaded(let sessions) = state.phase,
+                      let session = sessions.first(where: { $0.id == id })
+                else { return .none }
+                state.deleting = .session(session, dateText: Self.dateText(session.startedAt))
+                return .none
+
+            case .deleteCancelled:
+                state.deleting = nil
+                return .none
+
+            case .deleteConfirmed:
+                guard let target = state.deleting,
+                      case .session(let id) = target.kind,
+                      case .loaded(let sessions) = state.phase,
+                      // 확인을 띄운 뒤 목록이 바뀔 수 있다. **다시 찾는다** —
+                      // 들고 있던 값을 지우면 그 사이에 바뀐 것을 지운다.
+                      let session = sessions.first(where: { $0.id == id })
+                else {
+                    state.deleting = nil
+                    return .none
+                }
+                state.deleting = nil
+                let useCase = DeleteSessionUseCase(repository: repository, files: files)
+                return .run { send in
+                    do {
+                        try await useCase.execute(session)
+                        await send(.deleteFinished(.success(session.id)))
+                    } catch {
+                        // ⚠️ **파일은 이미 지워졌다.** 되돌리지 않는다 —
+                        //    지운 파일을 복원할 방법이 없다. 남는 것은
+                        //    "영상이 없는 레코드"이고 #120이 그것을
+                        //    정직하게 보여준다.
+                        await send(.deleteFinished(.failure(
+                            Action.DeleteError(reason: error.localizedDescription)
+                        )))
+                    }
+                }
+
+            case .deleteFinished(.success(let id)):
+                // 목록에서 바로 뺀다. 다시 읽으면 어차피 없지만, 그 사이에
+                // 지운 행이 남아 있으면 **지워지지 않은 것처럼 보인다.**
+                guard case .loaded(let sessions) = state.phase else { return .none }
+                state.phase = .loaded(sessions.filter { $0.id != id })
+                state.availability[id] = nil
+                return .none
+
+            case .deleteFinished(.failure(let error)):
+                // 조용히 넘기면 사용자는 지워진 줄 안다. 실제로는 영상만
+                // 사라지고 레코드가 남았다.
+                state.deleteFailure = "지우지 못했습니다 — \(error.reason)"
+                return .none
+
+            case .deleteFailureDismissed:
+                state.deleteFailure = nil
+                return .none
+
             case .captureTapped:
                 return .send(.delegate(.goToCapture))
 
@@ -160,4 +248,14 @@ public struct LibraryFeature {
             }
         }
     }
+
+    /// 확인 다이얼로그에 적는 날짜. 뷰의 포매터를 쓰지 않는다 — 리듀서가
+    /// 만든 문구를 뷰가 그대로 그려야 테스트가 그 문구를 고정할 수 있다.
+    static func dateText(_ date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "ko_KR")
+        formatter.dateFormat = "M월 d일"
+        return formatter.string(from: date)
+    }
+
 }

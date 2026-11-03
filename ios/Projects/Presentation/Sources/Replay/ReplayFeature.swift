@@ -67,6 +67,15 @@ public struct ReplayFeature {
         public var overlayPhase: OverlayPhase
         /// 라켓을 든 쪽. 추정식이 어느 손을 볼지 정한다.
         public let side: RacketSide
+        /// 읽은 세션. **`Phase`는 `ReplayItem`만 들고 있어** 삭제가 필요한
+        /// 것(클립 목록·상황·날짜)이 없다. 메타데이터뿐이므로 가볍다 —
+        /// 프레임을 들지 않는다.
+        public var session: Session?
+        /// 확인을 기다리는 삭제. **되돌리기가 없으므로 이 다이얼로그가
+        /// 유일한 안전장치다**(SPEC-0126 선택지 3).
+        @Presents public var deleting: DeleteTarget?
+        /// 지우다 실패했다. 조용히 넘기면 사용자는 지워진 줄 안다.
+        public var deleteFailure: String?
 
         public var seek: SeekCommand
         public var step: StepCommand
@@ -85,6 +94,9 @@ public struct ReplayFeature {
             desiredOverlay: OverlayLayer? = nil,
             overlayPhase: OverlayPhase = .notAnalyzed,
             side: RacketSide = .right,
+            session: Session? = nil,
+            deleting: DeleteTarget? = nil,
+            deleteFailure: String? = nil,
             seek: SeekCommand = SeekCommand(),
             step: StepCommand = StepCommand()
         ) {
@@ -101,6 +113,9 @@ public struct ReplayFeature {
             self.desiredOverlay = desiredOverlay ?? overlay
             self.overlayPhase = overlayPhase
             self.side = side
+            self.session = session
+            self.deleting = deleting
+            self.deleteFailure = deleteFailure
             self.seek = seek
             self.step = step
         }
@@ -204,6 +219,13 @@ public struct ReplayFeature {
         case overlaySelected(OverlayLayer)
         case overlayRetryTapped
 
+        /// 메뉴에서 삭제를 눌렀다. **아직 지우지 않는다.**
+        case deleteRequested
+        case deleteConfirmed
+        case deleteCancelled
+        case deleteFinished(Result<DeleteClipUseCase.Outcome, DeleteError>)
+        case deleteFailureDismissed
+
         /// 플레이어가 올려보내는 것
         case timeObserved(TimeInterval)
         case reachedEnd
@@ -212,8 +234,16 @@ public struct ReplayFeature {
 
         case delegate(Delegate)
 
+        /// 삭제 실패. `Error`는 `Equatable`이 아니므로 사유만 옮긴다.
+        public struct DeleteError: Error, Equatable {
+            public let reason: String
+            public init(reason: String) { self.reason = reason }
+        }
+
         public enum Delegate: Equatable {
             case closed
+            /// 클립이 지워졌다. 요약·보관함이 다시 읽어야 한다.
+            case deleted
             /// 고른 레이어를 기억해 달라. 저장은 코디네이터의 일이다 —
             /// `Presentation`의 Feature는 설정 저장소를 모른다(D-03).
             case overlayChanged(OverlayLayer)
@@ -222,10 +252,16 @@ public struct ReplayFeature {
 
     private let repository: any SessionRepository
     private let locator: ClipLocator
+    private let files: any ClipFileStore
 
-    public init(repository: any SessionRepository, locator: ClipLocator = ClipLocator()) {
+    public init(
+        repository: any SessionRepository,
+        locator: ClipLocator = ClipLocator(),
+        files: any ClipFileStore = DocumentsClipFileStore()
+    ) {
         self.repository = repository
         self.locator = locator
+        self.files = files
     }
 
     public var body: some ReducerOf<Self> {
@@ -233,6 +269,7 @@ public struct ReplayFeature {
             switch action {
             case .appeared, .retryTapped:
                 state.phase = .loading
+                state.session = nil
                 let id = state.sessionID
                 let repository = repository
                 return .run { send in
@@ -248,6 +285,7 @@ public struct ReplayFeature {
                 }
 
             case .loaded(let session):
+                state.session = session
                 let items = ReplayItem.playlist(from: session)
                 guard !items.isEmpty else {
                     // 요약이 스윙 0개를 진단 화면으로 받으므로 도달할 수
@@ -376,6 +414,64 @@ public struct ReplayFeature {
                 if unsupported { state.speed = .normal }
                 return .none
 
+            case .deleteRequested:
+                // **아직 지우지 않는다.** 지울 것을 적어서 보여주고 묻는다.
+                guard let item = state.current, let session = state.session else { return .none }
+                guard let clip = session.clips.first(where: { $0.id == item.clipID })
+                else { return .none }
+                // 재생을 멈춘다. 다이얼로그 뒤에서 영상이 돌면 무엇을
+                // 지우는지 보려고 사용자가 다이얼로그를 닫는다.
+                state.isPlaying = false
+                state.deleting = .clip(
+                    clip, in: session, dateText: Self.dateText(session.startedAt)
+                )
+                return .none
+
+            case .deleteCancelled:
+                state.deleting = nil
+                return .none
+
+            case .deleteConfirmed:
+                guard let target = state.deleting,
+                      case .clip(let clipID, _) = target.kind,
+                      let session = state.session,
+                      // 확인을 띄운 뒤 목록이 바뀔 수 있다. **다시 찾는다.**
+                      session.clips.contains(where: { $0.id == clipID })
+                else {
+                    state.deleting = nil
+                    return .none
+                }
+                state.deleting = nil
+                let useCase = DeleteClipUseCase(repository: repository, files: files)
+                return .run { send in
+                    do {
+                        let outcome = try await useCase.execute(session, clipID: clipID)
+                        await send(.deleteFinished(.success(outcome)))
+                    } catch {
+                        // ⚠️ **파일은 이미 지워졌다.** 되돌리지 않는다.
+                        await send(.deleteFinished(.failure(
+                            Action.DeleteError(reason: error.localizedDescription)
+                        )))
+                    }
+                }
+
+            case .deleteFinished(.success):
+                // ★ **리플레이를 닫는다.** 다음 클립으로 넘기면 "방금 지운
+                //   것"과 "다음 것"의 경계가 흐려지고, 플레이리스트에서
+                //   스윙이 빠지면서 "34개 중 12번째"의 분모가 화면 안에서
+                //   바뀐다(SPEC-0126 선택지 5).
+                state.isPlaying = false
+                state.isFullscreen = false
+                return .send(.delegate(.deleted))
+
+            case .deleteFinished(.failure(let error)):
+                state.deleteFailure = "지우지 못했습니다 — \(error.reason)"
+                return .none
+
+            case .deleteFailureDismissed:
+                state.deleteFailure = nil
+                return .none
+
             case .closeTapped:
                 state.isPlaying = false
                 state.isFullscreen = false
@@ -411,6 +507,15 @@ public struct ReplayFeature {
         state.seek.seconds = item.swing.startSeconds
         // 파일이 없는 칸으로 들어가면 재생은 멈춘다. 넘기기는 살아 있다.
         if state.clipURL == nil { state.isPlaying = false }
+    }
+
+    /// 확인 다이얼로그에 적는 날짜. 리듀서가 만든 문구를 뷰가 그대로
+    /// 그려야 테스트가 그 문구를 고정할 수 있다.
+    static func dateText(_ date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "ko_KR")
+        formatter.dateFormat = "M월 d일"
+        return formatter.string(from: date)
     }
 
     private func seek(to seconds: TimeInterval, in state: inout State) -> Effect<Action> {

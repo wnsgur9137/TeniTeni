@@ -40,6 +40,37 @@ public struct LibraryView: View {
         // 있어 다시 돌지 않으므로, `AppFeature`가 탭 선택에서 한 번 더
         // 보낸다 — 둘 다 필요하다.
         .task { store.send(.appeared) }
+        // **지울 것을 적어서 보여준다.** 되돌리기가 없으므로 이것이 유일한
+        // 안전장치다(SPEC-0126 선택지 3).
+        .confirmationDialog(
+            store.deleting?.title ?? "",
+            isPresented: Binding(
+                get: { store.deleting != nil },
+                set: { if !$0 { store.send(.deleteCancelled) } }
+            ),
+            titleVisibility: .visible,
+            presenting: store.deleting
+        ) { target in
+            Button("지우기", role: .destructive) { store.send(.deleteConfirmed) }
+            Button("취소", role: .cancel) { store.send(.deleteCancelled) }
+        } message: { target in
+            // 무엇이 사라지는지 **숫자로** 적는다. "정말 지울까요?"만 묻는
+            // 것은 확인이 아니라 절차다.
+            Text("\(target.detail)\n\(target.counts)\n\(target.warning)")
+        }
+        // 조용히 넘기면 사용자는 지워진 줄 안다 — 실제로는 영상만
+        // 사라지고 레코드가 남았다.
+        .alert(
+            "지우지 못했습니다",
+            isPresented: Binding(
+                get: { store.deleteFailure != nil },
+                set: { if !$0 { store.send(.deleteFailureDismissed) } }
+            )
+        ) {
+            Button("확인") { store.send(.deleteFailureDismissed) }
+        } message: {
+            Text(store.deleteFailure ?? "")
+        }
     }
 
     // MARK: 목록
@@ -47,19 +78,45 @@ public struct LibraryView: View {
     private func list(_ sessions: [Session]) -> some View {
         VStack(alignment: .leading, spacing: 0) {
             header(count: sessions.count)
-            ScrollView {
-                VStack(spacing: 1) {
-                    ForEach(sessions) { session in
-                        Button { store.send(.sessionTapped(session.id)) } label: {
-                            row(session)
+            // ★ `ScrollView` + `VStack`에서 `List`로 바꿨다.
+            //
+            //   `.swipeActions`는 **List에서만** 동작한다. IA-FLOW 10.6이
+            //   삭제를 "보관함 스와이프"로 정했고, 파괴적 행 동작의 iOS
+            //   관용구가 그것이다 — 접근성(VoiceOver의 행 동작)도 공짜로
+            //   따라온다.
+            //
+            //   ⚠️ **보이는 모양이 바뀐다.** 예전에는 묶음 하나에 둥근
+            //   배경이 있었고, 지금은 줄마다 배경이 있다. 스크린샷으로
+            //   확인되지 않았다(미수행).
+            List {
+                ForEach(sessions) { session in
+                    Button { store.send(.sessionTapped(session.id)) } label: {
+                        row(session)
+                    }
+                    .buttonStyle(.plain)
+                    .listRowInsets(EdgeInsets())
+                    .listRowBackground(
+                        Token.Background.surface
+                            .clipShape(.rect(cornerRadius: 13))
+                            .padding(.horizontal, 20)
+                            .padding(.vertical, 1)
+                    )
+                    .listRowSeparator(.hidden)
+                    .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+                        // `allowsFullSwipe: false` — **끝까지 밀어도 바로
+                        // 지워지지 않는다.** 되돌리기가 없으므로 전체
+                        // 스와이프로 즉시 삭제되는 것은 너무 싸다.
+                        Button(role: .destructive) {
+                            store.send(.deleteRequested(session.id))
+                        } label: {
+                            Label("삭제", systemImage: "trash")
                         }
-                        .buttonStyle(.plain)
                     }
                 }
-                .background(Token.Background.surface, in: .rect(cornerRadius: 13))
-                .padding(.horizontal, 20)
-                .padding(.bottom, 24)
             }
+            .listStyle(.plain)
+            .scrollContentBackground(.hidden)
+            .padding(.bottom, 24)
         }
     }
 
