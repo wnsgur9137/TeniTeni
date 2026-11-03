@@ -205,6 +205,32 @@ struct LibraryDeleteTests {
         }
         #expect(await log.removed == ["a.mov", "b.mov"])
         #expect(repository.sessions.isEmpty)
+        // ★ **빈 상태 화면으로 간다.** 읽기 실패가 아니다 — 둘은 다른
+        //   화면이고, 실패로 보이면 "지웠는데 고장났다"로 읽힌다
+        //   (SPEC-0126 완료 기준 5).
+        #expect(store.state.isEmpty)
+    }
+
+    /// 마지막 세션을 지웠다고 **읽기 실패로 떨어지지 않는다.** 그 둘은
+    /// 다른 화면이고(SPEC-0116), 실패 화면은 "찍은 영상이 지워진 것은
+    /// 아닙니다"라고 말하는데 여기서는 **실제로 지웠다.**
+    @Test("마지막 세션을 지우면 빈 상태로 떨어진다")
+    func 마지막_세션() async {
+        let session = twoClipSession()
+        let repository = MutableRepository([session])
+        let log = RemovalLog()
+        let store = makeStore(repository, log: log)
+        store.exhaustivity = .off
+
+        await store.send(.deleteRequested(session.id))
+        await store.send(.deleteConfirmed)
+        await store.receive(\.deleteFinished)
+
+        #expect(store.state.isEmpty, "빈 목록은 빈 상태 화면으로 간다")
+        #expect(store.state.phase == .loaded([]))
+        if case .failed = store.state.phase {
+            Issue.record("읽기 실패로 떨어졌다 — 빈 상태여야 한다")
+        }
     }
 
     /// 조용히 넘기면 사용자는 지워진 줄 안다 — 실제로는 **영상만 사라지고
@@ -245,6 +271,42 @@ struct LibraryDeleteTests {
         await store.receive(.availabilityChecked([:]))
         await store.send(.deleteConfirmed) { $0.deleting = nil }
         #expect(await log.removed.isEmpty)
+    }
+
+    /// ⚠️ **빈 목록만으로는 약하다.** `sessions.first`로 바꿔도 빈 목록에서는
+    /// `nil`이라 똑같이 멈춘다 — 그 변이가 살아남는다.
+    ///
+    /// **다른 세션이 남아 있는 경우**가 진짜 위험이다: 들고 있던 값이나
+    /// 첫 번째를 지우면 **사용자가 고르지 않은 세션이 사라진다.**
+    @Test("확인 뒤 목록이 바뀌면 남은 다른 세션을 지우지 않는다")
+    func 다른_세션_보호() async {
+        let first = twoClipSession(id: fid(0))
+        let second = twoClipSession(id: fid(50))
+        let repository = MutableRepository([first, second])
+        let log = RemovalLog()
+        let store = TestStore(
+            initialState: LibraryFeature.State(phase: .loaded([first, second]))
+        ) {
+            LibraryFeature(
+                repository: repository,
+                locator: anyLocator(),
+                files: SpyFiles(log: log)
+            )
+        }
+        store.exhaustivity = .off
+
+        // 두 번째를 지우겠다고 눌렀다.
+        await store.send(.deleteRequested(second.id))
+        #expect(store.state.deleting?.sessionID == second.id)
+
+        // 그 사이에 목록이 바뀌어 **두 번째가 사라지고 첫 번째만 남았다.**
+        await store.send(.loaded([first]))
+
+        await store.send(.deleteConfirmed)
+        // 아무것도 지우지 않아야 한다. 첫 번째를 지우면 **사용자가
+        // 고르지 않은 세션이 사라진다.**
+        #expect(await log.removed.isEmpty)
+        #expect(repository.sessions.count == 2)
     }
 
     @Test("목록에 없는 세션은 확인도 띄우지 않는다")
