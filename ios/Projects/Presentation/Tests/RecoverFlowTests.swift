@@ -302,6 +302,72 @@ struct RecoverFlowTests {
         #expect(repo.sessions.first?.isUnfinished == true)
     }
 
+    /// ⚠️ **독립 리뷰가 찾은 것.** 스와이프 삭제는 `DeleteSessionUseCase`로
+    /// 가는데 그쪽은 레코드의 `clips`를 돈다. 미완 세션의 레코드에는
+    /// 클립이 0개이므로 **레코드만 사라지고 고아 `.mov`가 영구히 남는다** —
+    /// 복구도 폐기도 못 하는 상태이고 사용자가 지울 수단이 없다.
+    ///
+    /// 확인 문구도 거짓이 된다: "스윙 0개 · 클립 0개".
+    @Test("미완 세션은 스와이프 삭제로 지울 수 없다 — 복구 시트로 간다")
+    func 스와이프_차단() async {
+        let log = RemovalLog()
+        let repo = MutableRepository([unfinished()])
+        let (store, _, _) = makeStore([], log: log, repository: repo)
+        await store.send(.appeared)
+        await store.receive(\.loaded)
+        await store.receive(\.availabilityChecked)
+
+        await store.send(.deleteRequested(rid(0)))
+        await store.receive(\.recoverRequested)
+        await store.receive(\.orphansCounted)
+
+        // 삭제 확인이 뜨지 않는다. 복구 시트가 떴다.
+        #expect(store.state.deleting == nil)
+        #expect(store.state.recovering?.sessionID == rid(0))
+        #expect(await log.removed.isEmpty)
+    }
+
+    /// 끝난 세션의 스와이프 삭제는 그대로다.
+    @Test("끝난 세션은 스와이프 삭제가 그대로 동작한다")
+    func 스와이프_회귀() async {
+        let (store, _, _) = makeStore([finished(id: rid(1), dayOffset: 0)])
+        await store.send(.appeared)
+        await store.receive(\.loaded)
+        await store.receive(\.availabilityChecked)
+
+        await store.send(.deleteRequested(rid(1)))
+
+        #expect(store.state.deleting != nil)
+        #expect(store.state.recovering == nil)
+    }
+
+    /// ⚠️ 폐기하면 분석이 끝난 스윙과 영상이 사라지고 되돌릴 수 없다.
+    @Test("확인하는 사이에 세션이 닫혔으면 폐기하지 않고 다시 읽는다")
+    func 폐기_중_닫힘() async {
+        let log = RemovalLog()
+        let repo = MutableRepository([unfinished()])
+        let (store, _, _) = makeStore([], log: log, repository: repo)
+        await store.send(.appeared)
+        await store.receive(\.loaded)
+        await store.receive(\.availabilityChecked)
+        await store.send(.recoverRequested(rid(0)))
+        await store.receive(\.orphansCounted)
+
+        // 그 사이에 촬영이 끝나 세션이 닫혔다.
+        try? await repo.save(finished(id: rid(0), dayOffset: 0))
+
+        await store.send(.discardConfirmed)
+        await store.receive(\.discardSkipped)
+        await store.receive(\.appeared)
+        await store.receive(\.loaded)
+        await store.receive(\.availabilityChecked)
+
+        // 파일을 지우지 않았고 레코드도 살아 있다.
+        #expect(await log.removed.isEmpty)
+        #expect(repo.sessions.count == 1)
+        #expect(store.state.deleteFailure?.contains("세션이 끝나") == true)
+    }
+
     /// 그 사이에 시트를 닫았으면 뒤늦은 스캔 결과를 버린다.
     @Test("닫힌 시트에는 숫자를 채우지 않는다")
     func 뒤늦은_스캔() async {

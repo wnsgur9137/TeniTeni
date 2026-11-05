@@ -114,6 +114,9 @@ public struct LibraryFeature {
         /// 스윙 수가 바뀌었다.
         case recoverFinished(Result<UUID, DeleteError>)
         case discardFinished(Result<UUID, DeleteError>)
+        /// 폐기를 **하지 않았다.** 확인하는 사이에 세션이 닫혔다 —
+        /// 분석이 끝난 세션을 지우면 되돌릴 수 없다.
+        case discardSkipped
 
         /// 빈 상태의 "촬영하러 가기".
         case captureTapped
@@ -293,8 +296,14 @@ public struct LibraryFeature {
                 )
                 return .run { send in
                     do {
-                        try await discard.execute(session)
-                        await send(.discardFinished(.success(session.id)))
+                        switch try await discard.execute(session) {
+                        case .discarded:
+                            await send(.discardFinished(.success(session.id)))
+                        case .alreadyClosed:
+                            // 지우지 않았다. 목록을 다시 읽어 지금 상태를
+                            // 보여준다 — 손으로 고치면 레코드와 어긋난다.
+                            await send(.discardSkipped)
+                        }
                     } catch {
                         // ⚠️ **파일은 이미 지워졌다.** 되돌리지 않는다 —
                         //    #126과 같은 결정이다.
@@ -323,11 +332,27 @@ public struct LibraryFeature {
                 state.deleteFailure = "폐기하지 못했습니다 — \(error.reason)"
                 return .none
 
+            case .discardSkipped:
+                state.deleteFailure = "그 사이에 세션이 끝나 폐기하지 않았습니다"
+                return .send(.appeared)
+
             case .deleteRequested(let id):
                 // **아직 지우지 않는다.** 지울 것을 적어서 보여주고 묻는다.
                 guard case .loaded(let sessions) = state.phase,
                       let session = sessions.first(where: { $0.id == id })
                 else { return .none }
+                // ★ **끝나지 않은 세션은 이 경로로 지울 수 없다.**
+                //
+                //   `DeleteSessionUseCase`는 레코드의 `clips`를 돌며 파일을
+                //   지우는데 미완 세션의 레코드에는 클립이 0개다. 그대로
+                //   태우면 레코드만 사라지고 **고아 `.mov`가 영구히 남는다**
+                //   — 복구도 폐기도 못 하는 상태이고 사용자가 지울 수단이
+                //   없다. 확인 문구도 거짓이 된다("스윙 0개 · 클립 0개").
+                //
+                //   폐기는 복구 시트가 한다. 거기서는 스캔 결과로 센다.
+                guard !session.isUnfinished else {
+                    return .send(.recoverRequested(id))
+                }
                 state.deleting = .session(session, dateText: Self.dateText(session.startedAt))
                 return .none
 
