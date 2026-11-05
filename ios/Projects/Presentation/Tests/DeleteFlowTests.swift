@@ -59,6 +59,9 @@ private func twoClipSession(id: UUID = fid(0)) -> Session {
     return Session(
         id: id,
         startedAt: start,
+        // 정상적으로 끝난 세션이다. `endedAt == nil`은 이제 "끝나지 않은
+        // 세션"을 뜻하고 보관함이 복구를 제안한다(#125).
+        endedAt: start.addingTimeInterval(120),
         situation: .wall,
         fps: 120,
         clips: [

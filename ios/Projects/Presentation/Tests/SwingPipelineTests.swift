@@ -7,14 +7,45 @@ import TeniVision
 @testable import Presentation
 
 /// 저장 호출을 받아 두는 가짜 저장소.
+///
+/// ⚠️ **`save`가 upsert다** — 실물(`SwiftDataSessionRepository.save`)이
+/// 같은 id를 지우고 넣기 때문이다. 단순히 append하면 `begin`이 연 레코드와
+/// `finish`가 닫은 레코드가 **둘 다 쌓여** 테스트가 열린 쪽을 집는다.
+/// 가짜가 실물의 계약을 어기면 그 테스트는 아무것도 보장하지 않는다.
 private final class SpyRepository: SessionRepository, Sendable {
     private let saved = Mutex<[Session]>([])
+    private let saveCalls = Mutex(0)
+    private let deleted = Mutex<[UUID]>([])
 
     var sessions: [Session] { saved.withLock { $0 } }
+    /// 호출 **횟수**는 따로 센다 — upsert라 레코드 수로는 알 수 없다.
+    var saveCount: Int { saveCalls.withLock { $0 } }
+    var deletedIDs: [UUID] { deleted.withLock { $0 } }
 
-    func save(_ session: Session) async throws { saved.withLock { $0.append(session) } }
-    func load(id: UUID) async throws -> Session? { nil }
+    func save(_ session: Session) async throws {
+        saveCalls.withLock { $0 += 1 }
+        saved.withLock { list in
+            if let index = list.firstIndex(where: { $0.id == session.id }) {
+                list[index] = session
+            } else {
+                list.append(session)
+            }
+        }
+    }
+    func load(id: UUID) async throws -> Session? { sessions.first { $0.id == id } }
     func loadAll() async throws -> [Session] { sessions }
+    func delete(id: UUID) async throws {
+        deleted.withLock { $0.append(id) }
+        saved.withLock { $0.removeAll { $0.id == id } }
+    }
+}
+
+/// 저장이 실패하는 저장소. **녹화를 막지 않는지** 본다.
+private struct FailingRepository: SessionRepository, Sendable {
+    struct Boom: LocalizedError { var errorDescription: String? { "디스크를 쓸 수 없습니다" } }
+    func save(_ session: Session) async throws { throw Boom() }
+    func load(id: UUID) async throws -> Session? { nil }
+    func loadAll() async throws -> [Session] { [] }
     func delete(id: UUID) async throws {}
 }
 
@@ -162,7 +193,11 @@ struct SwingPipelineTests {
         #expect(stored.clips.isEmpty)
     }
 
-    @Test("프레임이 한 장도 오지 않았으면 세션을 만들지 않는다")
+    /// ⚠️ **`begin`은 이제 레코드를 연다.** 그래서 이 테스트의 뜻이
+    /// 달라졌다 — "만들지 않는다"가 아니라 **"남기지 않는다"**다. 녹화를
+    /// 눌렀다 바로 끈 사용자에게 보관함의 "복구할 수 있습니다" 행을
+    /// 매번 보여주면 안 된다.
+    @Test("프레임이 한 장도 오지 않았으면 레코드를 남기지 않는다")
     func 프레임_없음() async throws {
         let repository = SpyRepository()
         let pipeline = SwingPipeline(
@@ -171,8 +206,96 @@ struct SwingPipelineTests {
         await pipeline.begin(
             at: Date(), handedness: .right, situation: .rally, observable: .swing, fps: 60
         )
+        // 여는 것 자체는 했다 — 여기서 앱이 죽으면 그 레코드가 복구의
+        // 단서가 된다.
+        #expect(repository.sessions.count == 1)
+
         #expect(await pipeline.end(at: Date()) == nil)
+        // 정상적으로 껐으므로 남기지 않는다.
         #expect(repository.sessions.isEmpty)
+        #expect(repository.deletedIDs.count == 1)
+    }
+
+    /// ★ **이 이슈의 핵심.** 전에는 저장 호출이 `finish` 하나뿐이라
+    /// `endedAt == nil`인 레코드가 생길 수 없었다 — 강제 종료되면 레코드가
+    /// 0건이고 고아 `.mov`만 남았다.
+    ///
+    /// 근거: docs/07-기획/SPEC-0125-crash-recovery.md 선택지 1
+    @Test("녹화를 시작하면 끝나지 않은 레코드가 저장된다")
+    func 레코드_열기() async throws {
+        let repository = SpyRepository()
+        let pipeline = SwingPipeline(
+            directory: try directory(), storage: SessionStorage(repository: repository)
+        )
+        let startedAt = Date()
+        await pipeline.begin(
+            at: startedAt, handedness: .left, situation: .wall, observable: .swing, fps: 60
+        )
+
+        let opened = try #require(repository.sessions.first)
+        #expect(opened.isUnfinished)
+        #expect(opened.endedAt == nil)
+        #expect(opened.startedAt == startedAt)
+        // 상황과 fps가 **레코드에 들어간다.** 고아 `.mov`만으로는 복원되지
+        // 않는 값이고, 상황을 모르면 1-D 룰 판정이 무효가 된다.
+        #expect(opened.situation == .wall)
+        #expect(opened.fps == 60)
+        #expect(opened.clips.isEmpty)
+    }
+
+    /// 다른 id로 열면 `finish`가 레코드를 덮지 않고 하나 더 만들어,
+    /// **미완 레코드가 영구히 남는다.**
+    @Test("닫을 때 같은 레코드를 덮는다 — 2건이 되지 않는다")
+    func 레코드_덮기() async throws {
+        let repository = SpyRepository()
+        let pipeline = SwingPipeline(
+            directory: try directory(), storage: SessionStorage(repository: repository)
+        )
+        let startedAt = Date()
+        await pipeline.begin(
+            at: startedAt, handedness: .right, situation: .rally, observable: .swing, fps: 60
+        )
+        let openedID = try #require(repository.sessions.first?.id)
+
+        // 프레임을 한 장 흘려 세션을 열게 한다(`open(at:)`).
+        await pipeline.handle(try makeReadyFrame(seconds: 0), pose: nil)
+        let closed = await pipeline.end(at: startedAt.addingTimeInterval(3))
+
+        #expect(closed?.id == openedID)
+        #expect(repository.sessions.count == 1)
+        #expect(repository.sessions.first?.isUnfinished == false)
+        // 열기 + 닫기 = 2회. upsert라 레코드 수로는 알 수 없다.
+        #expect(repository.saveCount == 2)
+    }
+
+    /// 기획서 선택지 1: 레코드를 못 열어도 `.mov`는 남는다. 안 만들면
+    /// 그조차 없다.
+    @Test("레코드 저장이 실패해도 녹화는 계속된다")
+    func 열기_실패() async throws {
+        let dir = try directory()
+        let pipeline = SwingPipeline(
+            directory: dir, storage: SessionStorage(repository: FailingRepository())
+        )
+        await pipeline.begin(
+            at: Date(), handedness: .right, situation: .rally, observable: .swing, fps: 60
+        )
+
+        // 실패를 **적는다** — 조용히 넘기면 사용자는 저장된 줄 안다.
+        #expect(await pipeline.failure != nil)
+        // 그런데 녹화는 살아 있다.
+        #expect(await pipeline.isRecording)
+
+        for frame in swingFrames(startingAt: 0) {
+            await pipeline.handle(try makeReadyFrame(seconds: frame.timestamp), pose: frame)
+        }
+        for step in 0..<120 {
+            await pipeline.handle(try makeReadyFrame(seconds: 0.4 + Double(step) / 60), pose: nil)
+        }
+        _ = await pipeline.end(at: Date())
+
+        // 클립 파일이 디스크에 남았다 — 복구할 자산이다.
+        let files = try FileManager.default.contentsOfDirectory(atPath: dir.path)
+        #expect(files.contains { $0.hasSuffix(".mov") })
     }
 
     /// 기획서 선택지 3: "촬영은 되지만 세션이 저장되지 않는다". 클립

@@ -23,6 +23,10 @@ private func twoClipSession(id: UUID = mid(0)) -> Session {
     return Session(
         id: id,
         startedAt: start,
+        // ⚠️ **닫아 둔다.** `endedAt == nil`은 이제 "끝나지 않은 세션"을
+        // 뜻하고, 보관함이 그 행을 복구 대상으로 보여준다(#125). 이 fixture는
+        // 정상적으로 끝난 세션이어야 한다.
+        endedAt: start.addingTimeInterval(120),
         situation: .ballMachine,
         fps: 120,
         clips: [
