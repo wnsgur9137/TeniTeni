@@ -381,7 +381,11 @@ struct RecoverFlowTests {
     }
 }
 
+/// `LibraryView`·`RecoverSheet`의 static 메서드는 `View` 안에 있어
+/// **암시적으로 `@MainActor`**다. suite에 격리를 적지 않으면 CI 전체
+/// 빌드에서 동시성 경고가 뜬다 — 로컬 증분 빌드는 그것을 숨긴다.
 @Suite("복구 시트 문구")
+@MainActor
 struct RecoverSheetTextTests {
 
     /// ⚠️ 확인 중에 "클립 0개"라고 쓰면 **거짓이다** — 아직 모른다.
