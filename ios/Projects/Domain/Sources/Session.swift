@@ -5,7 +5,33 @@ import Foundation
 public struct Session: Identifiable, Equatable, Sendable {
     public let id: UUID
     public let startedAt: Date
+
+    /// `nil`이면 **끝나지 않은 세션**이다 — 촬영 중이거나, 앱이 강제
+    /// 종료됐다. 촬영을 시작할 때 레코드를 먼저 열기 때문에 생긴다.
+    ///
+    /// 그 전에는 저장 호출이 `SessionBuilder.finish` 하나뿐이라 이 값이
+    /// `nil`인 레코드가 **생길 수 없었다.** 그래서 강제 종료되면 레코드가
+    /// 0건이고 고아 `.mov`만 남았다.
+    ///
+    /// 근거: docs/07-기획/SPEC-0125-crash-recovery.md 선택지 1
     public var endedAt: Date?
+
+    /// 강제 종료 뒤 복구된 세션인가. **스윙 0개의 뜻을 가른다.**
+    ///
+    /// 복구한 클립에는 스윙 구간이 없다 — 고아 클립에 오버레이 사이드카가
+    /// 없어 재분석이 이 작업의 범위를 넘었다. 그래서 `swingCount == 0`이
+    /// 두 가지를 뜻하게 된다.
+    ///
+    /// | 상태 | 뜻 | 화면 |
+    /// |---|---|---|
+    /// | `recoveredAt == nil` | 스윙을 **못 찾았다** | 진단 (`EmptySession`) |
+    /// | `recoveredAt != nil` | **분석하지 않았다** | 요약 |
+    ///
+    /// 가르지 않으면 복구된 세션에 "삼각대가 흔들리지 않았나요"를 묻는다.
+    /// 문제는 삼각대가 아니다.
+    ///
+    /// 근거: docs/07-기획/SPEC-0125-crash-recovery.md 선택지 4
+    public var recoveredAt: Date?
 
     /// 어떤 상황에서 찍었는가. 세션 간 비교 시 상황이 다르면 나란히 놓지
     /// 않는다 — 스트로크 길이 자체가 다르다 (IA-FLOW 10.4).
@@ -19,14 +45,34 @@ public struct Session: Identifiable, Equatable, Sendable {
         endedAt.map { $0.timeIntervalSince(startedAt) }
     }
 
+    /// 끝나지 않은 세션. 촬영 중이거나 강제 종료됐다.
+    ///
+    /// **둘을 여기서 구분하지 않는다.** 구분하는 것은 호출부다 — 촬영
+    /// 중인 세션은 지금 화면이 알고 있고, 보관함은 모른다.
+    public var isUnfinished: Bool { endedAt == nil }
+
     /// 스윙이 하나도 없으면 요약이 아니라 진단 화면을 띄운다 —
     /// 빈 요약은 "앱이 고장났다"로 읽힌다 (IA-FLOW 10.6).
     public var swingCount: Int { clips.reduce(0) { $0 + $1.swings.count } }
+
+    /// 스윙 0개를 **진단으로 다룰 것인가.**
+    ///
+    /// `swingCount == 0`만 보면 안 된다. 복구된 세션도 0개인데 그쪽은
+    /// **못 찾은 것이 아니라 분석하지 않은 것**이다. 진단 화면은
+    /// "삼각대가 흔들리지 않았나요"를 묻는데, 복구된 세션의 문제는
+    /// 삼각대가 아니다.
+    ///
+    /// 판정을 여기 두는 이유: 요약 리듀서와 뷰가 **각각** 같은 조건을
+    /// 적고 있었다. 한쪽만 고치면 화면과 상태가 어긋난다.
+    ///
+    /// 근거: docs/07-기획/SPEC-0125-crash-recovery.md 선택지 4
+    public var needsDiagnosis: Bool { swingCount == 0 && recoveredAt == nil }
 
     public init(
         id: UUID = UUID(),
         startedAt: Date,
         endedAt: Date? = nil,
+        recoveredAt: Date? = nil,
         situation: CaptureSituation,
         observable: ObservationTarget = .swing,
         fps: Int,
@@ -35,6 +81,7 @@ public struct Session: Identifiable, Equatable, Sendable {
         self.id = id
         self.startedAt = startedAt
         self.endedAt = endedAt
+        self.recoveredAt = recoveredAt
         self.situation = situation
         self.observable = observable
         self.fps = fps

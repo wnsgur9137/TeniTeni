@@ -58,6 +58,22 @@ public struct LibraryView: View {
             // 것은 확인이 아니라 절차다.
             Text("\(target.detail)\n\(target.counts)\n\(target.warning)")
         }
+        // 끝나지 않은 세션의 복구 / 폐기. **모달이 아니라 행에서 올라온다**
+        // (IA-FLOW 10.6).
+        .sheet(
+            isPresented: Binding(
+                get: { store.recovering != nil },
+                set: { if !$0 { store.send(.recoverDismissed) } }
+            )
+        ) {
+            if let target = store.recovering {
+                RecoverSheet(
+                    target: target,
+                    onRecover: { store.send(.recoverConfirmed) },
+                    onDiscard: { store.send(.discardConfirmed) }
+                )
+            }
+        }
         // 조용히 넘기면 사용자는 지워진 줄 안다 — 실제로는 영상만
         // 사라지고 레코드가 남았다.
         .alert(
@@ -151,9 +167,23 @@ public struct LibraryView: View {
                     .font(.system(size: 15, weight: .semibold))
                     .monospacedDigit()
                     .foregroundStyle(Token.Text.primary)
-                // 결손이 있으면 **그 줄을 대신한다.** 아래에 한 줄 더
-                // 붙이면 행 높이가 세션마다 달라져 목록이 들쭉날쭉해진다.
-                if let notice = store.availability[session.id]?.notice {
+                // ★ 끝나지 않은 세션은 **한 줄을 더 쓴다.** 다른 행과
+                //   높이가 달라지지만 그것이 목적이다 — 이 행만 사용자의
+                //   조치를 기다린다.
+                //
+                //   `결손` 경고는 여기 오지 않는다. 리듀서가 미완 세션을
+                //   `availability` 확인에서 빼기 때문이다 — 레코드의 클립이
+                //   0개라 "영상이 없습니다"가 떠서 "복구할 수 있습니다"와
+                //   모순됐다.
+                if session.isUnfinished {
+                    Text("지난 세션이 끝나지 않았습니다")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(Token.Accent.primary)
+                    Text(Self.unfinishedSubtitle(session))
+                        .font(.system(size: 12))
+                        .monospacedDigit()
+                        .foregroundStyle(Token.Text.secondary)
+                } else if let notice = store.availability[session.id]?.notice {
                     HStack(spacing: 4) {
                         Image(systemName: "exclamationmark.triangle.fill")
                             .font(.system(size: 10))
@@ -174,7 +204,10 @@ public struct LibraryView: View {
                 //   재생 가능한 수로 바꾸면 사용자가 세던 수와 어긋난다
                 //   (SPEC-0120 선택지 2). 틀린 것은 "지금 보여줄 수 있다"는
                 //   암시이고 그것은 왼쪽 경고가 거둔다.
-                Text("\(session.swingCount)")
+                // ★ 미완 세션은 **0이 아니라 `—`**다. 0을 적으면 아래
+                //   "스윙을 못 찾은 세션"과 같은 뜻이 되는데, 이쪽은
+                //   **분석하지 않았다.**
+                Text(session.isUnfinished ? "—" : "\(session.swingCount)")
                     .font(.system(size: 20, weight: .bold))
                     .monospacedDigit()
                     // 0개 세션도 목록에 남는다 — 영상은 있다(SPEC-0110).
@@ -183,7 +216,8 @@ public struct LibraryView: View {
                     // 영상이 전부 없는 세션도 같은 취급이다: 눌리지만
                     // 보여줄 것이 없다는 사실을 미리 말한다.
                     .foregroundStyle(
-                        session.swingCount == 0
+                        session.isUnfinished
+                            || session.swingCount == 0
                             || store.availability[session.id] == ClipAvailability.missing
                             ? Token.Text.tertiary : Token.Text.primary
                     )
@@ -193,7 +227,7 @@ public struct LibraryView: View {
             }
             Image(systemName: "chevron.right")
                 .font(.system(size: 12, weight: .semibold))
-                .foregroundStyle(Token.Text.tertiary)
+                .foregroundStyle(session.isUnfinished ? Token.Accent.primary : Token.Text.tertiary)
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 14)
@@ -295,6 +329,14 @@ public struct LibraryView: View {
     /// 읽히지 않으므로 여기에 글자로 들어가야 한다.
     static func rowLabel(_ session: Session, _ availability: ClipAvailability?) -> String {
         var parts = [rowDate(session.startedAt)]
+        // 미완 세션은 **그 사실을 먼저 읽는다.** 아이콘도 색도 읽히지
+        // 않으므로 글자로 들어가야 한다.
+        if session.isUnfinished {
+            parts.append("지난 세션이 끝나지 않았습니다")
+            parts.append(unfinishedSubtitle(session))
+            parts.append("스윙 수는 알 수 없습니다")
+            return parts.joined(separator: ", ")
+        }
         if let notice = availability?.notice {
             parts.append(notice)
         } else {
@@ -302,6 +344,17 @@ public struct LibraryView: View {
         }
         parts.append("스윙 \(session.swingCount)개")
         return parts.joined(separator: ", ")
+    }
+
+    /// 미완 세션의 둘째 줄. **클립 수를 적지 않는다** — 레코드의 클립이
+    /// 0개이므로 `subtitle`을 쓰면 "클립 0개"가 된다. 실제 수는 시트가
+    /// 디스크를 스캔해 보여준다.
+    static func unfinishedSubtitle(_ session: Session) -> String {
+        [
+            session.situation.label,
+            session.observable.label,
+            "\(session.fps)fps",
+        ].joined(separator: " · ")
     }
 
     static func subtitle(_ session: Session) -> String {

@@ -56,6 +56,44 @@ public actor SessionBuilder {
 
     public var clipCount: Int { clips.count }
 
+    /// 촬영 시작 시 **레코드를 먼저 연다** — `endedAt == nil`로 저장한다.
+    ///
+    /// ## 왜 인스턴스 메서드가 아닌가
+    ///
+    /// 이 시점에는 `clockOrigin`을 모른다. 그것은 첫 프레임의 PTS이고,
+    /// 그래서 `SwingPipeline`은 `SessionBuilder`를 첫 프레임에서 만든다.
+    /// 그런데 **레코드에는 `clockOrigin`이 들어가지 않는다** — `Session`에
+    /// 그 필드가 없다. 그래서 인스턴스 없이 열 수 있다.
+    ///
+    /// ## 왜 여기에 두는가
+    ///
+    /// 여기 말고 두면 `Session`을 조립하는 코드가 두 곳에 생기고, 한쪽에
+    /// 필드를 더할 때 다른 쪽을 잊는다. `finish(at:)`과 **같은 파일**에
+    /// 둔다.
+    ///
+    /// 근거: docs/07-기획/SPEC-0125-crash-recovery.md 선택지 1
+    public static func openRecord(
+        id: UUID,
+        startedAt: Date,
+        situation: CaptureSituation,
+        observable: ObservationTarget,
+        fps: Int,
+        repository: any SessionRepository
+    ) async throws {
+        try await repository.save(
+            Session(
+                id: id,
+                startedAt: startedAt,
+                // ★ 열어 둔다. 강제 종료되면 이 상태로 남아 복구할 수 있다.
+                endedAt: nil,
+                situation: situation,
+                observable: observable,
+                fps: fps,
+                clips: []
+            )
+        )
+    }
+
     /// - Parameter fps: **그 클립이 찍힌 시점의 실제 fps.** 세션의 값을 쓰면
     ///   발열 강등을 걸친 세션에서 강등 전 클립이 60fps로 기록되고, 분석이
     ///   프레임 간격을 잘못 가정한다 — [ADR-0005](../../../../../docs/05-결정/adr/ADR-0005-thermal-auto-adjust.md).
@@ -76,6 +114,9 @@ public actor SessionBuilder {
     ///
     /// 클립이 하나도 없어도 저장한다 — **스윙 0개도 결과다.** 그것을 버리면
     /// 진단 화면(`EmptySession`)이 보여줄 것이 없어진다.
+    ///
+    /// `openRecord`가 같은 `id`로 열어 둔 레코드를 **덮는다.** 저장소의
+    /// `save`가 같은 id를 지우고 넣으므로 레코드가 2건이 되지 않는다.
     @discardableResult
     public func finish(at endedAt: Date) async throws -> Session {
         let session = Session(

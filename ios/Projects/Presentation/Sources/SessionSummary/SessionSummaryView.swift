@@ -28,7 +28,9 @@ public struct SessionSummaryView: View {
                 failure(reason)
 
             case .loaded(let session):
-                if session.swingCount == 0 {
+                // 복구된 세션은 스윙 0개여도 진단이 아니다 —
+                // `Session.needsDiagnosis`가 가른다.
+                if session.needsDiagnosis {
                     EmptySessionView(
                         session: session,
                         onReframe: { store.send(.reframeTapped) },

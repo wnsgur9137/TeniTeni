@@ -1,0 +1,151 @@
+<!doctype html>
+<html>
+<head><meta charset="utf-8"><script src="./support.js"></script></head>
+<body>
+<x-dc>
+<helmet><style>
+body{margin:0;font-family:-apple-system,"SF Pro Text",system-ui,sans-serif}
+a{color:#C6F24E}a:hover{color:#D9F87E}
+.num{font-variant-numeric:tabular-nums}
+</style></helmet>
+<!--
+  보관함 — 끝나지 않은 세션이 있는 상태 (SPEC-0125).
+
+  `Library`를 덮지 않고 따로 둔다. `LibraryEmpty`·`ReplayMissing`과 같은
+  이유다 — 상태마다 아트보드가 하나다.
+
+  ## 왜 모달이 아니라 행인가
+
+  IA-FLOW 10.6의 화면 칸이 "지난 세션이 끝나지 않았습니다"로만 적혀
+  전용 모달로 읽혔다. 바꿨다 — 모달은 사용자가 **요청하지 않은 결정**을
+  강요하고, 미루면 매 실행 뜬다. #120이 레코드-파일 불일치를 행으로
+  처리한 선례가 있고, 보관함은 사용자가 "어제 찍은 거 어디 갔지?"를
+  확인하러 오는 곳이다.
+
+  ## 이 행에 상황과 fps가 적혀 있는 것이 핵심이다
+
+  "볼머신 · 내 스윙 · 120fps"는 **레코드에서 온다.** 촬영 시작 시
+  레코드를 열기로 한 결정(SPEC-0125 선택지 1)이 없으면 이 줄을 쓸 수
+  없다 — 고아 `.mov`에서는 상황도 fps도 복원되지 않는다. 상황을 모르면
+  1-D 룰 판정이 무효가 된다(IA-FLOW 10.4).
+
+  클립 수만 **스캔 결과**다. 레코드의 `clips`는 0개다 — 촬영 중에는
+  레코드를 갱신하지 않는다.
+
+  ## 스윙 수 자리가 "—"인 이유
+
+  0이 아니다. **분석하지 않았다.** 0을 적으면 아래 벽치기 세션(진단
+  화면으로 가는 진짜 0개)과 같은 뜻이 되고, 사용자는 스윙을 못 찾았다고
+  읽는다.
+
+  ## "영상이 없습니다"가 함께 뜨지 않는다
+
+  #120의 `ClipAvailability` 판정을 건너뛴다. 레코드의 클립이 0개라
+  그대로 태우면 "영상이 없습니다"와 "복구할 수 있습니다"가 동시에 뜨고,
+  둘은 모순이다 — 영상은 디스크에 있다.
+-->
+<div style="width:390px;height:844px;background:#0B0D0F;color:#F2F4F6;display:flex;flex-direction:column">
+
+  <div style="padding:24px 20px 14px;display:flex;flex-direction:column;gap:3px">
+    <div style="font-size:28px;font-weight:700">보관함</div>
+    <div class="num" style="font-size:13px;color:#6B737B">세션 5개</div>
+  </div>
+
+  <div style="flex:1;padding:0 20px;display:flex;flex-direction:column;gap:1px;overflow:hidden">
+
+    <!-- 미완 세션. 가장 최근이므로 맨 위다 — 정렬 키가 `startedAt`이다
+         (`endedAt`이 없다). 사용자가 찾는 것이 이것이다. -->
+    <div style="background:#1F2429;border-radius:13px 13px 0 0;border-left:3px solid #C6F24E;padding:14px 16px 14px 13px;display:flex;align-items:center;gap:12px">
+      <div style="flex:1;display:flex;flex-direction:column;gap:5px">
+        <div class="num" style="font-size:15px;font-weight:600">11월 5일 · 09:12</div>
+        <div style="font-size:13px;font-weight:600;color:#C6F24E">지난 세션이 끝나지 않았습니다</div>
+        <div class="num" style="font-size:12px;color:#9BA3AB">볼머신 · 내 스윙 · 클립 3개 · 120fps</div>
+      </div>
+      <div style="display:flex;flex-direction:column;align-items:flex-end;gap:2px">
+        <div style="font-size:20px;font-weight:700;color:#6B737B">—</div>
+        <div style="font-size:10px;color:#6B737B">스윙</div>
+      </div>
+      <svg width="8" height="14" viewBox="0 0 8 14" fill="none"><path d="M1.5 1.5L6 7l-4.5 5.5" stroke="#C6F24E" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    </div>
+
+    <div style="background:#16191D;padding:14px 16px;display:flex;align-items:center;gap:12px">
+      <div style="flex:1;display:flex;flex-direction:column;gap:4px">
+        <div class="num" style="font-size:15px;font-weight:600">10월 27일 · 14:32</div>
+        <div class="num" style="font-size:12px;color:#6B737B">볼머신 · 내 스윙 · 클립 3개 · 120fps</div>
+      </div>
+      <div style="display:flex;flex-direction:column;align-items:flex-end;gap:2px">
+        <div class="num" style="font-size:20px;font-weight:700">12</div>
+        <div style="font-size:10px;color:#6B737B">스윙</div>
+      </div>
+      <svg width="8" height="14" viewBox="0 0 8 14" fill="none"><path d="M1.5 1.5L6 7l-4.5 5.5" stroke="#6B737B" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    </div>
+
+    <div style="background:#16191D;padding:14px 16px;display:flex;align-items:center;gap:12px">
+      <div style="flex:1;display:flex;flex-direction:column;gap:4px">
+        <div class="num" style="font-size:15px;font-weight:600">10월 26일 · 19:04</div>
+        <div class="num" style="font-size:12px;color:#6B737B">랠리 · 내 스윙 · 클립 5개 · 120fps</div>
+      </div>
+      <div style="display:flex;flex-direction:column;align-items:flex-end;gap:2px">
+        <div class="num" style="font-size:20px;font-weight:700">23</div>
+        <div style="font-size:10px;color:#6B737B">스윙</div>
+      </div>
+      <svg width="8" height="14" viewBox="0 0 8 14" fill="none"><path d="M1.5 1.5L6 7l-4.5 5.5" stroke="#6B737B" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    </div>
+
+    <div style="background:#16191D;padding:14px 16px;display:flex;align-items:center;gap:12px">
+      <div style="flex:1;display:flex;flex-direction:column;gap:4px">
+        <div class="num" style="font-size:15px;font-weight:600">10월 24일 · 18:11</div>
+        <div class="num" style="font-size:12px;color:#6B737B">랠리 · 내 스윙 · 클립 4개 · <span style="color:#FF8A3D">60fps</span></div>
+      </div>
+      <div style="display:flex;flex-direction:column;align-items:flex-end;gap:2px">
+        <div class="num" style="font-size:20px;font-weight:700">17</div>
+        <div style="font-size:10px;color:#6B737B">스윙</div>
+      </div>
+      <svg width="8" height="14" viewBox="0 0 8 14" fill="none"><path d="M1.5 1.5L6 7l-4.5 5.5" stroke="#6B737B" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    </div>
+
+    <!-- 진짜 스윙 0개. 누르면 진단(EmptySession)이 뜬다. 위 미완 행의
+         "—"와 이 "0"이 **다른 뜻**이라는 것이 이 아트보드의 요점이다. -->
+    <div style="background:#16191D;border-radius:0 0 13px 13px;padding:14px 16px;display:flex;align-items:center;gap:12px">
+      <div style="flex:1;display:flex;flex-direction:column;gap:4px">
+        <div class="num" style="font-size:15px;font-weight:600">10월 22일 · 17:48</div>
+        <div class="num" style="font-size:12px;color:#6B737B">벽 · 내 스윙 · 클립 1개 · 120fps</div>
+      </div>
+      <div style="display:flex;flex-direction:column;align-items:flex-end;gap:2px">
+        <div class="num" style="font-size:20px;font-weight:700;color:#6B737B">0</div>
+        <div style="font-size:10px;color:#6B737B">스윙</div>
+      </div>
+      <svg width="8" height="14" viewBox="0 0 8 14" fill="none"><path d="M1.5 1.5L6 7l-4.5 5.5" stroke="#6B737B" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    </div>
+
+  </div>
+
+  <div style="height:72px;border-top:1px solid #16191D;display:flex;align-items:center;justify-content:space-around;padding-bottom:8px">
+    <div style="display:flex;flex-direction:column;align-items:center;gap:4px">
+      <svg width="22" height="22" viewBox="0 0 22 22" fill="none">
+        <rect x="3" y="6" width="16" height="11" rx="2.5" stroke="#6B737B" stroke-width="1.6"/>
+        <circle cx="11" cy="11.5" r="3" stroke="#6B737B" stroke-width="1.6"/>
+      </svg>
+      <span style="font-size:10px;color:#6B737B">촬영</span>
+    </div>
+    <div style="display:flex;flex-direction:column;align-items:center;gap:4px">
+      <svg width="22" height="22" viewBox="0 0 22 22" fill="none">
+        <rect x="3" y="4" width="7" height="7" rx="1.6" stroke="#C6F24E" stroke-width="1.6"/>
+        <rect x="12" y="4" width="7" height="7" rx="1.6" stroke="#C6F24E" stroke-width="1.6"/>
+        <rect x="3" y="13" width="7" height="5" rx="1.6" stroke="#C6F24E" stroke-width="1.6"/>
+        <rect x="12" y="13" width="7" height="5" rx="1.6" stroke="#C6F24E" stroke-width="1.6"/>
+      </svg>
+      <span style="font-size:10px;color:#C6F24E;font-weight:600">보관함</span>
+    </div>
+    <div style="display:flex;flex-direction:column;align-items:center;gap:4px">
+      <svg width="22" height="22" viewBox="0 0 22 22" fill="none">
+        <path d="M3 16l4.5-5 3.5 3 4-6 4 5" stroke="#6B737B" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+      <span style="font-size:10px;color:#6B737B">진척도</span>
+    </div>
+  </div>
+
+</div>
+</x-dc>
+</body>
+</html>
