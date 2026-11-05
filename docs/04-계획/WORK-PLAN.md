@@ -5,7 +5,7 @@ tags:
   - 문서유형/계획
   - 영역/제품
 created: 2026-09-10
-updated: 2026-11-03
+updated: 2026-11-05
 status: active
 ---
 
@@ -389,7 +389,7 @@ TestFlight 전에 할 일은 [#139](https://github.com/wnsgur9137/TeniTeni/issue
 | # | 단계 | 내용 |
 |---|---|---|
 | 2-C | 업로드·동기화 (1~2주) | `Network` 모듈 신설, Moya `TargetType`, 백그라운드 업로드, 클립 상태 머신 |
-| 2-E | 진척도 (1주) | Swift Charts, 기간별 집계, **fps 변경 지점 표시** — fps가 다른 세션을 한 선에 이으면 안 된다 ([ARCHITECTURE 2.4](../02-설계/ARCHITECTURE.md) · [촬영 프로토콜 5.2](../02-설계/CAPTURE-PROTOCOL.md)). ADR-0005의 발열 조정으로 **클립마다 다를 수 있다** |
+| 2-E | 진척도 (1주) | Swift Charts, 기간별 집계, **fps 변경 지점 표시** — fps가 다른 세션을 한 선에 이으면 안 된다 ([ARCHITECTURE 2.4](../02-설계/ARCHITECTURE.md) · [촬영 프로토콜 5.2](../02-설계/CAPTURE-PROTOCOL.md)). ADR-0005의 발열 조정으로 **클립마다 다를 수 있다.** 그리고 **`endedAt == nil`인 세션은 집계에서 뺀다** — 끝나지 않은 세션은 `duration`이 없고 스윙 수가 확정되지 않았다 ([SPEC-0125](../07-기획/SPEC-0125-crash-recovery.md)) |
 
 ### 2-F. D-20 판정
 

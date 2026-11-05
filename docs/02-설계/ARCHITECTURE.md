@@ -5,7 +5,7 @@ tags:
   - 문서유형/설계
   - 영역/아키텍처
 created: 2026-09-10
-updated: 2026-09-10
+updated: 2026-11-05
 status: active
 ---
 
@@ -149,7 +149,7 @@ erDiagram
 | 엔티티 | 핵심 필드 |
 |---|---|
 | **User** | id, appleUserId, nickname, dominantHand, skillLevel, createdAt |
-| **Session** | id, userId, startedAt, endedAt, location?, swingCount, avgScore |
+| **Session** | id, userId, startedAt, **endedAt?**, **recoveredAt?**, location?, swingCount, avgScore |
 | **Clip** | id, sessionId, localURL, remoteKey?, duration, **captureFPS**, resolution, exposureDuration, uploadState, analysisState |
 | **Swing** | id, clipId, startTime, endTime, type(forehand/backhand/serve/volley), phases[], score, confidence |
 | **SwingMetrics** | swingId, kneeFlexion, hipShoulderSeparation, elbowAngleAtImpact, contactPointHeight, contactPointDepth, followThroughAngle, shoulderTilt, headStability, ... |
@@ -159,6 +159,15 @@ erDiagram
 | **ReferenceSwing** | id, playerName, type, poseSequence, metrics, videoURL |
 
 > **`captureFPS`가 중요합니다.** 사용자가 120/60을 선택할 수 있으므로 ([촬영 프로토콜 5.2](CAPTURE-PROTOCOL.md#52-캡처-포맷)) 궤적 검출 품질이 클립마다 다릅니다. fps가 다른 세션을 나란히 비교하면 안 되고, 진척도 그래프에는 fps 변경 지점을 표시해야 합니다.
+
+> **`Session`의 두 옵셔널이 상태를 나눕니다.** 촬영을 시작할 때 레코드를 **먼저 열기** 때문에 생긴 구분입니다 — 그래야 앱이 강제 종료돼도 상황·fps가 남아 복구할 수 있습니다.
+>
+> | 상태 | 뜻 | 누가 보는가 |
+> |---|---|---|
+> | `endedAt == nil` | **끝나지 않았다.** 촬영 중이거나 강제 종료됐다 | 보관함이 복구를 제안한다 |
+> | `recoveredAt != nil` | 복구됐다. 스윙 0개는 "못 찾았다"가 아니라 **"분석하지 않았다"** | 요약이 진단 화면을 건너뛴다 |
+>
+> **집계는 `endedAt == nil`을 빼야 합니다** — 끝나지 않은 세션의 `duration`은 `nil`이고 스윙 수는 아직 확정되지 않았습니다. 근거: [SPEC-0125](../07-기획/SPEC-0125-crash-recovery.md)
 
 ### 저장 전략
 
