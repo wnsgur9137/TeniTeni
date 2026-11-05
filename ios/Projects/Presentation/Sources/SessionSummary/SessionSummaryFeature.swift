@@ -48,9 +48,13 @@ public struct SessionSummaryFeature {
         /// 스윙이 하나도 없으면 요약이 아니라 **진단**이다.
         ///
         /// 빈 요약을 보여주면 사용자는 앱이 고장났다고 판단한다 — IA-FLOW.
+        ///
+        /// ⚠️ **복구된 세션은 제외한다.** `Session.needsDiagnosis`가 그
+        /// 판정을 들고 있다 — 여기와 뷰가 각각 조건을 적고 있어서 한쪽만
+        /// 고치면 어긋났다.
         public var isDiagnosis: Bool {
             guard case .loaded(let session) = phase else { return false }
-            return session.swingCount == 0
+            return session.needsDiagnosis
         }
     }
 
