@@ -21,27 +21,34 @@ private struct SpyFileStore: ClipFileStore {
     func remove(fileName: String) async { await journal.add("file:\(fileName)") }
 }
 
-private struct SpyRepository: SessionRepository, Sendable {
+/// ⚠️ **`load`가 실제로 읽는다.** 유스케이스가 실행 직전에 레코드를 다시
+/// 읽기 때문이다 — 확인을 띄운 사이에 세션이 바뀌면 들고 있던 스냅샷으로
+/// 저장하면 안 된다. `nil`을 주는 가짜를 쓰면 그 경로가 검증되지 않는다.
+private actor SpyRepository: SessionRepository {
     let journal: Journal
     let deleteFails: Bool
+    private var stored: [UUID: Session]
 
     struct Boom: LocalizedError, Equatable {
         var errorDescription: String? { "디스크를 쓸 수 없습니다" }
     }
 
-    init(journal: Journal, deleteFails: Bool = false) {
+    init(journal: Journal, stored: [Session] = [], deleteFails: Bool = false) {
         self.journal = journal
         self.deleteFails = deleteFails
+        self.stored = Dictionary(uniqueKeysWithValues: stored.map { ($0.id, $0) })
     }
 
     func save(_ session: Session) async throws {
         await journal.add("save:\(session.clips.count)")
+        stored[session.id] = session
     }
-    func load(id: UUID) async throws -> Session? { nil }
-    func loadAll() async throws -> [Session] { [] }
+    func load(id: UUID) async throws -> Session? { stored[id] }
+    func loadAll() async throws -> [Session] { Array(stored.values) }
     func delete(id: UUID) async throws {
         await journal.add("record")
         if deleteFails { throw Boom() }
+        stored[id] = nil
     }
 }
 
@@ -79,9 +86,13 @@ private func unfinished(clips: [Clip] = []) -> Session {
 @Suite("세션 복구")
 struct RecoverSessionUseCaseTests {
 
-    private func useCase(_ journal: Journal, _ found: [OrphanClip]) -> RecoverSessionUseCase {
+    /// `stored`를 명시하지 않으면 **인자로 넘기는 세션이 저장소에도 있다고**
+    /// 둔다. 유스케이스가 실행 직전 다시 읽기 때문이다.
+    private func useCase(
+        _ journal: Journal, _ found: [OrphanClip], stored: [Session]? = nil
+    ) -> RecoverSessionUseCase {
         RecoverSessionUseCase(
-            repository: SpyRepository(journal: journal),
+            repository: SpyRepository(journal: journal, stored: stored ?? [unfinished()]),
             orphans: StubOrphans(found: found)
         )
     }
@@ -186,7 +197,8 @@ struct RecoverSessionUseCaseTests {
             clips: [Clip(fileName: "a.mov", recordedAt: start, fps: 120)]
         )
 
-        let outcome = try await useCase(journal, [orphan(9)]).execute(closed, now: recoveredAt)
+        let outcome = try await useCase(journal, [orphan(9)], stored: [closed])
+            .execute(closed, now: recoveredAt)
 
         #expect(outcome == .recovered(closed))
         #expect(await journal.entries.isEmpty)
@@ -197,9 +209,10 @@ struct RecoverSessionUseCaseTests {
     func 기존_클립() async throws {
         let journal = Journal()
         let existing = Clip(id: did(50), fileName: "old.mov", recordedAt: start, fps: 120)
+        let withClip = unfinished(clips: [existing])
 
-        let outcome = try await useCase(journal, [orphan(0)])
-            .execute(unfinished(clips: [existing]), now: recoveredAt)
+        let outcome = try await useCase(journal, [orphan(0)], stored: [withClip])
+            .execute(withClip, now: recoveredAt)
 
         guard case .recovered(let session) = outcome else {
             Issue.record("복구되지 않았다"); return
@@ -213,10 +226,13 @@ struct RecoverSessionUseCaseTests {
 struct DiscardSessionUseCaseTests {
 
     private func useCase(
-        _ journal: Journal, _ found: [OrphanClip], deleteFails: Bool = false
+        _ journal: Journal, _ found: [OrphanClip],
+        stored: [Session]? = nil, deleteFails: Bool = false
     ) -> DiscardSessionUseCase {
         DiscardSessionUseCase(
-            repository: SpyRepository(journal: journal, deleteFails: deleteFails),
+            repository: SpyRepository(
+                journal: journal, stored: stored ?? [unfinished()], deleteFails: deleteFails
+            ),
             files: SpyFileStore(journal: journal),
             orphans: StubOrphans(found: found)
         )
@@ -252,8 +268,9 @@ struct DiscardSessionUseCaseTests {
     func 합집합() async throws {
         let journal = Journal()
         let known = Clip(fileName: "known.mov", recordedAt: start, fps: 120)
+        let withClip = unfinished(clips: [known])
 
-        try await useCase(journal, [orphan(0)]).execute(unfinished(clips: [known]))
+        try await useCase(journal, [orphan(0)], stored: [withClip]).execute(withClip)
 
         #expect(await journal.entries == [
             "file:known.mov",
@@ -268,8 +285,9 @@ struct DiscardSessionUseCaseTests {
     func 중복() async throws {
         let journal = Journal()
         let known = Clip(fileName: "20231114-221320-0.mov", recordedAt: start, fps: 120)
+        let withClip = unfinished(clips: [known])
 
-        try await useCase(journal, [orphan(0)]).execute(unfinished(clips: [known]))
+        try await useCase(journal, [orphan(0)], stored: [withClip]).execute(withClip)
 
         #expect(await journal.entries == ["file:20231114-221320-0.mov", "record"])
     }
@@ -291,12 +309,158 @@ struct DiscardSessionUseCaseTests {
     @Test("레코드 삭제가 실패해도 파일은 지워진 상태다")
     func 레코드_실패() async {
         let journal = Journal()
-        let useCase = useCase(journal, [orphan(0)], deleteFails: true)
+        let useCase = useCase(journal, [orphan(0)], stored: nil, deleteFails: true)
 
         await #expect(throws: SpyRepository.Boom.self) {
             try await useCase.execute(unfinished())
         }
         #expect(await journal.entries == ["file:20231114-221320-0.mov", "record"])
+    }
+}
+
+/// 독립 리뷰가 찾은 경로들. **전부 "확인을 띄운 뒤 세계가 바뀐다"는
+/// 한 가지 성질에서 나온다.**
+///
+/// 근거: PR #145 리뷰
+@Suite("복구·폐기 — 확인 뒤에 바뀐 상태")
+struct StaleStateTests {
+
+    /// ⚠️ 들고 있던 스냅샷으로 저장하면 **분석이 끝난 세션의 `endedAt`과
+    /// 스윙이 추정값으로 덮인다.** #126이 삭제에서 세운 "확인 뒤 다시
+    /// 찾는다"와 같은 이유다.
+    @Test("확인하는 사이에 세션이 닫혔으면 복구가 덮지 않는다")
+    func 복구_중_닫힘() async throws {
+        let journal = Journal()
+        let snapshot = unfinished()
+        // 저장소에는 **이미 닫힌** 세션이 있다.
+        let closed = Session(
+            id: did(0), startedAt: start, endedAt: start.addingTimeInterval(300),
+            situation: .ballMachine, fps: 120,
+            clips: [Clip(
+                fileName: "real.mov", recordedAt: start, fps: 120,
+                swings: [Swing(startSeconds: 0, endSeconds: 1, impactSeconds: 0.5)]
+            )]
+        )
+        let useCase = RecoverSessionUseCase(
+            repository: SpyRepository(journal: journal, stored: [closed]),
+            orphans: StubOrphans(found: [orphan(0)])
+        )
+
+        let outcome = try await useCase.execute(snapshot, now: recoveredAt)
+
+        #expect(outcome == .recovered(closed))
+        // 저장하지 않았다 — 스윙이 살아 있다.
+        #expect(await journal.entries.isEmpty)
+    }
+
+    /// 사용자가 다른 경로로 지웠다는 뜻이다. 되살리면 지운 것이 돌아온다.
+    @Test("레코드가 사라졌으면 되살리지 않는다")
+    func 복구_중_삭제() async throws {
+        let journal = Journal()
+        let useCase = RecoverSessionUseCase(
+            repository: SpyRepository(journal: journal, stored: []),
+            orphans: StubOrphans(found: [orphan(0)])
+        )
+
+        let outcome = try await useCase.execute(unfinished(), now: recoveredAt)
+
+        #expect(outcome == .nothingToRecover)
+        #expect(await journal.entries.isEmpty)
+    }
+
+    /// ⚠️ **되돌릴 수 없다.** 분석이 끝난 스윙과 그 영상이 사라진다.
+    @Test("확인하는 사이에 세션이 닫혔으면 폐기하지 않는다")
+    func 폐기_중_닫힘() async throws {
+        let journal = Journal()
+        let closed = Session(
+            id: did(0), startedAt: start, endedAt: start.addingTimeInterval(300),
+            situation: .ballMachine, fps: 120,
+            clips: [Clip(fileName: "real.mov", recordedAt: start, fps: 120)]
+        )
+        let useCase = DiscardSessionUseCase(
+            repository: SpyRepository(journal: journal, stored: [closed]),
+            files: SpyFileStore(journal: journal),
+            orphans: StubOrphans(found: [orphan(0)])
+        )
+
+        let outcome = try await useCase.execute(unfinished())
+
+        #expect(outcome == .alreadyClosed)
+        // 파일도 레코드도 건드리지 않았다.
+        #expect(await journal.entries.isEmpty)
+    }
+
+    /// 파일명 접두사는 **초 단위**다(`"yyyyMMdd-HHmmss"`). 같은 초에 시작한
+    /// 두 세션은 접두사를 공유하고, 그러면 한쪽의 클립을 다른 쪽이 가져가
+    /// **원래 세션에서 조용히 사라진다.**
+    @Test("다른 세션이 아는 파일은 복구가 가져가지 않는다")
+    func 접두사_충돌_복구() async throws {
+        let journal = Journal()
+        let mine = unfinished()
+        // 같은 접두사의 파일을 **다른 세션이** 이미 들고 있다.
+        let other = Session(
+            id: did(1), startedAt: start, endedAt: start.addingTimeInterval(60),
+            situation: .rally, fps: 120,
+            clips: [Clip(fileName: "20231114-221320-1.mov", recordedAt: start, fps: 120)]
+        )
+        let useCase = RecoverSessionUseCase(
+            repository: SpyRepository(journal: journal, stored: [mine, other]),
+            orphans: StubOrphans(found: [orphan(0), orphan(1)])
+        )
+
+        let outcome = try await useCase.execute(mine, now: recoveredAt)
+
+        guard case .recovered(let session) = outcome else {
+            Issue.record("복구되지 않았다"); return
+        }
+        // 1번은 남의 것이다.
+        #expect(session.clips.map(\.fileName) == ["20231114-221320-0.mov"])
+    }
+
+    /// ⚠️ 지우면 **사용자가 폐기하지 않은 영상이 사라진다.**
+    @Test("다른 세션이 아는 파일은 폐기가 지우지 않는다")
+    func 접두사_충돌_폐기() async throws {
+        let journal = Journal()
+        let mine = unfinished()
+        let other = Session(
+            id: did(1), startedAt: start, endedAt: start.addingTimeInterval(60),
+            situation: .rally, fps: 120,
+            clips: [Clip(fileName: "20231114-221320-1.mov", recordedAt: start, fps: 120)]
+        )
+        let useCase = DiscardSessionUseCase(
+            repository: SpyRepository(journal: journal, stored: [mine, other]),
+            files: SpyFileStore(journal: journal),
+            orphans: StubOrphans(found: [orphan(0), orphan(1)])
+        )
+
+        try await useCase.execute(mine)
+
+        #expect(await journal.entries == ["file:20231114-221320-0.mov", "record"])
+    }
+
+    /// 파일 시각은 파일시스템 시계, 세션 시작은 벽시계다. 기기 시각이
+    /// 조정되면 클립이 세션보다 **이르게** 찍히고 `duration`이 음수가 된다.
+    @Test("endedAt은 startedAt보다 이를 수 없다")
+    func 시각_역전() async throws {
+        let journal = Journal()
+        // 클립이 세션 시작 **10분 전**으로 찍혔다.
+        let earlier = OrphanClip(
+            fileName: "20231114-221320-0.mov", index: 0,
+            recordedAt: start.addingTimeInterval(-600), fps: 120
+        )
+        let useCase = RecoverSessionUseCase(
+            repository: SpyRepository(journal: journal, stored: [unfinished()]),
+            orphans: StubOrphans(found: [earlier])
+        )
+
+        let outcome = try await useCase.execute(unfinished(), now: recoveredAt)
+
+        guard case .recovered(let session) = outcome else {
+            Issue.record("복구되지 않았다"); return
+        }
+        #expect(session.endedAt == start)
+        let duration = try #require(session.duration)
+        #expect(duration >= 0, "duration이 음수다: \(duration)")
     }
 }
 

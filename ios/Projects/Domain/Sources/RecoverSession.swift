@@ -94,13 +94,28 @@ public struct RecoverSessionUseCase: Sendable {
     /// 시각은 아무도 모르고, `now`를 쓰면 어제 죽은 세션의 `duration`이
     /// 하루가 된다 — 보관함과 세션 비교가 그 값을 읽는다.
     public func execute(_ session: Session, now: Date) async throws -> Outcome {
-        guard session.isUnfinished else {
+        // ★ **확인을 띄운 뒤 레코드가 바뀔 수 있다.** 들고 있던 스냅샷으로
+        //   저장하면 그 사이의 변경을 덮는다 — 분석이 끝난 세션의
+        //   `endedAt`과 스윙이 추정값으로 바뀐다. #126이 삭제에서 세운
+        //   "확인 뒤 다시 찾는다"와 같은 이유다.
+        let stored = try await repository.load(id: session.id)
+        guard let current = stored else {
+            // 레코드가 사라졌다. 사용자가 다른 경로로 지웠다는 뜻이므로
+            // 되살리지 않는다.
+            return .nothingToRecover
+        }
+        guard current.isUnfinished else {
             // 이미 닫힌 세션이다. 복구할 것이 없다 — 덮어쓰면 멀쩡한
             // `endedAt`을 추정값으로 바꾼다.
-            return .recovered(session)
+            return .recovered(current)
         }
 
-        let found = await orphans.orphans(for: session)
+        // 다른 세션이 아는 파일은 가져오지 않는다. 접두사는 **초 단위**라
+        // 같은 초에 시작한 두 세션이 접두사를 공유할 수 있고, 그러면 한쪽의
+        // 클립을 다른 쪽이 가져간다 — 원래 세션에서 조용히 사라진다.
+        let taken = try await claimedFileNames(excluding: current.id)
+        let found = await orphans.orphans(for: current)
+            .filter { !taken.contains($0.fileName) }
         guard !found.isEmpty else { return .nothingToRecover }
 
         let clips = found
@@ -114,14 +129,29 @@ public struct RecoverSessionUseCase: Sendable {
                 )
             }
 
-        var recovered = session
+        var recovered = current
         recovered.clips += clips
         // 마지막 클립이 찍힌 시각. `now`가 아니다 — 위 주석을 보라.
-        recovered.endedAt = clips.map(\.recordedAt).max() ?? session.startedAt
+        //
+        // ⚠️ **`startedAt`을 하한으로 둔다.** 파일 시각은 파일시스템
+        //   시계이고 세션 시작은 벽시계다. 기기 시각이 조정되면 클립이
+        //   세션보다 이르게 찍혀 `duration`이 **음수**가 된다.
+        let last = clips.map(\.recordedAt).max() ?? current.startedAt
+        recovered.endedAt = max(current.startedAt, last)
         recovered.recoveredAt = now
 
         try await repository.save(recovered)
         return .recovered(recovered)
+    }
+
+    /// 다른 세션의 레코드가 이미 들고 있는 파일 이름.
+    private func claimedFileNames(excluding id: UUID) async throws -> Set<String> {
+        Set(
+            try await repository.loadAll()
+                .lazy
+                .filter { $0.id != id }
+                .flatMap { $0.clips.map(\.fileName) }
+        )
     }
 }
 
@@ -143,6 +173,14 @@ public struct RecoverSessionUseCase: Sendable {
 ///
 /// 근거: docs/07-기획/SPEC-0125-crash-recovery.md 선택지 5
 public struct DiscardSessionUseCase: Sendable {
+
+    /// 폐기 결과.
+    public enum Outcome: Equatable, Sendable {
+        case discarded
+        /// ⚠️ **그 사이에 세션이 닫혔다.** 폐기하지 않았다 — 분석이 끝난
+        /// 세션을 지우게 된다. 호출부가 다시 물어야 한다.
+        case alreadyClosed
+    }
 
     private let repository: any SessionRepository
     private let files: any ClipFileStore
@@ -167,21 +205,39 @@ public struct DiscardSessionUseCase: Sendable {
         await fileNames(session).count
     }
 
-    public func execute(_ session: Session) async throws {
+    @discardableResult
+    public func execute(_ session: Session) async throws -> Outcome {
+        // ★ **확인을 띄운 뒤 레코드가 바뀔 수 있다.** 닫힌 세션을 폐기하면
+        //   분석이 끝난 스윙과 그 영상이 사라지고 되돌릴 수 없다.
+        if let current = try await repository.load(id: session.id), !current.isUnfinished {
+            return .alreadyClosed
+        }
+
         // ★ 파일 먼저.
         for fileName in await fileNames(session) {
             await files.remove(fileName: fileName)
         }
         try await repository.delete(id: session.id)
+        return .discarded
     }
 
     /// 레코드가 아는 것과 디스크에만 있는 것의 **합집합.** 둘 다 지운다 —
     /// 어느 한쪽만 보면 남는 것이 생긴다.
     private func fileNames(_ session: Session) async -> [String] {
         var names = session.clips.map(\.fileName)
-        let known = Set(names)
-        for orphan in await orphans.orphans(for: session) where !known.contains(orphan.fileName) {
+        var seen = Set(names)
+        // 다른 세션이 아는 파일은 **지우지 않는다.** 접두사가 초 단위라
+        // 같은 초에 시작한 세션의 클립이 걸릴 수 있고, 그것을 지우면
+        // 사용자가 폐기하지 않은 영상이 사라진다.
+        let claimed = (try? await repository.loadAll())?
+            .lazy
+            .filter { $0.id != session.id }
+            .flatMap { $0.clips.map(\.fileName) } ?? []
+        seen.formUnion(claimed)
+
+        for orphan in await orphans.orphans(for: session) where !seen.contains(orphan.fileName) {
             names.append(orphan.fileName)
+            seen.insert(orphan.fileName)
         }
         return names
     }
