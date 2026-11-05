@@ -39,19 +39,30 @@ public struct LibraryFeature {
         /// 확인을 기다리는 삭제. **되돌리기가 없으므로 이 다이얼로그가
         /// 유일한 안전장치다**(SPEC-0126 선택지 3).
         @Presents public var deleting: DeleteTarget?
+        /// 끝나지 않은 세션의 복구 / 폐기 시트.
+        ///
+        /// **모달이 아니라 행에서 올라온다.** 앱 시작 즉시 묻지 않는
+        /// 이유는 IA-FLOW 10.6에 적었다 — 사용자가 요청하지 않은 결정을
+        /// 강요하고, 미루면 매 실행 뜬다.
+        @Presents public var recovering: RecoverTarget?
         /// 지우다 실패했다. 사유를 보여준다 — 조용히 넘기면 사용자는
         /// 지워진 줄 안다.
+        ///
+        /// **복구·폐기 실패도 여기 적는다.** 배너를 따로 두면 같은 자리에
+        /// 둘이 겹칠 수 있다.
         public var deleteFailure: String?
 
         public init(
             phase: Phase = .loading,
             availability: [UUID: ClipAvailability] = [:],
             deleting: DeleteTarget? = nil,
+            recovering: RecoverTarget? = nil,
             deleteFailure: String? = nil
         ) {
             self.phase = phase
             self.availability = availability
             self.deleting = deleting
+            self.recovering = recovering
             self.deleteFailure = deleteFailure
         }
 
@@ -91,6 +102,19 @@ public struct LibraryFeature {
         case deleteCancelled
         case deleteFinished(Result<UUID, DeleteError>)
         case deleteFailureDismissed
+
+        /// 끝나지 않은 세션 행을 눌렀다. 요약이 아니라 **시트**를 띄운다.
+        case recoverRequested(UUID)
+        /// 디스크 스캔이 끝났다. 시트가 그려진 **뒤에** 온다.
+        case orphansCounted(UUID, Int)
+        case recoverConfirmed
+        case discardConfirmed
+        case recoverDismissed
+        /// 복구 결과. 성공하면 목록을 다시 읽는다 — 그 세션의 클립 수와
+        /// 스윙 수가 바뀌었다.
+        case recoverFinished(Result<UUID, DeleteError>)
+        case discardFinished(Result<UUID, DeleteError>)
+
         /// 빈 상태의 "촬영하러 가기".
         case captureTapped
         case delegate(Delegate)
@@ -113,15 +137,22 @@ public struct LibraryFeature {
     private let repository: any SessionRepository
     private let locator: ClipLocator
     private let files: any ClipFileStore
+    private let orphans: any OrphanClipStore
+    /// `recoveredAt`에 넣을 시각. 테스트가 고정값을 준다.
+    private let now: @Sendable () -> Date
 
     public init(
         repository: any SessionRepository,
         locator: ClipLocator = ClipLocator(),
-        files: any ClipFileStore = DocumentsClipFileStore()
+        files: any ClipFileStore = DocumentsClipFileStore(),
+        orphans: any OrphanClipStore = DocumentsOrphanClipStore(),
+        now: @escaping @Sendable () -> Date = { Date() }
     ) {
         self.repository = repository
         self.locator = locator
         self.files = files
+        self.orphans = orphans
+        self.now = now
     }
 
     public var body: some ReducerOf<Self> {
@@ -159,7 +190,11 @@ public struct LibraryFeature {
                     let checked = await Task.detached(priority: .utility) {
                         var result: [UUID: ClipAvailability] = [:]
                         result.reserveCapacity(sorted.count)
-                        for session in sorted {
+                        // ★ **끝나지 않은 세션은 건너뛴다.** 레코드의
+                        //   클립이 0개라 그대로 태우면 "영상이 없습니다"가
+                        //   뜨고, 같은 행의 "복구할 수 있습니다"와
+                        //   모순된다 — 영상은 디스크에 있다.
+                        for session in sorted where !session.isUnfinished {
                             result[session.id] = ClipAvailability.of(session, locator: locator)
                         }
                         return result
@@ -180,7 +215,113 @@ public struct LibraryFeature {
                 return .none
 
             case .sessionTapped(let id):
+                // 끝나지 않은 세션은 요약으로 보내지 않는다 — 보여줄
+                // 클립이 레코드에 없다. **리듀서가 가른다**: 뷰에 맡기면
+                // 다른 입구가 생길 때 빠뜨린다.
+                if case .loaded(let sessions) = state.phase,
+                   let session = sessions.first(where: { $0.id == id }),
+                   session.isUnfinished {
+                    return .send(.recoverRequested(id))
+                }
                 return .send(.delegate(.sessionTapped(id)))
+
+            case .recoverRequested(let id):
+                guard case .loaded(let sessions) = state.phase,
+                      let session = sessions.first(where: { $0.id == id }),
+                      session.isUnfinished
+                else { return .none }
+                // 시트를 **먼저** 띄우고 숫자는 나중에 채운다. 목록이
+                // 확인 전에 그려지는 것과 같은 순서다.
+                state.recovering = RecoverTarget(session, whenText: Self.whenText(session.startedAt))
+                let orphans = orphans
+                return .run { send in
+                    await send(.orphansCounted(id, await orphans.orphans(for: session).count))
+                }
+
+            case .orphansCounted(let id, let count):
+                // 그 사이에 시트를 닫았거나 다른 세션을 열었으면 버린다.
+                guard state.recovering?.sessionID == id else { return .none }
+                state.recovering?.clipCount = count
+                return .none
+
+            case .recoverDismissed:
+                state.recovering = nil
+                return .none
+
+            case .recoverConfirmed:
+                guard let target = state.recovering,
+                      case .loaded(let sessions) = state.phase,
+                      // 시트를 띄운 뒤 목록이 바뀔 수 있다. 다시 찾는다.
+                      let session = sessions.first(where: { $0.id == target.sessionID })
+                else {
+                    state.recovering = nil
+                    return .none
+                }
+                state.recovering = nil
+                let recover = RecoverSessionUseCase(repository: repository, orphans: orphans)
+                let now = now
+                return .run { send in
+                    do {
+                        switch try await recover.execute(session, now: now()) {
+                        case .recovered:
+                            await send(.recoverFinished(.success(session.id)))
+                        case .nothingToRecover:
+                            // 시트를 띄운 뒤 파일이 사라졌다. 조용히 넘기면
+                            // 사용자는 복구된 줄 안다.
+                            await send(.recoverFinished(.failure(
+                                Action.DeleteError(reason: "영상을 찾지 못했습니다")
+                            )))
+                        }
+                    } catch {
+                        await send(.recoverFinished(.failure(
+                            Action.DeleteError(reason: error.localizedDescription)
+                        )))
+                    }
+                }
+
+            case .discardConfirmed:
+                guard let target = state.recovering,
+                      case .loaded(let sessions) = state.phase,
+                      let session = sessions.first(where: { $0.id == target.sessionID })
+                else {
+                    state.recovering = nil
+                    return .none
+                }
+                state.recovering = nil
+                let discard = DiscardSessionUseCase(
+                    repository: repository, files: files, orphans: orphans
+                )
+                return .run { send in
+                    do {
+                        try await discard.execute(session)
+                        await send(.discardFinished(.success(session.id)))
+                    } catch {
+                        // ⚠️ **파일은 이미 지워졌다.** 되돌리지 않는다 —
+                        //    #126과 같은 결정이다.
+                        await send(.discardFinished(.failure(
+                            Action.DeleteError(reason: error.localizedDescription)
+                        )))
+                    }
+                }
+
+            case .recoverFinished(.success):
+                // 목록을 다시 읽는다. 그 세션의 클립 수·스윙 수가 바뀌었고,
+                // 손으로 고치면 두 곳이 어긋난다.
+                return .send(.appeared)
+
+            case .recoverFinished(.failure(let error)):
+                state.deleteFailure = "복구하지 못했습니다 — \(error.reason)"
+                return .none
+
+            case .discardFinished(.success(let id)):
+                guard case .loaded(let sessions) = state.phase else { return .none }
+                state.phase = .loaded(sessions.filter { $0.id != id })
+                state.availability[id] = nil
+                return .none
+
+            case .discardFinished(.failure(let error)):
+                state.deleteFailure = "폐기하지 못했습니다 — \(error.reason)"
+                return .none
 
             case .deleteRequested(let id):
                 // **아직 지우지 않는다.** 지울 것을 적어서 보여주고 묻는다.
@@ -251,6 +392,16 @@ public struct LibraryFeature {
 
     /// 확인 다이얼로그에 적는 날짜. 뷰의 포매터를 쓰지 않는다 — 리듀서가
     /// 만든 문구를 뷰가 그대로 그려야 테스트가 그 문구를 고정할 수 있다.
+    /// 복구 시트의 "11월 5일 · 09:12". 날짜만 쓰는 `dateText`와 달리
+    /// **시각까지 적는다** — 같은 날 여러 번 찍으면 날짜만으로는 어느
+    /// 세션인지 알 수 없다.
+    static func whenText(_ date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "ko_KR")
+        formatter.dateFormat = "M월 d일 · HH:mm"
+        return formatter.string(from: date)
+    }
+
     static func dateText(_ date: Date) -> String {
         let formatter = DateFormatter()
         formatter.locale = Locale(identifier: "ko_KR")
