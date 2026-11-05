@@ -69,9 +69,9 @@ public func finish(at endedAt: Date) async throws -> Session {
 
 | 무엇 | 어디 |
 |---|---|
-| 촬영 시작 시 세션 레코드를 연다 (`endedAt == nil`) | `SessionBuilder.start()` · `SwingPipeline.open(at:)` |
+| 촬영 시작 시 세션 레코드를 연다 (`endedAt == nil`) | `SwingPipeline.begin` — **`open(at:)`이 아니다**(아래 1번) |
 | 끝나지 않은 세션 판정 | `SessionRepository` 소비 측 — 미완 세션은 `endedAt == nil` |
-| 고아 `.mov`를 세션에 묶는다 | 레코드의 `startedAt` → `stamp(for:)` → 파일명 접두사 |
+| 고아 `.mov`를 세션에 묶는다 | `OrphanClipStore`(`Domain` 선언 · `Presentation` 구현) |
 | 복구 — 세션을 닫고 클립을 붙인다 | `RecoverSessionUseCase` (`Domain`) |
 | 폐기 — 레코드와 파일을 지운다 | `DiscardSessionUseCase` (`Domain`) |
 | 보관함이 미완 세션을 다른 행으로 보여준다 | `LibraryFeature` · 복구/폐기 시트 |
@@ -103,23 +103,38 @@ public func finish(at endedAt: Date) async throws -> Session {
 2. **A의 실패가 더 나쁩니다.** 상황을 잘못 고르면 오류도 경고도 없이 룰 판정이 틀립니다. 조용히 틀린 지표는 빈 지표보다 나쁩니다.
 3. **스키마를 바꾸지 않습니다.** `endedAt`은 도메인(`Session.swift:8`)과 SwiftData 모델(`SessionModels.swift:18`)에 **이미 있습니다.** 쓰는 쪽이 `duration` 계산뿐이었을 뿐입니다.
 
-#### 어디에 넣는가
+#### 어디에 넣는가 — `open(at:)`이 아니라 `begin`이다
 
-`SwingPipeline.open(at:)`이 세션을 여는 유일한 지점이고, 거기서 `SessionBuilder`가 만들어집니다. 그 직후에 `start()`를 부릅니다.
+처음에는 `SwingPipeline.open(at:)`(세션을 여는 지점)에 적었습니다. **그 자리는 안 됩니다.**
+
+`open(at:)`은 `handle`의 핫 패스에서 불립니다.
 
 ```swift
-// SwingPipeline.open(at:) — 첫 프레임의 PTS를 원점으로 세션을 연다
-if let repository = storage.repository {
-    builder = SessionBuilder(startedAt: pending.startedAt, clockOrigin: seconds, ...)
-    // ★ 레코드를 먼저 연다. 여기서 죽으면 레코드가 남아 복구할 수 있다.
-}
+func handle(_ frame: ReadyFrame, pose: PoseFrame?) async -> SwingSnapshot {
+    if recorder == nil { open(at: frame.seconds) }   // :166 — 매 프레임 검사
 ```
+
+`SessionBuilder`는 actor라 `start()`에 `await`가 필요하고, `open(at:)`을 `async`로 바꾸면 **`handle` 안에 `await`가 하나 늘어납니다.** 그 위험은 이 파일이 이미 경고합니다.
+
+> 토큰이 없으면 `end()`가 닫은 세션이 `handle`의 뒤늦은 쓰기로 **되살아나고**, 그 뒤의 모든 녹화가 첫 세션 id로 덮여 레코드가 사라진다.
+
+그리고 `processTrigger`에는 *"`await`가 없다. 그래서 그 사이에 `end()`가 끼어들 틈이 없다"*고 적혀 있습니다.
+
+**`begin`에서 엽니다.** 근거 셋입니다.
+
+1. **레코드에 `clockOrigin`이 들어가지 않습니다.** `open`이 첫 프레임을 기다리는 이유가 프레임 시계 원점인데(`begin`의 주석 — "여기서 세션을 만들지 않는다. 프레임 시계의 원점을 아직 모른다"), `Session`에는 그 필드가 없습니다. 레코드를 여는 데 필요한 것은 `id`·`startedAt`·`situation`·`observable`·`fps`뿐이고 **전부 `begin`의 인자**입니다.
+2. **`begin`은 세션당 한 번 불립니다.** 재진입 창이 매 프레임이 아니라 한 번입니다.
+3. **호출부가 바뀌지 않습니다.** `CameraController.swift:985`가 이미 `await pipeline.begin(`입니다.
+
+`id`는 `begin`에서 만들어 `Pending`에 담고, `open`이 `SessionBuilder(id:)`로 넘깁니다 — 그래야 **열 때와 닫을 때가 같은 레코드**입니다.
+
+> 덧이득: 첫 프레임이 오기 전에 죽어도 레코드가 남습니다. 그 세션은 `.mov`가 0개이므로 복구할 것이 없고 **폐기만 제안합니다.**
 
 #### 저장이 실패하면 녹화를 막지 않습니다
 
 `start()`가 던지면 `failure`에 담고 **계속 녹화합니다.** 근거는 이미 코드에 적혀 있습니다 — "저장소가 없어도 레코더는 만든다. 클립 파일은 디스크에 남아 복구할 수 있지만, 안 만들면 그조차 없다."
 
-레코드를 못 열어도 `.mov`는 남습니다. 그 파일은 아래 4번에서 **폐기 대상**이 됩니다.
+레코드를 못 열어도 `.mov`는 남습니다. 그 파일은 아래 5번에서 **폐기 대상**이 됩니다.
 
 ### 2. 고아 `.mov`를 묶는 방법 — 파일명 접두사가 이미 세션 id 역할을 한다
 
@@ -144,13 +159,51 @@ builder  = SessionBuilder(startedAt: pending.startedAt, ...)
 
 > ⚠️ **클립 파일은 `Documents` 평면에 있습니다.** 이슈 본문이 "세션 디렉터리의 고아 `.mov`"라고 적었지만 세션별 디렉터리는 없습니다 — `SwingPipeline`의 `directory`가 `URL.documentsDirectory`입니다.
 
+#### 스캔은 `Domain` 밖에서 한다
+
+[ARCHITECTURE 2.2](../02-설계/ARCHITECTURE.md)가 `Domain`을 **"순수 Swift, 의존성 0"**으로 정했고 실제로 `Domain/Sources`의 import는 `Foundation` 하나뿐입니다. 그런데 복구는 **디렉터리 스캔**과 **`.mov` 트랙 fps 읽기**(`AVFoundation`)를 요구합니다. 둘 다 `Domain`에 넣을 수 없습니다 — 앱 컨테이너 경로를 `Domain`이 아는 것도 같은 이유로 안 됩니다.
+
+`ClipFileStore`를 `Domain`이 **프로토콜로만** 선언하고 `DocumentsClipFileStore`를 `Presentation`에 둔 것과 같은 패턴을 씁니다.
+
+```swift
+// Domain — 선언만
+public protocol OrphanClipStore: Sendable {
+    /// 그 세션의 고아 클립. 파일명 접두사로 찾는다.
+    func orphans(for session: Session) async -> [OrphanClip]
+}
+
+public struct OrphanClip: Sendable, Equatable {
+    public let fileName: String
+    public let recordedAt: Date
+    public let fps: Int
+}
+```
+
+`Presentation`의 구현(`DocumentsOrphanClipStore`)이 접두사 계산·디렉터리 스캔·`AVAsset` 읽기를 전부 가져갑니다. 유스케이스는 `Domain`에 남습니다.
+
+이 가름은 테스트도 싸게 만듭니다 — **유스케이스 테스트에 실제 `.mov`가 필요 없어집니다.**
+
 #### 스캔은 맨 이름만 본다
 
 `DocumentsClipFileStore.isSafe(_:)`가 이미 같은 함정을 다룹니다(`../`·`sub/`·빈 이름). 스캔도 **하위 디렉터리로 내려가지 않고** `contentsOfDirectory`의 맨 이름만 봅니다. 접두사가 일치하고 확장자가 `.mov`인 것만 고릅니다.
 
 사이드카(`*.mov.overlay.json`)는 접두사가 같지만 확장자가 다르므로 걸리지 않습니다.
 
-### 3. 복구한 클립의 스윙 구간 — 비워 두고, 비웠다는 것을 레코드에 남긴다
+### 3. 복구한 클립의 `recordedAt`은 파일 생성 시각으로 둔다
+
+`Clip.recordedAt`은 옵셔널이 아닙니다. 파일명에는 `index`만 있고 시각이 없습니다.
+
+| 안 | 문제 |
+|---|---|
+| `session.startedAt`을 그대로 | 클립 n개가 **전부 같은 시각**이 된다. 보관함·리플레이 정렬이 무의미해진다 |
+| 파일의 `contentModificationDate` | 녹화가 **끝난** 시각이다. 정상 경로와 뜻이 다르다 |
+| **`creationDate`** ✅ | 녹화가 **시작된** 시각. 정상 경로와 뜻이 가장 가깝다 |
+
+> ⚠️ **정상 경로와 같은 값은 아닙니다.** 정상 경로의 `recordedAt`은 `sessionStartedAt + (프레임 시계 경과)`입니다(`SessionBuilder.clip(from:…)`). 복구 경로는 파일시스템 시계를 씁니다. 같은 뜻을 가리키지만 **값은 수십~수백 ms 다를 수 있습니다.** 스윙 구간이 없는 세션이라 그 차이가 분석에 쓰이지는 않습니다.
+
+속성을 읽지 못하면 `index` 순서를 유지하도록 `session.startedAt`에 `index`초를 더해 둡니다 — 정렬만 지키고 값은 신뢰하지 않습니다.
+
+### 4. 복구한 클립의 스윙 구간 — 비워 두고, 비웠다는 것을 레코드에 남긴다
 
 | 안 | 대가 |
 |---|---|
@@ -183,7 +236,7 @@ public var recoveredAt: Date?
 
 복구 화면과 보관함 행은 **"영상은 살렸고 스윙 구간은 없습니다"**를 명시합니다. 영상이 사용자가 잃은 것이고, 그것을 되찾는 것이 이 이슈의 가치입니다.
 
-### 4. 폐기 — #126의 삭제를 그대로 쓸 수 없다
+### 5. 폐기 — #126의 삭제를 그대로 쓸 수 없다
 
 [#126](https://github.com/wnsgur9137/TeniTeni/issues/126)의 `DeleteSessionUseCase`는 **레코드의 `clips`를 돌며** 파일을 지웁니다(`DeleteSession.swift`). 미완 세션의 레코드에는 **클립이 0개**입니다 — 촬영 중에는 레코드를 갱신하지 않기 때문입니다(위 "만들지 않을 것").
 
@@ -193,7 +246,9 @@ public var recoveredAt: Date?
 
 확인 문구에는 #126과 같이 **숫자를 적습니다** — "클립 3개". 스윙 수는 모르므로 적지 않습니다(분석하지 않았습니다).
 
-### 5. 언제 묻나 — 모달이 아니라 보관함의 행으로 보여준다
+> ⚠️ **그 숫자는 스캔 결과입니다.** 미완 세션의 레코드에는 클립이 0개이므로, `clips.count`로 구현하면 **항상 "클립 0개"로 뜹니다.** #126이 확인 문구를 "절차가 아니라 확인"으로 만든 근거가 그 숫자인데, 0개로 뜨면 그 근거가 무너집니다.
+
+### 6. 언제 묻나 — 모달이 아니라 보관함의 행으로 보여준다
 
 | 안 | 대가 |
 |---|---|
@@ -204,6 +259,16 @@ public var recoveredAt: Date?
 **보관함이 이미 같은 성격의 상태를 행으로 처리하는 선례입니다.** [#120](https://github.com/wnsgur9137/TeniTeni/issues/120)이 레코드-파일 불일치를 `"영상이 없습니다"` 행으로 보여줍니다([SPEC-0120](SPEC-0120-missing-clip.md)). 미완 세션도 레코드와 파일이 어긋난 상태이고, 같은 자리에서 같은 방식으로 말하는 것이 일관됩니다.
 
 그리고 **보관함은 "찍은 것이 살아 있다는 증거"**입니다([SPEC-0116](SPEC-0116-session-library.md)). 사용자가 "어제 찍은 거 어디 갔지?"를 확인하러 가는 곳이 거기입니다.
+
+#### 미완 세션은 `ClipAvailability` 판정을 건너뛴다
+
+[#120](https://github.com/wnsgur9137/TeniTeni/issues/120)이 보관함 행마다 파일 존재를 확인해 `"영상이 없습니다"`를 띄웁니다. 미완 세션의 레코드는 **클립이 0개**이므로, 그 판정을 그대로 태우면 `"영상이 없습니다"`와 `"복구할 수 있습니다"`가 **동시에** 뜰 수 있습니다. 둘은 모순입니다 — 영상은 디스크에 있습니다.
+
+미완 세션은 판정 대상에서 뺍니다. 그 행이 할 말은 "복구할 수 있습니다" 하나입니다.
+
+#### 목록에서 맨 위에 온다
+
+`LibraryFeature`는 `loadAll()`의 "최근 것부터"를 믿지 않고 **직접 정렬합니다**(`:146`). 미완 세션은 `endedAt`이 없으므로 정렬 키는 `startedAt`입니다. 가장 최근이라 맨 위에 오고, 그것이 맞습니다 — 사용자가 찾는 것이 그것입니다.
 
 > ⚠️ **IA-FLOW 10.6을 보정합니다.** 그 표의 화면 칸이 `"지난 세션이 끝나지 않았습니다"`로만 적혀 있어 전용 화면/모달로 읽힙니다. 이 기획서가 그것을 **보관함 행 + 복구/폐기 시트**로 바꿉니다. 문구 자체는 그대로 씁니다.
 
@@ -243,23 +308,31 @@ public var isUnfinished: Bool { endedAt == nil }
 
 전부 시뮬레이터 단위 테스트로 확인합니다.
 
-- [ ] `SessionBuilder.start()`가 `endedAt == nil`인 세션을 저장한다
+- [ ] `begin`이 `endedAt == nil`인 세션을 저장한다
 - [ ] `finish(at:)`이 **같은 id로** `endedAt`을 채워 덮는다 — 레코드가 2건이 되지 않는다
-- [ ] `start()`가 던져도 녹화가 계속된다 (`failure`에 담기고 레코더는 산다)
+- [ ] `begin`의 저장이 던져도 녹화가 계속된다 (`failure`에 담기고 레코더는 산다)
+- [ ] `open(at:)`은 **`async`가 되지 않는다** — `handle`의 `await` 개수가 늘지 않는다
 - [ ] 접두사 스캔이 **그 세션의 파일만** 고른다 — 다른 stamp의 `.mov`, 사이드카 `.json`, 하위 디렉터리의 파일을 섞어 두고 확인
+- [ ] 스캔·fps 읽기가 `OrphanClipStore` 구현에 있고 **`Domain`은 `Foundation`만 import한다**
 - [ ] 복구가 `endedAt`·`recoveredAt`을 채우고 클립 n개를 `index` 순서로 붙인다
 - [ ] 복구한 클립의 `fps`를 `.mov` 트랙에서 읽는다 — 세션 fps를 그대로 쓰지 않는다([ADR-0005](../05-결정/adr/ADR-0005-thermal-auto-adjust.md)의 강등을 걸친 세션이 틀어진다)
+- [ ] 복구한 클립의 `recordedAt`이 **클립마다 다르다** — 전부 같은 값이면 정렬이 무의미하다
 - [ ] 폐기가 **파일을 먼저** 지우고 레코드를 나중에 지운다 (호출 순서를 기록해 확인)
 - [ ] 폐기가 레코드에 없는 고아 파일까지 지운다
+- [ ] 폐기 확인 문구의 클립 수가 **스캔 결과**다 — 레코드의 `clips.count`(항상 0)가 아니다
 - [ ] 보관함이 미완 세션을 완료 세션과 **다른 행**으로 보여준다
+- [ ] 미완 세션 행에 `"영상이 없습니다"`가 **함께 뜨지 않는다**
+- [ ] 미완 세션이 목록 맨 위에 온다
 - [ ] `swingCount == 0`이고 `recoveredAt != nil`인 세션을 **진단 화면으로 보내지 않는다**
+- [ ] `.mov`가 0개인 미완 세션은 **폐기만 제안한다**
 - [ ] 미완 세션이 없으면 보관함이 지금과 똑같이 동작한다 (회귀)
 
 ## 검증 방법
 
 | 무엇 | 어떻게 |
 |---|---|
-| 레코드 열기·닫기 | `SessionBuilderTests` — 가짜 저장소가 `save` 호출을 기록 |
+| 레코드 열기·닫기 | `SwingPipelineTests`·`SessionBuilderTests` — 가짜 저장소가 `save` 호출을 기록 |
+| 복구·폐기 유스케이스 | 가짜 `OrphanClipStore`를 넣는다 — **실제 `.mov` 불필요** |
 | 접두사 스캔 | 임시 디렉터리에 파일을 깔고 확인. 실기기 불필요 |
 | 복구·폐기 순서 | `Journal` actor로 호출 순서 기록 — `DeleteSessionTests`의 방식을 그대로 |
 | 클립 fps 읽기 | 합성 `.mov`를 만들어 트랙 fps를 확인 (`SPEC-0091`의 합성 픽셀 버퍼 방식) |
