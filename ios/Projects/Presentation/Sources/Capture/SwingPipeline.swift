@@ -97,6 +97,9 @@ actor SwingPipeline {
     /// 녹화가 시작됐지만 아직 프레임이 오지 않았다. 세션 시계의 원점을
     /// **첫 프레임의 PTS**로 잡아야 하므로 그때까지 기다린다.
     private struct Pending {
+        /// `begin`에서 정한다. `open`이 `SessionBuilder`에 그대로 넘겨
+        /// **열 때와 닫을 때가 같은 레코드**가 되게 한다.
+        let id: UUID
         let startedAt: Date
         let handedness: Handedness
         let situation: CaptureSituation
@@ -105,6 +108,9 @@ actor SwingPipeline {
     }
 
     private var pending: Pending?
+    /// `begin`이 열어 둔 레코드의 id. `end`가 첫 프레임 전에 불렸을 때
+    /// 그 레코드를 지우기 위해 들고 있다.
+    private var openedSessionID: UUID?
     private var trigger: SwingTrigger?
     private var recorder: ClipRecorder<ReadyFrame>?
     /// 저장소가 없으면 `nil`이다. 그래도 **클립 파일은 쓴다** — 디스크에
@@ -133,30 +139,69 @@ actor SwingPipeline {
 
     var isRecording: Bool { pending != nil || recorder != nil }
 
-    /// 녹화 시작. **여기서 세션을 만들지 않는다** — 프레임 시계의 원점을
-    /// 아직 모른다. 첫 프레임에서 만든다.
+    /// 녹화 시작. **`SessionBuilder`는 여기서 만들지 않는다** — 프레임
+    /// 시계의 원점을 아직 모른다. 첫 프레임에서 만든다.
+    ///
+    /// 다만 **레코드는 여기서 연다.** 레코드에는 `clockOrigin`이 들어가지
+    /// 않으므로 첫 프레임을 기다릴 이유가 없다.
+    ///
+    /// ## 왜 `open(at:)`이 아닌가
+    ///
+    /// `open(at:)`은 `handle`의 핫 패스에서 불린다(`if recorder == nil`).
+    /// 저장은 `await`를 요구하므로 그것을 `open`에 넣으면 **매 프레임
+    /// 재진입 창이 열린다** — 이 파일이 세대 토큰으로 막는 바로 그 구멍이다.
+    /// `begin`은 세션당 한 번 불린다.
+    ///
+    /// 저장이 실패해도 **녹화를 막지 않는다.** 레코드를 못 열어도 `.mov`는
+    /// 남고, 안 만들면 그조차 없다.
+    ///
+    /// 근거: docs/07-기획/SPEC-0125-crash-recovery.md 선택지 1
     func begin(
         at startedAt: Date,
         handedness: Handedness,
         situation: CaptureSituation,
         observable: ObservationTarget,
         fps: Int
-    ) {
+    ) async {
         guard !isRecording else { return }
         generation += 1
+        let token = generation
         swingCount = 0
         clipCount = 0
         failure = nil
         writesDisabled = false
         // 세션 시작 시점의 실제값. 포맷을 아직 못 읽었으면 요청값으로 둔다.
         if effectiveFPS.value == nil { effectiveFPS.set(fps) }
+
+        let id = UUID()
+        // ★ `pending`을 **먼저** 세운다. 아래 `await` 중에 두 번째
+        //   `begin`이 들어오면 `isRecording`이 참이라 막힌다.
         pending = Pending(
+            id: id,
             startedAt: startedAt,
             handedness: handedness,
             situation: situation,
             observable: observable,
             fps: fps
         )
+        openedSessionID = id
+
+        guard let repository = storage.repository else { return }
+        do {
+            try await SessionBuilder.openRecord(
+                id: id,
+                startedAt: startedAt,
+                situation: situation,
+                observable: observable,
+                fps: fps,
+                repository: repository
+            )
+        } catch {
+            // 돌아왔을 때 이미 끝난 세션이면 실패를 적지 않는다 — 다음
+            // 녹화의 화면에 남은 세션의 오류가 뜬다.
+            guard token == generation else { return }
+            failure = "세션 열기 실패: \(error.localizedDescription)"
+        }
     }
 
     /// 프레임 하나를 흘린다. 포즈가 없는 프레임도 버퍼에는 담는다 —
@@ -201,13 +246,23 @@ actor SwingPipeline {
         guard isRecording else { return nil }
         generation += 1
         let token = generation
-        let closing = (recorder: recorder, builder: builder)
+        let closing = (recorder: recorder, builder: builder, sessionID: openedSessionID)
         pending = nil
         recorder = nil
         builder = nil
         trigger = nil
+        openedSessionID = nil
 
-        guard let recorder = closing.recorder else { return nil }
+        guard let recorder = closing.recorder else {
+            // 첫 프레임이 오기 전에 정지했다. **찍힌 것이 없으므로 레코드를
+            // 지운다** — 남기면 보관함에 "복구할 수 있습니다"가 뜨는데
+            // 복구할 영상이 하나도 없다. 녹화를 눌렀다 바로 끈 사용자에게
+            // 매번 그 행을 보여주게 된다.
+            if let id = closing.sessionID, let repository = storage.repository {
+                try? await repository.delete(id: id)
+            }
+            return nil
+        }
         droppedBacklog = await recorder.droppedBacklogCount
 
         if !writesDisabled {
@@ -252,6 +307,10 @@ actor SwingPipeline {
         )
         if let repository = storage.repository {
             builder = SessionBuilder(
+                // ★ `begin`이 연 레코드와 **같은 id**다. 다르면 `finish`가
+                //   레코드를 덮지 않고 하나 더 만들어, 미완 레코드가
+                //   영구히 남는다.
+                id: pending.id,
                 startedAt: pending.startedAt,
                 clockOrigin: seconds,
                 situation: pending.situation,
