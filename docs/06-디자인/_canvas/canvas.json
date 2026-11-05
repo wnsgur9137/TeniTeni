@@ -196,6 +196,22 @@
       "y": 3562,
       "w": 844,
       "h": 1265
+    },
+    {
+      "file": "LibraryUnfinished.dc.html",
+      "title": "보관함 · 끝나지 않은 세션",
+      "x": 2510,
+      "y": 2558,
+      "w": 390,
+      "h": 844
+    },
+    {
+      "file": "RecoverSheet.dc.html",
+      "title": "복구 / 폐기 시트",
+      "x": 3010,
+      "y": 2558,
+      "w": 390,
+      "h": 844
     }
   ],
   "annotations": [
