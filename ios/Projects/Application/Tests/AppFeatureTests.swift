@@ -542,8 +542,15 @@ struct CaptureFlowTests {
     /// 보낸다.
     @Test("보관함 탭으로 가면 목록을 다시 읽는다")
     func 보관함_재조회() async {
+        let start = Date(timeIntervalSince1970: 1_700_000_000)
         let stored = [
-            Session(startedAt: Date(timeIntervalSince1970: 1_700_000_000), situation: .rally, fps: 120)
+            // ⚠️ **닫아 둔다.** `endedAt == nil`은 "끝나지 않은 세션"을
+            // 뜻하고, 보관함이 그 행을 복구 대상으로 보여주며 결손 확인을
+            // 건너뛴다(#125). 여기는 정상적으로 끝난 세션이어야 한다.
+            Session(
+                startedAt: start, endedAt: start.addingTimeInterval(120),
+                situation: .rally, fps: 120
+            )
         ]
         let repo = InMemoryRepository()
         let sessions = StubSessionRepository(stored)
