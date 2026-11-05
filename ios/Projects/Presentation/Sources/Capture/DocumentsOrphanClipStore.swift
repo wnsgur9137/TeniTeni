@@ -66,16 +66,21 @@ public struct DocumentsOrphanClipStore: OrphanClipStore {
         for name in contents(directory).sorted() {
             guard !known.contains(name) else { continue }
             guard let index = Self.index(of: name, prefix: prefix) else { continue }
-            guard let probed = await probe(directory.appending(path: name)) else { continue }
+            let probed = await probe(directory.appending(path: name))
             found.append(
                 OrphanClip(
                     fileName: name,
                     index: index,
-                    recordedAt: probed.createdAt,
+                    // ★ **속성을 못 읽어도 버리지 않는다.** 버리면 그 파일은
+                    //   복구도 폐기도 되지 않는 **영구 고아**가 된다 —
+                    //   사용자가 지울 수단이 없다. 순서만 지키고 값은
+                    //   신뢰하지 않는다.
+                    recordedAt: probed?.createdAt
+                        ?? session.startedAt.addingTimeInterval(Double(index)),
                     // 못 읽으면 세션 시작 시점의 값으로 떨어진다. 발열
                     // 강등을 걸친 세션에서는 틀릴 수 있지만, 0이나 음수를
                     // 넣으면 재생 코드가 프레임 간격을 0으로 나눈다.
-                    fps: probed.fps.map { $0 > 0 ? $0 : session.fps } ?? session.fps
+                    fps: probed?.fps.map { $0 > 0 ? $0 : session.fps } ?? session.fps
                 )
             )
         }
@@ -104,11 +109,12 @@ public struct DocumentsOrphanClipStore: OrphanClipStore {
     ///
     /// `creationDate`를 쓰는 이유: `contentModificationDate`는 녹화가
     /// **끝난** 시각이고, 정상 경로의 `recordedAt`은 시작 시각이다.
+    /// `nil`을 주면 호출부가 **세션 시작 + index초**로 떨어뜨린다. 그
+    /// 파일을 버리지는 않는다 — 버리면 복구도 폐기도 못 하는 영구 고아가
+    /// 된다.
     public static func read(_ url: URL) async -> Probe? {
         let values = try? url.resourceValues(forKeys: [.creationDateKey, .contentModificationDateKey])
         guard let createdAt = values?.creationDate ?? values?.contentModificationDate else {
-            // 파일이 없거나 속성을 못 읽는다. 복구 대상으로 세지 않는다 —
-            // 시각을 모르면 목록에서 어디에 놓을지도 모른다.
             return nil
         }
 

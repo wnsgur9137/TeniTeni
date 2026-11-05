@@ -99,13 +99,42 @@ struct DocumentsOrphanClipStoreTests {
         }
     }
 
-    /// 시각을 모르면 목록에서 어디에 놓을지도 모른다.
-    @Test("파일 속성을 못 읽으면 복구 대상에서 뺀다")
+    /// ⚠️ **독립 리뷰가 찾은 것.** 버리면 그 파일은 복구도 폐기도 되지
+    /// 않는 **영구 고아**가 된다 — 사용자가 지울 수단이 없다. 기획서가
+    /// "`index` 순서를 유지하도록 `startedAt`에 `index`초를 더한다"로
+    /// 정했는데 구현이 버리고 있었다.
+    @Test("파일 속성을 못 읽어도 버리지 않고 순서를 지킨다")
     func 속성_실패() async {
-        let found = await store(["\(prefix)-0.mov"], probe: { _ in nil })
-            .orphans(for: unfinished())
+        let found = await store(
+            ["\(prefix)-0.mov", "\(prefix)-1.mov", "\(prefix)-2.mov"],
+            probe: { _ in nil }
+        ).orphans(for: unfinished())
 
-        #expect(found.isEmpty)
+        #expect(found.count == 3)
+        #expect(found.map(\.index) == [0, 1, 2])
+        // 시각이 index 순으로 벌어져 정렬이 살아 있다.
+        #expect(found.map(\.recordedAt) == [
+            start, start.addingTimeInterval(1), start.addingTimeInterval(2),
+        ])
+        // fps는 세션 값으로 떨어진다.
+        #expect(found.allSatisfy { $0.fps == 120 })
+    }
+
+    /// 일부만 읽히는 경우. 읽힌 것은 파일 값, 못 읽은 것은 폴백.
+    @Test("일부만 읽혀도 전부 복구 대상이다")
+    func 속성_일부_실패() async {
+        let found = await store(
+            ["\(prefix)-0.mov", "\(prefix)-1.mov"],
+            probe: { url in
+                url.lastPathComponent.hasSuffix("-0.mov")
+                    ? .init(createdAt: start.addingTimeInterval(500), fps: 60)
+                    : nil
+            }
+        ).orphans(for: unfinished())
+
+        #expect(found.count == 2)
+        #expect(found[0].fps == 60)
+        #expect(found[1].fps == 120)
     }
 
     @Test("디렉터리가 비어 있으면 빈 배열이다")
