@@ -16,6 +16,10 @@ final class SessionModel {
     @Attribute(.unique) var id: UUID
     var startedAt: Date
     var endedAt: Date?
+    /// 강제 종료 뒤 복구된 세션인가. **옵셔널 필드 추가는 SwiftData의
+    /// 경량 마이그레이션이 자동 처리한다** — 스키마 버전을 올리지 않는다.
+    /// 근거: docs/07-기획/SPEC-0125-crash-recovery.md 데이터 모델
+    var recoveredAt: Date?
     var situationRaw: String
     var observableRaw: String
     var fps: Int
@@ -28,6 +32,7 @@ final class SessionModel {
         id: UUID,
         startedAt: Date,
         endedAt: Date?,
+        recoveredAt: Date? = nil,
         situationRaw: String,
         observableRaw: String,
         fps: Int,
@@ -36,6 +41,7 @@ final class SessionModel {
         self.id = id
         self.startedAt = startedAt
         self.endedAt = endedAt
+        self.recoveredAt = recoveredAt
         self.situationRaw = situationRaw
         self.observableRaw = observableRaw
         self.fps = fps
@@ -148,6 +154,7 @@ extension SessionModel {
             id: session.id,
             startedAt: session.startedAt,
             endedAt: session.endedAt,
+            recoveredAt: session.recoveredAt,
             situationRaw: session.situation.rawValue,
             observableRaw: session.observable.rawValue,
             fps: session.fps,
@@ -192,6 +199,7 @@ extension SessionModel {
             id: id,
             startedAt: startedAt,
             endedAt: endedAt,
+            recoveredAt: recoveredAt,
             situation: situation,
             observable: observable,
             fps: fps,
